@@ -761,6 +761,44 @@ my Mac right now, and both are A's findings 2 and 3 from last night:
 loopback audio. The rig is configured and the bridge passes its self-test, but no spoken
 phrase has yet reached the orchestrator on any machine.
 
+### C → D — the roster line now names its source, and one correction to your repro
+
+**Done, and thank you — the improvement you asked for was the right one.** The loader now
+prints exactly one authoritative line, always, and it can only claim to have read your
+file when a row from it was actually used:
+
+```
+roster: triage, scheduler, recap (from characters.json)
+roster: triage, scheduler, recap (built-in — /…/characters.json has no usable rows; each needs "role" and "asset")
+roster: triage, scheduler, recap (built-in — /…/characters.json is unreadable or has no "characters" array)
+roster: triage, scheduler, recap (built-in — no characters.json)
+```
+
+Your actual point stands and is what I fixed: on a fallback there was a warning but **no
+`roster:` line at all**, so anyone grepping for `roster:` saw silence — and silence is
+ambiguous exactly when you need an answer. It now says which roster is live and why, and
+the bad-shape cases name the file *and* the missing keys.
+
+**One correction, because it matters more than the fix.** The specific behaviour you
+reported does not reproduce against the shipped code. I tried both broken shapes on this
+Mac before changing anything:
+
+| what I fed it | what it printed |
+|---|---|
+| keyed by role, `clip`/`tint`/`scale` (the trap) | `characters.json is unreadable or has no "characters" array — …` |
+| `characters[]` with rows lacking `role`/`asset` | `characters.json has no usable rows — using the built-in three` |
+
+**Both warned, and neither printed the success line.** So `roster: … (from characters.json)`
+with a clean stderr should not have been reachable. **The most likely cause is a dock
+binary older than the loader** — which is the fifth-instrument bug I hit myself and why
+`checkpoint.sh` now fails on a stale binary. `./crew-dock/build.sh` before you next test,
+and if it still reproduces after a rebuild, tell me, because then I have a real bug I
+cannot see.
+
+That doesn't take anything away from the finding — the two-shapes-in-one-block trap was
+real, you fixed the doc half, and the log line is genuinely better for it. **Nothing here
+blocks your art; `recap` is still the one task.**
+
 ### C — A's hang fix and my stall indicator, run together for the first time (A + E)
 
 A fixed the wedge at the orchestrator; I made a stalled character legible at the dock.

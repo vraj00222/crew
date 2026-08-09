@@ -28,22 +28,35 @@ struct Roster {
         Character(role: "recap",     asset: "walk-bruce-01", mirrored: true),
     ], activityRate: [:])
 
+    /// Loads the roster and states, in one line, **which** roster is in effect
+    /// and where it came from.
+    ///
+    /// It used to print `(from characters.json)` only on the happy path and a
+    /// warning on the others. D pointed out the real hazard in that: whoever is
+    /// editing the manifest greps for `roster:` and, on a fallback, sees
+    /// nothing — and silence is ambiguous in exactly the moment you need an
+    /// answer. So the line is unconditional and always names its source. The
+    /// claim "I read your file" is now only ever made when a row from it was
+    /// actually used.
     static func load() -> Roster {
-        // No manifest at all is a normal, quiet case — the built-in three are
-        // the truth today.
-        guard let url = manifestURL() else { return builtIn }
+        let (roster, source) = resolve()
+        let line = "roster: \(roster.characters.map(\.role).joined(separator: ", ")) (\(source))\n"
+        FileHandle.standardError.write(Data(line.utf8))
+        return roster
+    }
 
-        // A manifest that exists but can't be read is not quiet. Whoever is
-        // editing this file needs to know their edit did nothing, or they will
-        // change it, see no difference, and conclude the loader is ignoring them.
+    private static func resolve() -> (Roster, String) {
+        // No manifest at all is the normal case today, not a fault.
+        guard let url = manifestURL() else { return (builtIn, "built-in — no characters.json") }
+
+        // Note both of these say what to fix, not just that something is wrong:
+        // a bad manifest is edited by a person who needs to know which shape
+        // the loader wanted.
         guard let data = try? Data(contentsOf: url),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let rows = json["characters"] as? [[String: Any]]
         else {
-            let warning = "characters.json is unreadable or has no \"characters\" array — "
-                + "using the built-in three (\(url.path))\n"
-            FileHandle.standardError.write(Data(warning.utf8))
-            return builtIn
+            return (builtIn, "built-in — \(url.path) is unreadable or has no \"characters\" array")
         }
 
         let chars = rows.compactMap { row -> Character? in
@@ -52,9 +65,7 @@ struct Roster {
             return Character(role: role, asset: asset, mirrored: row["mirrored"] as? Bool ?? false)
         }
         guard !chars.isEmpty else {
-            FileHandle.standardError.write(Data(
-                "characters.json has no usable rows — using the built-in three\n".utf8))
-            return builtIn
+            return (builtIn, "built-in — \(url.path) has no usable rows; each needs \"role\" and \"asset\"")
         }
 
         var rates: [String: Float] = [:]
@@ -63,9 +74,7 @@ struct Roster {
                 rates[name] = Float(r)
             }
         }
-        FileHandle.standardError.write(Data(
-            "roster: \(chars.map(\.role).joined(separator: ", ")) (from characters.json)\n".utf8))
-        return Roster(characters: chars, activityRate: rates)
+        return (Roster(characters: chars, activityRate: rates), "from characters.json")
     }
 
     private static func manifestURL() -> URL? {
