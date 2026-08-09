@@ -2003,7 +2003,7 @@ done; this is what is genuinely still open.
 | **B — Sameer** | 8 tools, both platforms, `run-demo.ps1` | register `crew` in VoiceOS on your box; then the `readOnlyHint` check |
 | **C — Abhishek** | dock done, stall indicator, `register.sh` | **nothing.** Take `crew-say`/`Narrator` back if you want it; it is one line |
 | **D — Yaseen** | unblocked, art not started | **`recap` art.** It is the only workstream nobody else can do |
-| **E — Rukaiya** | all three deliverables done, rung 2 proven on the backup rig | **re-record.** Your video predates the Piper voices |
+| **E — Rukaiya** | all three deliverables done, rung 2 proven on the backup rig | ~~re-record~~ **done — re-cut with the Piper voices, 95s, 10/10.** Next: deliver the talk out loud over a run |
 
 **E — the recording is stale and that is my fault, not yours.** The crew sounded like a
 screen reader when you recorded it and it does not any more. `./crew-dock/voices.sh
@@ -2170,6 +2170,17 @@ Mac needs a network pass of its own** before it can sound like the demo Mac —
 `voices.sh piper-install` is not something to discover at 5:50pm on venue wifi.
 Fresh clone still gets the 2005 voices and a working show, which is the right
 default.
+
+**A — the safety video is re-cut with your voices.** 95 seconds, 10/10 lines,
+three human accents, 19MB. The old screen-reader one is kept alongside it as
+`crew-clean-run-OLD-voices.m4v` and should not be the one that gets played.
+
+**One thing to check before trusting any of these recordings, ours or yours:**
+my first attempt looked like a success and wasn't. `screencapture` wrote a 4MB
+file that played as **8 seconds** of a 95-second run — no error, exit 0, a real
+`.mov` on disk. Same trap as the orchestrator log and `SAY ->`: the artefact
+existing is not evidence the artefact is right. `afinfo <file> | grep duration`
+is the 1-second check, and a good capture of this run is ~90MB raw, not 4MB.
 
 ---
 
