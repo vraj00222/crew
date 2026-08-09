@@ -415,8 +415,10 @@ async function queueOnVoiceServer(path, body) {
     const r = await fetch(`${VOICE_URL}${path}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
+      // Generous: queueing now includes synthesising the call's speech (OpenAI
+      // TTS) so the audio is ready before the phone rings.
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(3000),
+      signal: AbortSignal.timeout(20_000),
     });
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
   } catch {
