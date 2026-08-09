@@ -2,6 +2,7 @@
 # Apply the VoiceOS settings the voice loop needs.
 #   ./voiceos-setup.sh apply    quits VoiceOS, patches settings, relaunches
 #   ./voiceos-setup.sh revert   restores the newest backup
+#   ./voiceos-setup.sh mic ["Name"]  which mic VoiceOS hears (default: the real one)
 #   ./voiceos-setup.sh handsfree  rebind hands-free off `fn` so a script can trigger it
 #   ./voiceos-setup.sh show     print the settings that matter, change nothing
 #
@@ -44,6 +45,38 @@ apply)
   open -a VoiceOS
   sleep 5
   echo "applied:"; show
+  ;;
+
+mic)
+  # Which microphone VoiceOS listens on, and it is NOT one setting for both jobs:
+  #
+  #   YOU speaking      -> the real microphone. BlackHole has no mic, so with the
+  #                        loopback rig applied VoiceOS literally cannot hear you.
+  #   AGENTS speaking   -> BlackHole 2ch, so `say` reaches it with no air involved.
+  #
+  # `apply` sets BlackHole because that is the agent loop. Testing your own voice
+  # needs this flipped back, and forgetting is indistinguishable from a broken
+  # setup: you talk, and nothing happens, and nothing says why.
+  DEV="${2:-MacBook Pro Microphone}"
+  cp "$CFG" "$CFG.backup-$(date +%Y%m%d-%H%M%S)"
+  osascript -e 'quit app "VoiceOS"' 2>/dev/null || true
+  sleep 3
+  pkill -f "VoiceOS.app/Contents/MacOS" 2>/dev/null || true
+  sleep 1
+  node -e '
+    const fs=require("fs"), p=process.argv[1], dev=process.argv[2];
+    const c=JSON.parse(fs.readFileSync(p,"utf8")), s=c.settings;
+    s.micDeviceId=s.micSelected=s.preferredMicDeviceId=s.preferredMicSelected=dev;
+    s.micExplicitlySet=true;
+    // VoiceOS keeps turning this back on, and in a loopback rig it hears its own
+    // replies and re-triggers itself. Off every time we touch the config.
+    s.agentVoiceEnabled=false;
+    s.muteWhenDictating=false;
+    fs.writeFileSync(p, JSON.stringify(c,null,2));
+  ' "$CFG" "$DEV"
+  open -a VoiceOS
+  sleep 5
+  echo "VoiceOS mic -> $DEV"; show
   ;;
 
 handsfree)
