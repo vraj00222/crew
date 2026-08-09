@@ -350,7 +350,7 @@ async function runTask(task) {
 // (`dictations` is empty and legacy in 0.1.21 — that cost us half a day.)
 const VOICEOS_DB = process.env.VOICEOS_DB
   || `${process.env.HOME}/Library/Application Support/VoiceOS/voiceos.db`;
-const GREETING = process.env.CREW_GREETING || 'Hey. What can I do for you?';
+const GREETING = process.env.CREW_GREETING || 'What can I do for you?';
 const HUMAN_MIC = process.env.CREW_HUMAN_MIC || 'MacBook Pro Microphone';
 
 /// Point the system input at a device. Best effort — a missing
@@ -360,7 +360,14 @@ const micTo = (device) => new Promise((resolve) => {
   p.on('close', (code) => { if (!code) console.log(`[wake] microphone -> ${device}`); resolve(); });
   p.on('error', () => resolve());
 });
-const LISTEN_MS = Number(process.env.LISTEN_MS || 30_000);
+// Long, because a person speaks when they are ready, not on a countdown. A live
+// run heard "Find all the events in my calendar and make a note of it" 63s after
+// the greeting — perfectly transcribed, and thrown away because a 30s window had
+// closed and the fallback had already started the wrong task. Waiting costs
+// nothing; guessing costs the demo.
+const LISTEN_MS = Number(process.env.LISTEN_MS || 120_000);
+/// How long you have to be quiet before we decide you have finished the thought.
+const SETTLE_MS = Number(process.env.SETTLE_MS || 2500);
 
 const sqlite = (sql) => new Promise((resolve) => {
   const p = spawn('sqlite3', ['-readonly', VOICEOS_DB, sql], { stdio: ['ignore', 'pipe', 'ignore'] });
@@ -423,15 +430,43 @@ async function wakeAndListen() {
   const deadline = Date.now() + LISTEN_MS;
   let heard = '';
   while (Date.now() < deadline && !heard) {
-    await new Promise((r) => setTimeout(r, 700));
+    await new Promise((r) => setTimeout(r, 350));
     const row = await sqlite(
       `SELECT transcript FROM voice_sessions WHERE rowid > ${before} AND transcript IS NOT NULL `
       + "AND trim(transcript) <> '' ORDER BY rowid DESC LIMIT 1;");
     if (!row) continue;
     const candidate = row.replace(/\s+/g, ' ').trim();
     const why = usable(candidate);
-    if (why) { console.log(`[wake] ignoring "${candidate}" — ${why}`); before = Number(await sqlite('SELECT COALESCE(MAX(rowid),0) FROM voice_sessions;')) || before; continue; }
-    heard = candidate;
+    if (why) {
+      console.log(`[wake] ignoring "${candidate}" — ${why}`);
+      before = Number(await sqlite('SELECT COALESCE(MAX(rowid),0) FROM voice_sessions;')) || before;
+      continue;
+    }
+
+    // Stop when you stop talking, not when the first fragment lands. VoiceOS
+    // segments on pauses, so one spoken sentence can arrive as several rows —
+    // acting on the first would take half an instruction. Keep collecting until
+    // you have been quiet for SETTLE_MS, then run what you actually said.
+    let parts = [candidate];
+    before = Number(await sqlite('SELECT COALESCE(MAX(rowid),0) FROM voice_sessions;')) || before;
+    console.log(`[wake] hearing you: "${candidate}"`);
+    let quietSince = Date.now();
+    while (Date.now() - quietSince < SETTLE_MS) {
+      await new Promise((r) => setTimeout(r, 300));
+      const more = await sqlite(
+        `SELECT transcript FROM voice_sessions WHERE rowid > ${before} AND transcript IS NOT NULL `
+        + "AND trim(transcript) <> '' ORDER BY rowid ASC;");
+      if (!more) continue;
+      for (const line of more.split('\n')) {
+        const t = line.replace(/\s+/g, ' ').trim();
+        if (!t || isOurOwnVoice(t)) continue;
+        parts.push(t);
+        console.log(`[wake]   ...and: "${t}"`);
+      }
+      before = Number(await sqlite('SELECT COALESCE(MAX(rowid),0) FROM voice_sessions;')) || before;
+      quietSince = Date.now();
+    }
+    heard = parts.join(' ').replace(/\s+/g, ' ').trim();
   }
 
   waking = false;
@@ -447,11 +482,12 @@ async function wakeAndListen() {
     } else {
       console.log('[wake] heard something but nothing usable — running the rehearsed task');
     }
-    // Never leave a character standing there having asked a question. Falling
-    // back means a failed transcription costs the demo its opening line, not
-    // the demo.
-    say(task, greeter, 'working', 'I did not catch that. I will start with the inbox.');
-    return startTask(process.env.CREW_PHRASE || 'clean up my inbox and schedule everything');
+    // Stand down rather than invent a task. Running the rehearsed inbox job
+    // because nobody spoke is worse than doing nothing: on a live run it started
+    // while Vraj was still talking, so the crew was busy narrating the wrong
+    // thing when his actual instruction arrived. Say one line, go quiet, and
+    // wait to be asked again — ⌃⌥C is right there.
+    say(task, greeter, 'done', 'No rush. Press it again when you are ready.');
   }
   console.log(`[wake] heard: "${heard}"`);
   // Hand the microphone to the crew. You spoke on the real mic; in `voice` mode
