@@ -94,6 +94,11 @@ function say(task, role, state, message) {
   agent.state = state;
   if (message) agent.lastMessage = message;
   console.log(`[${task.taskId}] ${role} (${state}): ${agent.lastMessage}`);
+  // Remembered so `wakeAndListen` can tell the crew's voice from yours.
+  if (agent.lastMessage) {
+    spokenLines.push(agent.lastMessage);
+    if (spokenLines.length > 60) spokenLines.shift();
+  }
   // `activity` is additive to the frozen contract — the dock ignored unknown
   // keys before this and still does, so nothing had to change to keep working.
   const body = JSON.stringify({
@@ -326,8 +331,43 @@ const sqlite = (sql) => new Promise((resolve) => {
 
 let waking = false;
 
+// Every line the crew has spoken. The dock narrates through the speakers and
+// VoiceOS listens on the real microphone, so the crew hears ITSELF: a live run
+// produced `heard: "two o'clock tomorrow is free day"` moments after a character
+// said "Two o'clock tomorrow is free — David Chen, yours." Left alone the demo
+// takes its own narration as the next instruction and talks to itself forever.
+// The device split solves this for the agent loop; nothing could solve it here,
+// because the whole point is that the microphone is open to the room.
+const spokenLines = [];
+const normalise = (s) => s.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+
+function isOurOwnVoice(heard) {
+  const words = new Set(normalise(heard).split(' ').filter((w) => w.length > 2));
+  if (!words.size) return false;
+  return spokenLines.some((line) => {
+    const mine = new Set(normalise(line).split(' ').filter((w) => w.length > 2));
+    if (!mine.size) return false;
+    let hits = 0;
+    for (const w of words) if (mine.has(w)) hits++;
+    return hits / words.size >= 0.6;   // most of what we heard, we just said
+  });
+}
+
+/// A transcript we should act on, or a reason not to.
+function usable(heard) {
+  const words = heard.trim().split(/\s+/).filter(Boolean);
+  // "p" arrived as a task on a live run. A real instruction is a sentence.
+  if (words.length < 3 || heard.trim().length < 12) return 'too short to be an instruction';
+  if (isOurOwnVoice(heard)) return 'that was the crew talking, not you';
+  return null;
+}
+
 async function wakeAndListen() {
   if (waking) return;              // one conversation at a time
+  // Don't ask again while the crew is still working — a second greeting over a
+  // running show is how one run became three on stage.
+  const busy = [...tasks.values()].some((t) => t.status === 'running');
+  if (busy) { console.log('[wake] ignored — the crew is still working'); return; }
   waking = true;
   const greeter = Object.keys(CREW)[0];
   const task = { taskId: 'wake', agents: { [greeter]: { name: greeter, state: 'idle', lastMessage: '' } } };
@@ -336,7 +376,7 @@ async function wakeAndListen() {
   // audience sees them show up *before* anyone has said what the job is.
   say(task, greeter, 'working', GREETING);
 
-  const before = Number(await sqlite('SELECT COALESCE(MAX(rowid),0) FROM voice_sessions;')) || 0;
+  let before = Number(await sqlite('SELECT COALESCE(MAX(rowid),0) FROM voice_sessions;')) || 0;
   console.log(`[wake] listening — say what you want (${LISTEN_MS / 1000}s)`);
 
   const deadline = Date.now() + LISTEN_MS;
@@ -346,7 +386,11 @@ async function wakeAndListen() {
     const row = await sqlite(
       `SELECT transcript FROM voice_sessions WHERE rowid > ${before} AND transcript IS NOT NULL `
       + "AND trim(transcript) <> '' ORDER BY rowid DESC LIMIT 1;");
-    if (row) heard = row.replace(/\s+/g, ' ').trim();
+    if (!row) continue;
+    const candidate = row.replace(/\s+/g, ' ').trim();
+    const why = usable(candidate);
+    if (why) { console.log(`[wake] ignoring "${candidate}" — ${why}`); before = Number(await sqlite('SELECT COALESCE(MAX(rowid),0) FROM voice_sessions;')) || before; continue; }
+    heard = candidate;
   }
 
   waking = false;
