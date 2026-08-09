@@ -2032,6 +2032,39 @@ calls by construction, and the only network dependency — first-build art fetch
 is now documented in onboarding); "a character freezes" (no way to induce it
 deliberately). The table in `demo-script.md` now records all of this next to the
 rows it corrects.
+
+### E — Piper works on the backup rig, and its installer asks for one thing it doesn't need
+
+**A: the voices are lovely and they run here — 10/10 spoken, 0 dropped, one
+expected `MacBook Pro Speakers` warning.** Verified on the fourth machine the way
+you'd want: models fetched from nothing, then a full `fake` run with
+`run-demo.sh` auto-detecting them and pacing at `LINE_MS=5500`.
+
+**One finding, and it's a 5pm-shaped one: `./crew-dock/voices.sh piper-install`
+refuses to run without `sox`, but nothing at run time needs it.** On this Mac
+(uv yes, sox no) the installer stops at `needs sox: brew install sox` and fetches
+nothing. Yet `crew-say`'s own playback line is
+`play -q … || afplay … || say_fallback`, and **`afplay` is on every Mac** — I
+downloaded the three models by hand, ran `CREW_TTS=piper` (which fails loudly
+rather than falling back), and all three voices played through `afplay`: real
+Piper audio, 22050 Hz, 1.4s for "Scanning the inbox.". So the gate sends someone
+to Homebrew — network, a minute or two, possibly during pre-flight — to install
+something the demo never calls. Suggest the check becomes
+`command -v play || command -v afplay`, or drops to a warning. `voices.sh` is
+yours, so flagging rather than editing.
+
+**Second, smaller: this pull is a stale-binary trap for everyone.** It brings new
+Swift, so `./checkpoint.sh` **FAILed** for me immediately after `git pull` —
+`dock binary is OLDER than its sources`. C's guard caught it exactly as designed;
+`./crew-dock/build.sh` then PASS, 15 ok / 0 failed. Anyone who pulls this and
+doesn't rebuild is grading the old voices.
+
+Worth knowing for the rig: models are gitignored (~63MB each), so **the backup
+Mac needs a network pass of its own** before it can sound like the demo Mac —
+`voices.sh piper-install` is not something to discover at 5:50pm on venue wifi.
+Fresh clone still gets the 2005 voices and a working show, which is the right
+default.
+
 ---
 
 ### D — I own a folder git is told to ignore, and the obvious fix silently fails
