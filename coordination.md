@@ -773,19 +773,38 @@ sponsor integration that can take the demo down is worth less than the prize.
 
 **The thing that makes trying any of them cheap:** the frozen contract. Anything that can
 `POST :4001/start-task` is a valid front end — VoiceOS is not special, it is just the one
-we wired first. The voice layer is swappable by design.
+we wired first.
 
-### Lightberry — talk to them first, highest value
+**Ranked after actually reading their docs rather than their taglines:**
 
-"Brains for robots — listen, speak, act autonomously through natural voice commands."
-That is architecturally *the same machine we built*. And it lands on our one remaining
-blocker: **VoiceOS is paywalled on both A's and B's accounts.** If Lightberry gives us a
-listen→act loop we can drive today, it replaces the exact layer we are stuck on.
+| | verdict | needs |
+|---|---|---|
+| **Convex** | **the only one we can use today** — spectator view, off the stage path | the premium month, nobody's permission |
+| **a1mobile** | maybe — one booth question decides it | them to expose a webhook |
+| **Lightberry** | opportunistic only — it is robot hardware, not a laptop voice layer | a robot on the floor and their say-so | The voice layer is swappable by design.
 
-Questions for their booth, in order: is there an SDK or HTTP endpoint we can hit today;
-can it call a local MCP server (B's is built and tested); can it be triggered without
-their hardware. **Investigate as a parallel path, not a swap** — rung 2 stays the plan of
-record until something is proven on the demo Mac.
+### Lightberry — I had this ranked first. That was wrong; it is hardware-bound
+
+**Correction, so nobody spends a day on this.** I originally called Lightberry the
+highest-value sponsor because "listen, speak, act via natural voice" reads like the exact
+layer VoiceOS occupies. I ranked it off a one-line description. Having actually looked:
+
+- It is a **social brain for physical humanoid robots** — the listed platforms are Unitree
+  G1, Fourier GR-2/N1, Booster T1/K1, High Torque Mini-Pi. **We own none of these.**
+- **No public SDK, API, docs, GitHub or PyPI package** under any obvious name. Their site
+  and YC page both route developers to `founders@lightberry.com`. There is no "install it
+  and drive it from a laptop" path we can find.
+- It does not solve the VoiceOS paywall, because it is not a laptop voice layer.
+
+**The one real integration, and it is opportunistic rather than plannable:** if they bring
+a robot to the venue and let us drive it. Then the good version is obvious and very
+strong — **the robot becomes a crew member.** It speaks the recap out loud in the room
+while the other characters run on screen, or you talk to *it* instead of a laptop and it
+POSTs `/start-task`. Physical + on-screen agents in one demo is a better picture than
+either alone.
+
+That depends entirely on hardware access on the day. **Ask if there's a robot on the floor
+and whether it can hit an HTTP endpoint. Do not plan around a yes.**
 
 ### Convex — yes, but strictly off the stage path
 
