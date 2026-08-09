@@ -1135,6 +1135,73 @@ to `/usr/bin/say`. Nothing else changed, and unset behaves exactly as today.
 **D —** if you want the characters to *look* as different as they now sound, alba /
 northern male / amy is the casting the art should match.
 
+## A — answers for D, and the MCP call
+
+### D — your gitignore blocker is FIXED, and there is a simpler fix than the one you found
+
+You were right about the cause and right that `!` cannot work — git never descends into an
+excluded directory, so the negation is never consulted. But `/*` plus negations is not the
+smallest fix. **Ignore the two upstream files by name instead:**
+
+```
+crew-dock/Assets/walk-bruce-01.mov
+crew-dock/Assets/walk-jazz-01.mov
+```
+
+No directory is excluded, so there is no descent problem to work around, and **anything
+you draw is committable with no further edits to `.gitignore` ever again.** Pushed and
+verified both directions: upstream still ignored, a new `walk-reader-01.mov` shows up in
+`git status`.
+
+### D — your size number: **4MB per clip, 20MB total committed art**
+
+Upstream's ~18MB does **not** count against it — `build.sh` fetches those, they are never
+committed, and they are not ours to ship. The 20MB is yours alone.
+
+The constraint behind the number is clone time, not disk: E measured **clone → running
+demo in 72s** on a fresh machine, and that number is the backup rig's whole value. 20MB
+adds a few seconds to it. If a clip needs to be bigger to look right, say so and we will
+trade — the number exists to be argued with, not obeyed.
+
+Match upstream's format so nothing else has to change: **HEVC with alpha, portrait
+1080×1920, looping walk cycle.** `AgentCharacter` scales to 170pt tall, so detail beyond
+that is wasted bytes.
+
+### D — art priority, since you asked. Recap first, and you are right that it matters
+
+1. **`recap` — first, and alone if you only do one.** It is on stage in the rehearsed run,
+   it speaks the closing line, and it is currently `triage` flipped horizontally. Two of
+   the three characters the audience sees are the same drawing.
+2. **`triage` / `scheduler`** — a second pass only if recap lands early. They are at least
+   already different from each other.
+3. **`researcher` / `analyst` — last.** They are real and they talk, but they are **not in
+   the rehearsed run**; they only appear if someone asks for research or analysis. Nice to
+   have, not on the demo path.
+
+They now have voices you can cast against: **triage = alba (Scottish, dry), scheduler =
+northern english male (brisk), recap = amy (warm)**.
+
+### Should we register an MCP named `crew`? — Yes. Name it exactly `crew`
+
+It is the last thing between us and the voice loop, and **the name is load-bearing**:
+VoiceOS renames every custom tool to `custom_mcp_<servername>_<tool>`, so `crew` is what
+makes them `custom_mcp_crew_crew_gmail_archive` rather than something we have to rediscover
+on stage. C's `register.sh` prints the exact values and audits the config first.
+
+**One correction to what it prints:** use the **absolute** node path, not bare `node` —
+VoiceOS is a GUI app and does not inherit a shell PATH, so Homebrew's node is not on it.
+`node voiceos-bridge/mcp-server/mcp-config.js` prints the right one. On this Mac:
+
+```
+name    : crew
+command : /opt/homebrew/Cellar/node/25.6.1/bin/node
+args    : /Users/vrajpatel/Developer/crew/voiceos-bridge/mcp-server/server.js
+```
+
+Registering is GUI-only — there is no CLI — and **do not hand-edit `config.json` while
+VoiceOS is running**; it is an electron-store and rewrites the whole file on its own
+schedule. `tools/list` showing `crew` is the check that it took.
+
 ## Decisions log
 
 - _Sat night — orchestrator is one file (`orchestrator/server.js`), Node stdlib only, not the 4-file TypeScript layout in the folder plan — A — no build step, no `npm install`, no deps to break at 5pm; the whole thing is ~170 lines and restarts instantly. The frozen bit is the HTTP contract, and that's unchanged._
@@ -1818,6 +1885,42 @@ way — **credentials are not a thing the repo can "have".** `CREW_BACKEND=fake`
 neither and does real archiving and real booking with real numbers, so nothing an audience
 sees depends on them. VoiceOS having Gmail connected is a *different* link from ours and
 does not substitute for these.
+
+### Where everyone is, and the ONE task each that is actually left
+
+Nothing here reassigns work anybody is mid-way through. Four of five workstreams are
+done; this is what is genuinely still open.
+
+| | state | the one thing left |
+|---|---|---|
+| **A — Vraj** | voice loop proven, Piper voices in, rungs 1-3 real | **the long-task feedback loop** (below) — the only unbuilt feature |
+| **B — Sameer** | 8 tools, both platforms, `run-demo.ps1` | register `crew` in VoiceOS on your box; then the `readOnlyHint` check |
+| **C — Abhishek** | dock done, stall indicator, `register.sh` | **nothing.** Take `crew-say`/`Narrator` back if you want it; it is one line |
+| **D — Yaseen** | unblocked, art not started | **`recap` art.** It is the only workstream nobody else can do |
+| **E — Rukaiya** | all three deliverables done, rung 2 proven on the backup rig | **re-record.** Your video predates the Piper voices |
+
+**E — the recording is stale and that is my fault, not yours.** The crew sounded like a
+screen reader when you recorded it and it does not any more. `./crew-dock/voices.sh
+piper-install` then `./run-demo.sh fake` and the same 10 lines come out in three human
+voices. Worth re-cutting because the safety video is the thing we fall back to, and it
+should not be the worst-sounding version of the demo. Second, if you have time after: the
+live talk has never been said out loud over a run — the beats are written, nobody has
+stood up and delivered them.
+
+**A — what I am building next, and the honest trade.** Vraj wants a live talk where one
+long spoken task gets divided, agents spawn, and a feedback loop runs. Today routing is
+keyword-based against a fixed crew and agents never see each other's output — the closer
+gets the roster, nothing else does. Two ways:
+
+- **scripted division** — a known long task maps to a known hand-off chain
+  (researcher → analyst → recap), each agent seeing the previous one's result. Rehearsable,
+  and it is what an audience experiences as decomposition anyway.
+- **real planner** — an agent reads the task and decides the crew. Genuinely better, and
+  it is the thing that can be wrong in front of a room, which is exactly why routing was
+  hardcoded in the first place.
+
+Building the scripted one unless told otherwise. **Neither touches the rehearsed run** —
+"clean up my inbox and schedule everything" keeps routing to triage + scheduler + recap.
 
 ### Then: one task each, in priority order
 

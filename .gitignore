@@ -11,9 +11,17 @@ config.json
 .env.*
 !.env.example
 
-# crew-dock build output + fetched upstream art (18MB, belongs to lil-agents)
-crew-dock/Assets/
+# crew-dock build output. Crew.app is compiled, never committed.
 crew-dock/Crew.app/
+
+# Upstream art (lil-agents, MIT) — 18MB, fetched by build.sh, not ours to commit.
+# Named individually rather than ignoring the whole Assets/ directory: git does
+# not descend into an excluded directory, so a `!` exception inside one is never
+# consulted and D's original art could not be committed at all. Ignoring the two
+# upstream files by name has no such trap — anything D draws is committable with
+# no further edits here.
+crew-dock/Assets/walk-bruce-01.mov
+crew-dock/Assets/walk-jazz-01.mov
 
 # local run output from the bridge/orchestrator test scripts
 *.out
