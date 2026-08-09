@@ -3068,3 +3068,66 @@ working VoiceOS↔crew link a few hours before a demo, to fix a risk *this machi
 have*, trades a real thing for a hypothetical one. `register.ps1` is where the fix belongs
 and it is committed — it now refuses to write the bare word and flags an existing one.
 Anyone setting up on fnm/Volta/nvm-windows gets the correct path automatically.
+
+### B — real agents have never once run on Windows, and the checkpoint said they could
+
+Logged the CLI in, ran `.\run-demo.ps1 -Real`, and got a show of three characters
+apologising:
+
+```
+    triage     Done: could not start (spawn claude ENOENT).
+    scheduler  Done: could not start (spawn claude ENOENT).
+    recap      Done: could not start (spawn claude ENOENT).
+```
+
+**`spawn('claude')` cannot start the CLI on Windows, and never could.** npm installs three
+shims and Node can use none of the two you would reach for:
+
+| shim | what Node does with it |
+|---|---|
+| `claude` (extensionless shell script) | **ENOENT** — Node will not run it |
+| `claude.cmd` | **EINVAL** — Node has refused to spawn `.cmd` without a shell since the CVE-2024-27980 fix |
+| `claude.exe` | works, no shell, argv passed exactly |
+
+Fixed by resolving the `.exe` off PATH once at startup (`CLAUDE_BIN` overrides).
+**macOS is untouched** — `process.platform !== 'win32'` returns the bare `claude` exactly
+as before. `shell: true` was the other option and I did not take it: the prompt is a
+multi-line string with quotes in it, and putting that through `cmd.exe` quoting rules the
+night before a demo is a bad trade when the `.exe` takes it as argv.
+
+**Then the real run, on Windows, for the first time:**
+
+```
+  16 lines reached the dock.
+  WALL CLOCK: 48.1s
+```
+
+**16 lines is A's exact Mac number, and 48s against the Mac's ~45s.** The agents reasoned
+about the seeded mailbox correctly and specifically — *"Fourteen gone — six newsletters
+plus eight receipts, alerts, and ads"*, *"two real emails left standing: Marcus Webb…"*,
+*"David Chen 2pm tomorrow, Priya Nair 10am booked"*. Every number true of the fixture.
+
+### The check that said this was fine, and what it now checks
+
+`checkpoint.sh` proved the CLI works by running `claude -p` **from the shell**, where the
+shim resolves. `server.js` does not use a shell. So the check went green on a box where
+real agents could never start — and it was *my* correction that put that check there, on
+the grounds that `have claude` was a false green. It was; it just became a subtler one.
+
+Added a companion check that tests **what the orchestrator actually does**: can Node find a
+`claude.exe` to spawn. Silent on macOS and on any box where it resolves; fires with
+"real agents cannot start" where it does not. Verified both ways — exit 0 on the real PATH,
+exit 1 with npm's bin removed.
+
+Seventh instrument on this project to report success while looking at the wrong thing, and
+the second one I built myself. **The pattern is now specific enough to state as a rule:
+a check must run the code path the demo runs, not a convenient equivalent of it.**
+
+**CHECKPOINT PASS on Windows — 13 ok, 0 failed.** First green on this box.
+
+### One cosmetic thing, checked rather than assumed
+
+The console shows `Fourteen gone â€" six newsletters`. That is PowerShell 5.1 decoding the
+child's UTF-8 stdout as cp1252 — **not** corrupted data. The dock log holds `U+2014`, a
+clean em dash, and the Swift dock reads UTF-8 off the wire. Nothing to fix; worth knowing
+so nobody "fixes" the orchestrator over a console artifact.

@@ -6,8 +6,8 @@
 
 const http = require('node:http');
 const { spawn } = require('node:child_process');
-const { readFileSync } = require('node:fs');
-const { join } = require('node:path');
+const { readFileSync, existsSync } = require('node:fs');
+const { join, delimiter } = require('node:path');
 
 const PORT = 4001;
 const DOCK = process.env.DOCK_URL || 'http://localhost:4002/agent-status';
@@ -46,6 +46,32 @@ const CREW_TOOLS = [
 // (speak to VoiceOS). One prompt file each, all three known-good — switching is
 // an env var, not editing a prompt at 5:55pm with the room watching.
 const MODE = process.env.CREW_MODE || 'narrate';
+
+// `spawn('claude')` cannot start the CLI on Windows, and it fails per-agent as
+// "Done: could not start (spawn claude ENOENT)" — a whole show of characters
+// apologising. npm installs three shims: an extensionless shell script (Node
+// spawns it as ENOENT), a `.cmd` (EINVAL — Node has refused to spawn `.cmd`
+// without a shell since the CVE-2024-27980 fix), and the real `claude.exe` the
+// `.cmd` points at. The `.exe` spawns cleanly with no shell, which also keeps
+// the prompt out of any quoting rules — it is passed as argv either way.
+//
+// Worth knowing why nobody caught this: `checkpoint.sh` proves the CLI works by
+// running it from the shell, where the shim resolves fine. That is a different
+// thing from what `server.js` does, so the check passed green on a box where
+// real agents could never start.
+const CLAUDE = (() => {
+  if (process.env.CLAUDE_BIN) return process.env.CLAUDE_BIN;
+  if (process.platform !== 'win32') return 'claude';
+  for (const dir of (process.env.PATH || '').split(delimiter)) {
+    if (!dir) continue;
+    for (const p of [
+      join(dir, 'claude.exe'),
+      // npm's global bin holds the shims; the real binary sits in the package.
+      join(dir, 'node_modules', '@anthropic-ai', 'claude-code', 'bin', 'claude.exe'),
+    ]) if (existsSync(p)) return p;
+  }
+  return 'claude'; // let it fail loudly rather than guess a path that isn't there
+})();
 
 const tasks = new Map();
 let seq = 0;
@@ -204,7 +230,11 @@ function runRole(task, role) {
     // `detached` makes the agent its own process-group leader so the timeout can
     // kill the whole tree. An agent spawns tool subprocesses, and SIGKILLing only
     // the parent leaves orphans holding its stdout — see the killer below.
-    const child = spawn('claude', args,
+    // `detached` is a no-op on Windows for process groups (there is no
+    // setsid, and process.kill(-pid) is not a thing), so the group kill below
+    // falls through to killing the child alone. Harmless: it is the same
+    // behaviour we had before E's fix, and the `exit` grace still un-wedges it.
+    const child = spawn(CLAUDE, args,
       { cwd: __dirname, stdio: ['ignore', 'pipe', 'pipe'], detached: true });
 
     const killer = setTimeout(() => {

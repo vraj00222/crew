@@ -46,6 +46,24 @@ elif claude -p 'reply with the single word: ok' --max-turns 1 >/tmp/crew-chk-cla
 else
   bad "claude CLI is installed but cannot run an agent (logged out?) — see /tmp/crew-chk-claude.log"
 fi
+# ...and the line above is STILL a false green on Windows, because it runs the CLI
+# from a shell and `server.js` does not. npm's shims are an extensionless script
+# (Node: ENOENT) and a .cmd (Node: EINVAL since the CVE-2024-27980 fix), so the
+# shell check passed on B's box while every real agent died as
+# "Done: could not start". Check the thing the orchestrator actually does.
+if have claude && ! node -e '
+  const {existsSync}=require("node:fs"), {join,delimiter}=require("node:path");
+  if (process.platform!=="win32") process.exit(0);
+  if (process.env.CLAUDE_BIN) process.exit(0);
+  for (const d of (process.env.PATH||"").split(delimiter)) {
+    if (!d) continue;
+    for (const p of [join(d,"claude.exe"),
+        join(d,"node_modules","@anthropic-ai","claude-code","bin","claude.exe")])
+      if (existsSync(p)) process.exit(0);
+  }
+  process.exit(1);' 2>/dev/null; then
+  bad "no claude.exe Node can spawn — the shell check above passes but real agents cannot start (set CLAUDE_BIN)"
+fi
 for m in narrate direct voice; do
   [ -f "orchestrator/prompts/execution-$m.md" ] && ok "prompt: execution-$m.md" || bad "missing execution-$m.md"
 done
