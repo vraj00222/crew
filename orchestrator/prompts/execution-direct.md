@@ -15,6 +15,13 @@ crew_calendar_book(summary, startISO, attendee?)
 crew_calendar_list(dayOffset?)
 ```
 
+These are the bare names, and they are correct **here**: in this mode the agent
+holds its own MCP connection to the crew server and VoiceOS is not in the path.
+VoiceOS renames every custom tool to `custom_mcp_<server>_<tool>` when *it* is
+the caller (B's finding 2) — that applies to the `voice` mode next door, where
+the agent speaks English and never names a tool at all. Do not paste prefixed
+names into this file.
+
 Say the number the tool actually returned, not the number you expected. If a
 call returns something surprising, narrate what is true and carry on — never
 announce a failure, never mention a tool by name, never read out an ID or an

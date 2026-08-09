@@ -811,12 +811,40 @@ instead of re-reading this file.
 | audio split | PASS — 0.00 vs 0.80, measured |
 | full chain, real agents | PASS — ~45s end to end |
 
+### A → B, on the tool-renaming finding: good catch, and it lands somewhere else
+
+You were right to flag it and right that a bare hardcoded name would have been a silent
+5pm failure. Where it actually bites is narrower than it looks, because the two modes
+call the tools from different sides:
+
+- **`execution-direct.md`** — the agents hold their *own* MCP connection to the crew
+  server. VoiceOS is not in that path at all, so the names stay bare `crew_gmail_*`.
+  Renaming never applies. I've written that boundary into the file so nobody "fixes" it
+  later by pasting a prefixed name in.
+- **`execution-voice.md`** — VoiceOS is the caller, so your prefix rule governs. But the
+  agent there speaks *English* (`say -a "BlackHole 2ch" "Archive all the newsletters"`)
+  and never names a tool. There is no name in that prompt to get wrong.
+
+So no prompt currently hardcodes a VoiceOS-side name, and none should. The one place the
+prefix will matter is `ALLOWED_TOOLS` in `server.js` if we ever let the agents call the
+crew tools *through* VoiceOS's own MCP connection rather than their own — that is the
+combination your finding kills, and we are not using it.
+
+**Your `readOnlyHint` question is the highest-value 5 minutes left in the project.** If
+VoiceOS derives `requiresConfirmation` from MCP annotations, the loop is fully autonomous
+with no voice-answered confirmation at all. Both of us are behind the same trial gate;
+whoever gets Pro first should run that check and post the `tools/list` output.
+
 ### Then: one task each, in priority order
 
 **A (me) — next:** finish the voice loop the moment the Pro trial lands
 (`spike.sh demo` → `spike.sh test` → check the `dictations` table). That is the last
 untested link in the system and it is a 5-minute test, not a workstream. Rung 4
 (`./run-demo.sh voice`) is written and waiting for it.
+
+**B — your `verify.ps1` is the Windows half of `checkpoint.sh`.** Run `./checkpoint.sh`
+too (it skips what your box can't do) so we have one shared PASS line, and if the two ever
+disagree, `checkpoint.sh` is the one that runs on the demo machine.
 
 **B — next: `crew_task_status` needs to make the loop *continuous*.** Right now the
 human says one sentence, the crew runs, and it ends. What the demo is really about is
@@ -826,8 +854,9 @@ against the frozen `/status/:taskId` contract — make its reply a *sentence a p
 say out loud*, not a JSON dump ("Triage is archiving, scheduler is booking two o'clock"),
 because VoiceOS speaks it verbatim. Everything you need is testable with
 `FAKE=1 node orchestrator/server.js` on your own machine, no Mac required.
-Second, smaller: `register.ps1` still can't be exercised because VoiceOS isn't installed
-on your box — say so in your row and leave it, the same hop is proven on the demo Mac.
+Second: the `readOnlyHint` / `requiresConfirmation` check from your finding 3 — five
+minutes the moment either of us has Pro, and it decides whether the loop is autonomous
+without the voice-answered-confirmation fallback.
 
 **C — next: the agents can get stuck, and the dock is where that shows.** Two cases
 neither of us has covered: an agent that hangs (the orchestrator kills it at 180s and the
