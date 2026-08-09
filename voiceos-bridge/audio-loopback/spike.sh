@@ -4,9 +4,17 @@
 #   ./spike.sh on        route audio into VoiceOS's mic
 #   ./spike.sh say "..." speak a command into VoiceOS
 #   ./spike.sh verify    proves the audio path, NO VoiceOS needed  <- run before rehearsal
+#   ./spike.sh split     proves dock narration and agent commands stay separate
 #   ./spike.sh test      the whole go/no-go: routes, speaks, checks, restores
 #   ./spike.sh off       put audio back to normal  <- ALWAYS run this when done
 set -euo pipefail
+
+# The two speech streams, kept apart by device rather than by timing. `say -a`
+# targets one device per utterance, so the dock can narrate to the room while an
+# agent talks to VoiceOS and neither ever hears the other. `./spike.sh split`
+# measures it. run-demo.sh passes DOCK_DEVICE to the dock as CREW_AUDIO_DEVICE.
+DOCK_DEVICE="${DOCK_DEVICE:-MacBook Pro Speakers}"      # audience only
+VOICEOS_DEVICE="${VOICEOS_DEVICE:-BlackHole 2ch}"       # VoiceOS only
 
 # The original 4-line plan sets only the INPUT to BlackHole. That cannot work:
 # `say` writes to the OUTPUT device, so nothing ever reaches BlackHole's input
@@ -44,7 +52,7 @@ say)
   ;;
 
 off)
-  SwitchAudioSource -t output -s "MacBook Pro Speakers" 2>/dev/null || true
+  SwitchAudioSource -t output -s "$DOCK_DEVICE" 2>/dev/null || true
   SwitchAudioSource -t input  -s "MacBook Pro Microphone" 2>/dev/null || true
   echo "restored. input=$(SwitchAudioSource -t input -c), output=$(SwitchAudioSource -t output -c)"
   ;;
@@ -65,6 +73,32 @@ verify)  # proves the audio path with NO VoiceOS involved. Run this before rehea
     && echo "PASS — say() reaches the virtual mic. Voice loop is physically possible." \
     || { echo "FAIL — no audio on the loopback. Check the 'crew' multi-output device"
          echo "       exists and has BlackHole 2ch ticked (Audio MIDI Setup)."; exit 1; }
+  ;;
+
+split)  # proves the two speech streams cannot collide. NO VoiceOS needed.
+  # C raised this: agents drive VoiceOS with `say`, the dock also narrates with
+  # `say`, and a mix of the two on one mic breaks the loop on stage. The fix is
+  # per-utterance `-a`, and this measures that it actually separates them:
+  # narration to the speakers must read ~0.00 on BlackHole, commands must be loud.
+  command -v sox >/dev/null || { echo "needs sox: brew install sox"; exit 1; }
+  trap '"$0" off >/dev/null' EXIT INT TERM
+  SwitchAudioSource -t input -s "BlackHole 2ch" >/dev/null   # listen where VoiceOS listens
+  peak() {  # peak() <device> — speak one line to $1, report what BlackHole heard
+    sox -q -d /tmp/crew-split.wav trim 0 5 2>/dev/null & local rec=$!
+    sleep 1
+    say -v Samantha -r 190 -a "$1" "The quick brown fox jumps over the lazy dog"
+    wait $rec 2>/dev/null
+    sox /tmp/crew-split.wav -n stat 2>&1 | awk '/Maximum amplitude/{print $3}'
+  }
+  NARR=$(peak "$DOCK_DEVICE")
+  CMD=$(peak "$VOICEOS_DEVICE")
+  echo "dock narration -> '$DOCK_DEVICE'    : BlackHole heard $NARR  (want ~0.00)"
+  echo "agent command  -> '$VOICEOS_DEVICE' : BlackHole heard $CMD  (want > 0.10)"
+  awk -v n="$NARR" -v c="$CMD" 'BEGIN{exit !(n<0.02 && c>0.10)}' \
+    && echo "PASS — streams are isolated. VoiceOS hears commands only, the room hears narration only." \
+    || { echo "FAIL — the streams are bleeding into each other."
+         echo "       Most likely the system output is set to the 'crew' multi-output"
+         echo "       device, which copies everything to BlackHole. Use ./spike.sh off."; exit 1; }
   ;;
 
 test)  # the whole go/no-go, hands-off except for one key press

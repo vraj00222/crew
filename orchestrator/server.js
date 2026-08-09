@@ -13,7 +13,10 @@ const PORT = 4001;
 const DOCK = process.env.DOCK_URL || 'http://localhost:4002/agent-status';
 const FAKE = process.env.FAKE === '1';
 const TIMEOUT_MS = Number(process.env.AGENT_TIMEOUT_MS || 180_000);
-const LINE_MS = Number(process.env.LINE_MS || 1400); // pacing between narration lines
+// 1400 read well as bubbles, but the dock speaks these now and a line takes ~2s
+// to say — at 1400 two of ten were dropped to stop speech drifting. 2200 is the
+// speech rate, so every line lands. Raise it and the show just runs longer.
+const LINE_MS = Number(process.env.LINE_MS || 2200); // pacing between narration lines
 const MAX_LINES = Number(process.env.MAX_LINES || 8); // per agent, "Done:" always passes
 const ALLOWED_TOOLS = process.env.ALLOWED_TOOLS || ''; // e.g. "mcp__voiceos__speak"
 
