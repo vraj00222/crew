@@ -25,7 +25,19 @@ REAL=""
 if [ "${1:-}" = real ]; then
   REAL=1
   export CREW_MODE=voice
-  ./voiceos-bridge/audio-loopback/voiceos-setup.sh mic "BlackHole 2ch" >/dev/null 2>&1
+  # NOT BlackHole up front — that was the bug. BlackHole has no microphone, so
+  # pinning VoiceOS to it before YOU speak means it cannot hear you at all, and
+  # the symptom is an endless "VoiceOS heard nothing".
+  #
+  # The two halves need opposite microphones: you on the real one, the agents on
+  # BlackHole. So unpin VoiceOS (`auto` makes it follow the system default),
+  # start on the real mic, and let the orchestrator hand the microphone over the
+  # moment it has heard you — and hand it back when the run ends.
+  if [ "$(node -pe 'JSON.parse(require("fs").readFileSync(process.env.HOME+"/Library/Application Support/VoiceOS/config.json","utf8")).settings.micExplicitlySet' 2>/dev/null)" != false ]; then
+    echo "  putting VoiceOS on auto-mic so the crew can take over mid-run..."
+    ./voiceos-bridge/audio-loopback/voiceos-setup.sh auto >/dev/null 2>&1
+  fi
+  SwitchAudioSource -t input -s "${CREW_HUMAN_MIC:-MacBook Pro Microphone}" >/dev/null 2>&1
 fi
 
 # Voices, devices and pacing all come from run-demo.sh so there is exactly one
