@@ -1422,6 +1422,65 @@ crew. Beat 4 is the loop staying alive mid-run. **That is a real demo today**, w
 approval click as the one seam — and that seam closes by toggling Invoke tool to
 "Don't ask".
 
+## ➡️ NEXT ROUND — one task each, all four startable right now
+
+VoiceOS's own client is now connected to our server — `voiceos-crew-bridge v1.0.0`,
+protocol `2024-11-05`, four `initialize` calls in the bridge log. **The link is real.**
+It has not called `run_crew_task` yet; the characters in the screenshot came from A's
+direct test, and it is worth saying so rather than claiming the loop closed.
+
+### B (Sameer) — ask the builder for a first-class action. This is the demo beat
+
+The generated app is a **generic MCP inspector**: discover / inspect / invoke-by-name. So
+the natural sentence does not reach the crew — you have to say *"invoke run_crew_task
+with instructions…"*, and the approval card shows raw JSON because (its words)
+"confirmations are static before execution".
+
+The builder takes plain English in its **"Describe a change"** box. One sentence gets us
+the beat the whole demo is about:
+
+> *"Add an action called Start crew task that takes an `instructions` string and calls the
+> `run_crew_task` tool, and a Crew status action that calls `crew_task_status`."*
+
+Then "clean up my inbox and schedule everything" works with no tool naming, and a
+purpose-built confirmation card replaces the JSON blob. **Also note: permissions moved —
+all four actions now read "Ask permission" where three were "Don't ask" an hour ago.**
+Worth knowing whether a rebuild resets them, because that decides whether we set them once
+or every time.
+
+### C (Abhishek) — two things the screenshot shows, both yours, both small
+
+1. **Bubbles are truncating.** On screen right now: *"Scanning the inbox. Eighteen emails,
+   most of them not for you. …"* and *"Two o'clock tomorrow is open. David Chen, that's
+   yours. ."* — an ellipsis and a stranded full stop. The lines are 85–89 chars and A
+   truncates at 110, so this is bubble layout, not the orchestrator. Three lines at 13pt
+   in 300pt is tight; either the bubble needs to grow or the label needs to shrink.
+2. **`CREW_VOICE_*` only works for the original three.** `defaultVoices` has three keys and
+   the override loop iterates *those keys*, so `CREW_VOICE_RESEARCHER` is silently ignored
+   and every new role speaks in the fallback voice — E measured exactly that on the
+   research crew. Reading the env per character rather than per default key fixes it.
+   **A has done the matching half**: `crew-say` now maps role names as well as voice names,
+   so the moment you pass the role through, researcher and analyst get their own voices.
+
+### D (Yaseen) — unblocked twice over, and you were right both times
+
+The `.gitignore` fix is in, and **A's bogus `characters.json` sketch is now corrected in
+your task block** — it carries the real `characters[]` shape. Your point that it was a
+trap rather than a typo is the important part, and it is the fifth instrument on this
+project to report success while looking at the wrong thing. **`recap` art is still the
+single highest-value thing nobody else can do**: it is on stage, it speaks last, and it is
+currently `triage` flipped.
+
+### E (Rukaiya) — the runbook has a new opening beat
+
+Your video is re-cut and rung 2 is proven on the backup rig. The new thing to fold into
+`docs/runbook.md`: **the Crew app is now a demo beat of its own.** "Is Crew ready?"
+produces a card showing Node version, our script path and the MCP protocol — that is the
+*nothing-up-my-sleeve* moment, and it happens before a single agent runs. Worth writing
+the exact phrases and what the audience sees, the way you did the rest.
+
+Second, when you have time: nobody has said the talk out loud over a run yet.
+
 ## Decisions log
 
 - _Sat night — orchestrator is one file (`orchestrator/server.js`), Node stdlib only, not the 4-file TypeScript layout in the folder plan — A — no build step, no `npm install`, no deps to break at 5pm; the whole thing is ~170 lines and restarts instantly. The frozen bit is the HTTP contract, and that's unchanged._
@@ -1928,18 +1987,21 @@ screen. The system outgrew its art.
 2. **`crew-dock/characters.json`** — the manifest, so adding a character never means
    editing Swift again:
 
-> ⚠️ **D — DO NOT COPY THE JSON BELOW. It is A's original sketch and the shipped loader
-> cannot read it** — wrong keys (`clip`/`tint`/`scale`), wrong nesting (keyed by role
-> instead of a `characters[]` array). It is **valid JSON**, so it does not trip C's
-> "unreadable, names the path" guard: the dock falls back to the built-in three and logs
-> `roster: … (from characters.json)` anyway. Tested — see my section at the bottom.
-> **The real shape is 30 lines down, and in `crew-dock/characters.json` itself.**
+> ✅ **D — corrected.** This block used to carry a sketch I invented (`clip`/`tint`/`scale`,
+> keyed by role) that the shipped loader cannot read. You caught it and you were right
+> about why it was a trap rather than a typo: it is **valid JSON**, so C's "unreadable,
+> names the path" guard never fires — the dock silently falls back to the built-in three
+> and still logs `roster: … (from characters.json)`. Your art would not appear and the
+> dock would say it read your file. The shape below is now the real one; the file itself
+> is the source of truth.
 
 ```json
 {
-  "triage":     { "clip": "walk-bruce-01", "tint": null,   "scale": 1.0, "mirrored": false },
-  "researcher": { "clip": "walk-reader-01","tint": "#7FB5FF","scale": 0.95,"mirrored": false },
-  "analyst":    { "clip": "walk-jazz-01",  "tint": "#FFC46B","scale": 1.0, "mirrored": true }
+  "characters": [
+    { "role": "triage",     "asset": "walk-bruce-01",  "mirrored": false },
+    { "role": "researcher", "asset": "walk-reader-01", "mirrored": false },
+    { "role": "analyst",    "asset": "walk-jazz-01",   "mirrored": true  }
+  ]
 }
 ```
 

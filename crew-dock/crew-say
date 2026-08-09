@@ -47,11 +47,18 @@ MODE="${CREW_TTS:-auto}"
 #   Moira  (triage)    -> alba, Scottish, dry
 #   Daniel (scheduler) -> northern english male, brisk
 #   Karen  (recap)     -> amy, warm
+# Role names are accepted as well as voice names: the dock passes whatever it was
+# configured with, and for a role it has no CREW_VOICE_* for it passes the
+# fallback voice. E measured the consequence on the research crew — every new
+# role spoke as Samantha. Matching on the role too means a new crew member gets
+# its own voice from this side even before the dock learns its name.
 case "$VOICE" in
-  Moira|triage)     MODEL="en_GB-alba-medium" ;;
-  Daniel|scheduler) MODEL="en_GB-northern_english_male-medium" ;;
-  Karen|recap)      MODEL="en_US-amy-medium" ;;
-  *)                MODEL="${CREW_PIPER_MODEL:-en_US-amy-medium}" ;;
+  Moira|Fiona|triage)         MODEL="en_GB-alba-medium" ;;
+  Daniel|Oliver|scheduler)    MODEL="en_GB-northern_english_male-medium" ;;
+  Karen|recap)                MODEL="en_US-amy-medium" ;;
+  Tessa|researcher)           MODEL="en_GB-alba-medium" ;;
+  Rishi|Serena|analyst)       MODEL="en_GB-northern_english_male-medium" ;;
+  *)                          MODEL="${CREW_PIPER_MODEL:-en_US-amy-medium}" ;;
 esac
 
 VOICES_DIR="${CREW_PIPER_VOICES:-$PWD/voices}"
