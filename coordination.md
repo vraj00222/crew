@@ -99,7 +99,7 @@ Switch anytime with `/effort` or `/model`. If usage gets tight, add `--fallback-
 |---|---|---|---|
 | A | orchestrator + dock + audio rig | **orchestrator done. Audio loopback PROVEN. Dock built. `./run-demo.sh` runs the whole thing.** | VoiceOS Pro trial not active — only thing left on A's side |
 | B | voiceos-bridge / mcp-server | **done and MERGED to main. Verified on A's Mac, end to end.** | the Gmail path decision (below) |
-| C | lil-agents-dock | not started | **read the Xcode note below before building** |
+| C | crew-dock (took option 2) | **the dock now talks.** `Narrator.swift` speaks every `/agent-status` line via `say`, per-character voices, never two at once. Verified end-to-end against `FAKE=1` — 3 characters on screen, 8 spoken lines, correct order | — (needs A's call on the two-speech-stream collision, see Blockers) |
 
 ### ✅ FULL CHAIN INTEGRATED — B's MCP server → A's orchestrator → A's dock
 
@@ -179,6 +179,40 @@ Two ways out, your call:
    build on and you won't fight a build system on demo day.
 
 Character art is fetched from lil-agents (MIT) at build time, not committed.
+
+### C — took option 2, and added the missing half: the dock now speaks
+
+Agreed, `crew-dock/` is the right base — my Mac has the same problem (Command Line
+Tools, no Xcode), so option 1 was never really on the table. Confirmed `build.sh`
+works from a clean clone on a second machine: ~15s, no Xcode, no signing.
+
+`crew-dock` updated bubbles but never made a sound, so the "agents narrate themselves"
+half of the demo was silent. `Sources/Narrator.swift` fixes that.
+
+**A, on "don't add your own queueing or delay" — I did not delay the bubbles.**
+`dock.apply()` still fires the instant a POST lands; your 1.4s pacing is untouched and
+the characters keep your rhythm. But speech can't work that way: a line takes ~2s to
+*speak*, so at 1.4s/line something has to give — overlap (garbled, and unusable for
+VoiceOS), queue (drifts), or skip. What it does:
+- bubbles: immediate, never queued
+- speech: one `say` at a time, never two characters talking over each other
+- backlog over 2 lines is dropped so audio can't drift behind the bubbles
+- a `Done:` line is **never** dropped — the sign-off always gets said
+
+If you'd rather have every line spoken even if audio lags, it's a one-constant change
+(`maxBacklog`). Tell me which reads better on stage and I'll set it.
+
+Knobs: `CREW_MUTE=1` silences narration entirely. `CREW_AUDIO_DEVICE="…"` picks the
+output device. `CREW_VOICE_TRIAGE` / `_SCHEDULER` / `_RECAP` override voices
+(default Samantha / Daniel / Karen).
+
+One bug worth knowing since it would have hit on stage: the first version crashed the
+whole app on a fast burst of messages — Swift's `suffix()` returns a slice that keeps
+the parent's indices, so inserting at 0 traps. The dock died silently and the
+orchestrator's `fetch(...).catch(() => {})` swallowed it, so the log looked perfect
+while nothing was on screen. Fixed and stress-tested with 13 back-to-back POSTs.
+**If the dock ever looks dead mid-demo, check it's still running — the orchestrator
+log will happily lie to you.**
 
 ### A — orchestrator: ready to integrate against (Sat 23:5x)
 
@@ -315,6 +349,19 @@ demo around one hands-free press at the top, not a per-utterance trigger.
 
 ## Blockers
 
+- **C → A, needs a decision before rehearsal: two speech streams will collide.**
+  `prompts/execution.md` Option A has each *agent* run `say -v Samantha "<command>"`
+  to drive VoiceOS. The dock now *also* speaks narration on every `/agent-status`
+  POST. Both land on the same speakers and the same mic, so an overlap feeds
+  VoiceOS a command mixed with unrelated narration and the loop breaks on stage.
+  The dock serializes its *own* narration (never two characters at once), but it
+  cannot see the agents' `say` calls — separate processes.
+  Proposed split, A's call since A owns audio:
+  - agent → VoiceOS commands: `say -a "BlackHole 2ch"` (VoiceOS listens there)
+  - dock → audience narration: `say -a "MacBook Air Speakers"`
+  Then the audience never hears the robot command voice and VoiceOS never hears
+  the narration. The dock already takes `CREW_AUDIO_DEVICE` for exactly this;
+  `CREW_MUTE=1` silences dock narration entirely if we'd rather not risk it.
 - **A — the one real blocker: VoiceOS Pro trial is not on A's account yet** (the free month
   from the event). Until it is, the loopback test can't run. BlackHole, the `crew`
   multi-output device, both scripts and the verification query are all ready and waiting —
