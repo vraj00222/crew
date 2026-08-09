@@ -32,13 +32,29 @@ const MODE = process.env.CREW_MODE || 'narrate';
 const tasks = new Map();
 let seq = 0;
 
-// --- routing: hardcoded keywords, not a planner. We know tomorrow's phrase. ---
+// --- the crew ---
+// `activity` is what the character is *doing*, as opposed to who it is. The dock
+// keys look and motion off it, so two agents doing research move alike without
+// the dock needing to know either of their names. Adding a member here is one
+// row plus a prompt file — no dock change needed for it to be heard, and none
+// for it to be seen once the dock has a slot for the name.
+const CREW = {
+  triage:     { activity: 'sorting',  match: /inbox|email|mail/ },
+  scheduler:  { activity: 'booking',  match: /schedul|calendar|meeting|book/ },
+  researcher: { activity: 'research', match: /research|look up|find out|investigate|dig into/ },
+  analyst:    { activity: 'analysis', match: /analy|compare|report|numbers|breakdown/ },
+  recap:      { activity: 'summary',  match: null }, // always last, never matched
+};
+const CLOSER = 'recap';
+
+// Hardcoded keywords, not a planner. We know the demo's phrase, and a planner
+// is a thing that can be wrong on stage.
 function rolesFor(instructions) {
   const s = instructions.toLowerCase();
-  const roles = [];
-  if (/inbox|email|mail/.test(s)) roles.push('triage');
-  if (/schedul|calendar|meeting|book/.test(s)) roles.push('scheduler');
-  return roles.length ? roles : ['triage', 'scheduler']; // never spawn nothing on stage
+  const roles = Object.keys(CREW).filter((r) => CREW[r].match?.test(s));
+  // Never spawn nothing on stage: a garbled transcript still puts the two
+  // agents the demo is about on screen.
+  return roles.length ? roles : ['triage', 'scheduler'];
 }
 
 // --- state + dock push, always together so they can't drift ---
@@ -53,7 +69,14 @@ function say(task, role, state, message) {
   agent.state = state;
   if (message) agent.lastMessage = message;
   console.log(`[${task.taskId}] ${role} (${state}): ${agent.lastMessage}`);
-  const body = JSON.stringify({ character: role, message: agent.lastMessage, state });
+  // `activity` is additive to the frozen contract — the dock ignored unknown
+  // keys before this and still does, so nothing had to change to keep working.
+  const body = JSON.stringify({
+    character: role,
+    message: agent.lastMessage,
+    state,
+    activity: CREW[role]?.activity ?? 'working',
+  });
   dockChain = dockChain.then(() =>
     fetch(DOCK, { method: 'POST', headers: { 'content-type': 'application/json' }, body })
       .catch(() => {}) // dock may not be up — never block the demo on it
@@ -84,10 +107,17 @@ function narrate(evt) {
 }
 
 // Read prompts fresh every run — edit them without restarting the server.
-function buildPrompt(role, instructions) {
+function buildPrompt(role, instructions, task) {
   const execution = readFileSync(join(__dirname, 'prompts', `execution-${MODE}.md`), 'utf8').trim();
+  // The closer used to have the old three-agent crew written into its prompt,
+  // so once the roster became dynamic it cheerfully reported an inbox nobody
+  // had touched. It gets told who actually ran, and what each of them said.
+  const crew = task.roles
+    .map((r) => `- ${r.toUpperCase()} (${CREW[r]?.activity}) said: "${task.agents[r].lastMessage}"`)
+    .join('\n');
   return readFileSync(join(__dirname, 'prompts', `${role}.md`), 'utf8')
     .replace('{{EXECUTION}}', execution)
+    .replace('{{CREW}}', crew)
     .replace('{{INSTRUCTIONS}}', instructions);
 }
 
@@ -122,7 +152,7 @@ function runRole(task, role) {
     say(task, role, 'working', 'waking up');
     if (FAKE) { push(CANNED[role]); return finish(); }
 
-    const args = ['-p', buildPrompt(role, task.instructions), '--output-format', 'stream-json', '--verbose'];
+    const args = ['-p', buildPrompt(role, task.instructions, task), '--output-format', 'stream-json', '--verbose'];
     if (ALLOWED_TOOLS) args.push('--allowedTools', ALLOWED_TOOLS);
     const child = spawn('claude', args, { cwd: __dirname, stdio: ['ignore', 'pipe', 'pipe'] });
 
@@ -152,19 +182,21 @@ function runRole(task, role) {
 const CANNED = {
   triage: ['Scanning the inbox.', 'Archiving six newsletters.', 'Flagging two emails that need replies.', 'Done: inbox down to two real emails.'],
   scheduler: ['Reading the flagged emails.', 'Finding open slots tomorrow.', 'Booking two PM with David Chen.', 'Done: two meetings on the calendar.'],
+  researcher: ['Reading what the thread actually says.', 'Checking the rollout notes against it.', 'Done: three facts worth knowing, one of them awkward.'],
+  analyst: ['Lining the numbers up side by side.', 'One of these is not like the others.', 'Done: the Thursday figure is the one to ask about.'],
   recap: ['Pulling together what the crew did.', 'Done: inbox cleared, two meetings booked.'],
 };
 
 async function runTask(task) {
   await Promise.all(task.roles.map((r) => runRole(task, r)));
-  await runRole(task, 'recap');
+  await runRole(task, CLOSER); // always speaks alone, and always last
   task.status = 'done';
 }
 
 function startTask(instructions) {
   const taskId = `task_${++seq}`;
   const roles = rolesFor(instructions);
-  const order = [...roles, 'recap'];
+  const order = [...roles, CLOSER];
   const task = {
     taskId, instructions, status: 'running', roles, order,
     agents: Object.fromEntries(order.map((n) => [n, { name: n, state: 'idle', lastMessage: '' }])),

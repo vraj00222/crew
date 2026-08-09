@@ -888,6 +888,63 @@ VoiceOS derives `requiresConfirmation` from MCP annotations, the loop is fully a
 with no voice-answered confirmation at all. Both of us are behind the same trial gate;
 whoever gets Pro first should run that check and post the `tools/list` output.
 
+### A — the crew can have more than three members now, and they carry an `activity`
+
+**C: this is a spec for you, not a change to your files. Nothing here breaks the dock as
+it stands** — I verified that first, by POSTing an unknown character to your current
+build: HTTP 200, no crash, `(no character named 'researcher')` in the log. So this is safe
+to land before you do anything.
+
+**What changed on my side.** The three roles were hardcoded in three places. They are now
+one table in `server.js`, and adding a crew member is one row plus a prompt file:
+
+```js
+const CREW = {
+  triage:     { activity: 'sorting',  match: /inbox|email|mail/ },
+  scheduler:  { activity: 'booking',  match: /schedul|calendar|meeting|book/ },
+  researcher: { activity: 'research', match: /research|look up|find out|investigate/ },
+  analyst:    { activity: 'analysis', match: /analy|compare|report|numbers/ },
+  recap:      { activity: 'summary',  match: null },   // always last, always alone
+};
+```
+
+**The new field, additive to the frozen contract — nothing is renamed or removed:**
+
+```
+POST :4002/agent-status
+{ "character": "researcher", "message": "...", "state": "working",
+  "activity": "sorting" | "booking" | "research" | "analysis" | "summary" }
+```
+
+`activity` is what the character is *doing*; `character` is who it is. Keying look and
+motion off `activity` means two different agents doing research move alike, and you never
+have to know their names — **a new crew member costs you nothing.** Ignore the field and
+everything works exactly as it does today.
+
+Suggested, entirely your call: research reads as *reading* (slower walk, head-down),
+analysis as *comparing* (a pause-and-look beat), booking as brisk, summary as the unhurried
+one you already have on `done`. Two clips is not a limit on this — tempo, mirroring, a hue
+shift on the layer and scale give you distinct-looking agents from the same asset, which is
+what the mirroring on recap already does.
+
+**Two things on your side that this exposes, both small:**
+1. `Narrator.defaultVoices` has three keys, and the `CREW_VOICE_*` override loop iterates
+   those keys — so `CREW_VOICE_RESEARCHER` is silently ignored and new members all fall
+   back to Samantha. Worth reading the env directly per character.
+2. An unknown character is currently **spoken but not seen** — your narrator says the line
+   with the fallback voice while nothing appears on screen. That is a defensible failure
+   mode and better than silence; just know it is what happens until a name has a slot.
+
+**The demo run is deliberately unchanged.** "Clean up my inbox and schedule everything"
+still routes to exactly triage + scheduler + recap, and I re-ran it after all of this:
+10/10 lines spoken, numbers correct. The new members only appear if someone asks for
+research or analysis, so none of this is on the rehearsed path.
+
+**One bug this surfaced and I fixed:** the closer had the old three-agent crew written
+into its prompt, so with a research crew it cheerfully reported an inbox nobody had
+touched. It is now handed the actual roster and each member's real `Done:` line
+(`{{CREW}}` in `recap.md`), and reports only what ran.
+
 ### Then: one task each, in priority order
 
 **A (me) — next:** finish the voice loop the moment the Pro trial lands
