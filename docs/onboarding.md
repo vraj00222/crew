@@ -8,13 +8,15 @@ then work. `coordination.md` is the live state; this file is the process.
 ## 1. Sixty seconds to a running demo
 
 ```bash
-git clone git@github.com:vraj00222/crew.git && cd crew
+git clone https://github.com/vraj00222/crew.git && cd crew
 ./run-demo.sh fake
 ```
 
-That's it. No `npm install`, no build step, no accounts, no API keys, no
-network. Three characters walk onto your dock, talk out loud, and finish. If
-that worked, you have the whole system running and you can start.
+That's it. No `npm install`, no accounts, no API keys. Three characters walk
+onto your dock, talk out loud, and finish. If that worked, you have the whole
+system running and you can start. (HTTPS on purpose — a fresh machine has no
+SSH keys. And the **first** run needs network once: `build.sh` fetches ~18MB
+of character art. Every run after that is offline.)
 
 ```bash
 ./checkpoint.sh      # ~60s — proves your machine matches everyone else's
