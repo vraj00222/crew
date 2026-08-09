@@ -99,7 +99,7 @@ Switch anytime with `/effort` or `/model`. If usage gets tight, add `--fallback-
 |---|---|---|---|
 | A | orchestrator + dock + audio rig | **CHECKPOINT READY — everyone run `./checkpoint.sh`, see the Checkpoint section at the bottom.** Orchestrator done, 3 modes (`narrate`/`live`/`voice`) selected by a flag not a file edit. Audio split decided + measured. 10/10 lines spoken, 0 dropped. Three accents + written personalities. Characters no longer freeze. `docs/demo-script.md` written. Full chain with real agents: ~45s, PASS | VoiceOS Pro trial not active — still the only thing left on A's side |
 | B | voiceos-bridge (mcp-server + demo-seed + Gmail/Calendar tools) | **all 8 tools built and tested. `voiceos-bridge/verify.ps1` runs every B-side check in one command — 4 suites green. Gmail decision made; A unblocked. VoiceOS installed on Windows and inspected — see the tool-naming finding, it changes A's prompts.** | VoiceOS Pro trial (same paywall as A, now confirmed on a 2nd machine) + a demo Google account & OAuth creds |
-| C | crew-dock (took option 2) | **the dock talks, and the handover is proven.** `Narrator.swift` speaks every `/agent-status` line via `say`, per-character voices, never two at once. Re-verified this morning from a **throwaway clone of current `main`** — clone → speaking app in 13s. **A's audio split + new voices then re-verified on my Air against A's unmodified `run-demo.sh`: 16 received, 10 spoken, 0 failed.** Nothing left to hand-carry to A's Mac but two commands | **nothing — blocker resolved by A** |
+| C | crew-dock (took option 2) | **the dock talks, and the handover is proven.** `Narrator.swift` speaks every `/agent-status` line via `say`, per-character voices, never two at once. Re-verified this morning from a **throwaway clone of current `main`** — clone → speaking app in 13s. **A's audio split + new voices then re-verified on my Air against A's unmodified `run-demo.sh`: 16 received, 10 spoken, 0 failed.** Nothing left to hand-carry to A's Mac but two commands. **Reviewed and kept A's character fix — verified by screen capture, not by log — and fixed the stale-binary hole that let `checkpoint.sh` PASS while grading an old build** | **nothing — CHECKPOINT PASS on my Air (14 ok / 0 failed)** |
 
 ### ✅ FULL CHAIN INTEGRATED — B's MCP server → A's orchestrator → A's dock
 
@@ -612,6 +612,59 @@ in `say -a '?'` and correctly *not* chosen — holds by construction (`BlackHole
 doesn't end in `Speakers`), but it is unverified on real hardware. **A, `say -a '?'` on
 your Mac lists both; if you ever see the dock warn and land somewhere other than
 `MacBook Pro Speakers`, that's the case to tell me about.**
+
+### C — checkpoint PASS, and the one thing the checkpoint wasn't checking
+
+**`./checkpoint.sh` → CHECKPOINT PASS on my Air** (14 ok, 0 failed, 4 N/A — no
+BlackHole/switchaudio/enhanced voices here, all expected for C).
+
+**A — your character fix is right, I'm keeping it, and I nearly reported it broken.**
+Read the diff and agreed on all of it: tempo instead of pausing, bob on real lines,
+mirroring the recap. `play()` before `rate` is the correct order and the reason is real.
+
+But I checked it the way you framed it — *by watching the screen instead of the log* —
+and the first check said the character was still frozen. Same region of screen captured
+three times 1.3s apart, pixel-identical:
+
+```
+9917ed171aaef9f327e4679f6efb1247   <- t+0.0
+9917ed171aaef9f327e4679f6efb1247   <- t+1.3   frozen
+9917ed171aaef9f327e4679f6efb1247   <- t+2.6
+```
+
+**The fix wasn't in the binary I was running.** After a rebuild, same test:
+
+```
+5ed214ed9f7f8fa43618766a863fb471   <- t+0.0
+003e9fa573d9c2464aa8abe7a85cc446   <- t+1.3   walking
+8a91b19b5b7a41ff4f70def7ccb1b5dc   <- t+2.6
+```
+
+**Why that matters to all three of us: `checkpoint.sh` said PASS while running a dock
+binary older than the source it was grading.** Both `run-demo.sh` and `checkpoint.sh`
+guarded on `[ -x … ]` — *existence*, never freshness. So `git pull` brings new Swift,
+every check still passes, and you are testing the previous build. My binary was 08:35;
+your `AgentCharacter.swift` was 10:02. The dock is the only compiled artifact in the
+repo, so it is the only place this can happen — and it defeats the exact thing the
+checkpoint exists to prove, that all three of us are running the same commit.
+
+Fixed in both, and the failure is loud rather than silent:
+
+```
+FAIL  dock binary is OLDER than its sources — ./crew-dock/build.sh (you are testing stale code)
+```
+
+- `run-demo.sh` now rebuilds when `crew-dock/Sources` or `build.sh` is newer than the
+  binary (swiftc is ~3s — no reason to be clever). It printed `building dock...` on the
+  next run, as it should have this morning.
+- `checkpoint.sh` **fails** on a stale binary instead of reporting `ok dock built`.
+
+**A and B: if either of you ran `./checkpoint.sh` before this commit and did not rebuild
+the dock by hand after pulling, that PASS did not cover the dock — please re-run it.**
+Mine now passes on a binary provably newer than its sources.
+
+Two touched files are A's. Both are one-line guards, no contract touched, and the same
+class of thing as the `test.sh` port fix — shout if you'd rather own the change.
 
 ### A — the crew has voices now, not one robot with three sprites
 

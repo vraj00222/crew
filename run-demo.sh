@@ -63,7 +63,14 @@ esac
   || { echo "no prompt for mode '$CREW_MODE'"; exit 1; }
 
 stop
-[ -x crew-dock/Crew.app/Contents/MacOS/Crew ] || { echo "building dock..."; ./crew-dock/build.sh >/dev/null; }
+# Rebuild when the sources are newer, not only when the binary is missing. The
+# old `-x` guard meant a `git pull` that brought new Swift left you running the
+# previous build with no warning — the dock fix was on disk and not in the app.
+# swiftc is ~3s, so there is no reason to be clever about it.
+DOCK_BIN=crew-dock/Crew.app/Contents/MacOS/Crew
+if [ ! -x "$DOCK_BIN" ] || [ -n "$(find crew-dock/Sources crew-dock/build.sh -newer "$DOCK_BIN" 2>/dev/null)" ]; then
+  echo "building dock..."; ./crew-dock/build.sh >/dev/null
+fi
 
 # Run the binary, not `open` — `open` discards stderr, and the dock's stderr is
 # the only proof a line reached the audience. The orchestrator log only proves

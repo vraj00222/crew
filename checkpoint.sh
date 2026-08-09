@@ -41,7 +41,18 @@ for m in narrate direct voice; do
   [ -f "orchestrator/prompts/execution-$m.md" ] && ok "prompt: execution-$m.md" || bad "missing execution-$m.md"
 done
 if [ "$(uname -s)" = Darwin ]; then
-  [ -x crew-dock/Crew.app/Contents/MacOS/Crew ] && ok "dock built" || skip "dock not built — ./crew-dock/build.sh"
+  # Existence is not enough. This checkpoint exists to prove all three of us are
+  # running the *same commit*, and the dock is the only compiled artifact here —
+  # a pull that brings new Swift leaves a stale binary that still passes every
+  # other check, so the run below would grade code nobody has on disk.
+  DOCK_BIN=crew-dock/Crew.app/Contents/MacOS/Crew
+  if [ ! -x "$DOCK_BIN" ]; then
+    skip "dock not built — ./crew-dock/build.sh"
+  elif [ -n "$(find crew-dock/Sources crew-dock/build.sh -newer "$DOCK_BIN" 2>/dev/null)" ]; then
+    bad "dock binary is OLDER than its sources — ./crew-dock/build.sh (you are testing stale code)"
+  else
+    ok "dock built, and newer than its sources"
+  fi
   have SwitchAudioSource && ok "switchaudio-osx" || skip "no switchaudio-osx (brew install switchaudio-osx)"
   say -a '?' 2>/dev/null | grep -q "BlackHole" && ok "BlackHole present" || skip "no BlackHole — rungs 1-3 still work"
   GOOD=$(say -v '?' 2>/dev/null | grep -Eic '\((Premium|Enhanced)\)')
