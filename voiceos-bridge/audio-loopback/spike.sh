@@ -3,6 +3,7 @@
 #   ./spike.sh install   one-time, asks for your password (installs an audio driver)
 #   ./spike.sh on        route audio into VoiceOS's mic
 #   ./spike.sh say "..." speak a command into VoiceOS
+#   ./spike.sh test      the whole go/no-go: routes, speaks, checks, restores
 #   ./spike.sh off       put audio back to normal  <- ALWAYS run this when done
 set -euo pipefail
 
@@ -45,6 +46,42 @@ off)
   SwitchAudioSource -t output -s "MacBook Pro Speakers" 2>/dev/null || true
   SwitchAudioSource -t input  -s "MacBook Pro Microphone" 2>/dev/null || true
   echo "restored. input=$(SwitchAudioSource -t input -c), output=$(SwitchAudioSource -t output -c)"
+  ;;
+
+test)  # the whole go/no-go, hands-off except for one key press
+  BEFORE=$(sqlite3 -readonly "$HOME/Library/Application Support/VoiceOS/voiceos.db" \
+    "SELECT COUNT(*) FROM dictations;" 2>/dev/null || echo 0)
+  printf 'crew loopback scratch — dictated text lands here\n\n' > /tmp/crew-dictation.txt
+  open -a TextEdit /tmp/crew-dictation.txt   # absorbs the text so it can't type into your terminal
+  sleep 2
+  # Restore audio no matter how we exit — a dead mic is not an obvious failure.
+  trap '"$0" off' EXIT INT TERM
+  "$0" demo
+  echo
+  echo ">>> Click the TextEdit window, then hold your VoiceOS trigger (Fn) <<<"
+  echo ">>> I'll speak a test phrase every 8s for the next 48 seconds.     <<<"
+  echo
+  for i in 1 2 3 4 5 6; do
+    echo "[$i/6] speaking..."
+    say -v Samantha -r 190 "The quick brown fox jumps over the lazy dog"
+    sleep 5
+  done
+  echo
+  AFTER=$(sqlite3 -readonly "$HOME/Library/Application Support/VoiceOS/voiceos.db" \
+    "SELECT COUNT(*) FROM dictations;" 2>/dev/null || echo 0)
+  echo "=== dictations before=$BEFORE after=$AFTER ==="
+  if [ "$AFTER" -gt "$BEFORE" ]; then
+    echo "*** VOICE LOOP IS LIVE — VoiceOS transcribed audio it never heard through a microphone ***"
+    sqlite3 -readonly "$HOME/Library/Application Support/VoiceOS/voiceos.db" \
+      "SELECT created_at, final_transcription FROM dictations ORDER BY rowid DESC LIMIT 3;"
+  else
+    echo "No new dictation. Check, in this order:"
+    echo "  1. did you actually hold the trigger while it was speaking?"
+    echo "  2. VoiceOS mic set to 'BlackHole 2ch'?  ./voiceos-setup.sh show"
+    echo "  3. muteWhenDictating still true?        ./voiceos-setup.sh apply"
+    echo "  4. does dictation work at all — press Fn and talk normally first"
+  fi
+  echo "(audio restored automatically)"
   ;;
 
 list) SwitchAudioSource -a ;;
