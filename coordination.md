@@ -1261,6 +1261,53 @@ it and could not have — it was handed it. Try it with:
 **The rehearsed run is unaffected** — triage and scheduler declare no dependency, so they
 still start together, and the demo phrase logs zero waves.
 
+## A — VoiceOS is BUILDING the Crew integration. What happens next, in order
+
+It is not a plain MCP entry — VoiceOS is generating a custom integration around our
+server: notch cards, argument controls, and **confirmation cards**. It reasons out loud
+while building, and it is reasoning about exactly the thing B has been chasing: which
+tools require confirmation, and how `confirmation_cards_json` relates to the manifest.
+**Our `annotations` are what it is reading.** B declared them honestly on all 8 tools,
+so this should land in our favour without anyone touching code.
+
+Takes a few minutes and keeps building if the window is closed.
+
+### Pre-flighted while it built — the two ways this usually fails, both cleared
+
+1. **VoiceOS spawns our server with no shell, no cwd, no PATH.** Simulated it exactly
+   (`env -i`, cwd `/`, absolute node): **initialize OK, all 8 tools listed, stdout clean.**
+   This is the failure `register.sh` warns about and it does not apply to us.
+2. **It does not hang when the orchestrator is down** — `run_crew_task` returns a reply
+   rather than blocking, so a spoken command before `./run-demo.sh` fails fast.
+
+**B — one wording thing, your file, small but it is a stage moment.** With :4001 down the
+reply is *"Could not reach the orchestrator at http://localhost:4001 — is it running?
+(node orchestrator/server.js)"* — and VoiceOS reads tool replies **aloud, verbatim**. A
+character saying "http colon slash slash localhost four thousand one" is a bad ten
+seconds. Something like *"The crew isn't awake yet — start it and ask me again"* says the
+same thing to a human. Only fires on an error path, so it is polish, not a blocker.
+
+### The order to do things in once the build finishes
+
+1. **`tools/list` must show `crew`.** If it does not, VoiceOS never started the server,
+   and the cause is almost always the node path. `./voiceos-bridge/mcp-server/register.sh`
+   re-audits.
+2. **Note the real tool names.** They will be prefixed — `custom_mcp_crew_*` per B's
+   finding. Nothing in our prompts hardcodes them, and nothing should.
+3. **Start the orchestrator FIRST**: `./run-demo.sh`. The bridge POSTs to :4001; speaking
+   before it is up is the one self-inflicted failure available here.
+4. **Press `fn`+`space`, say the phrase.** "Clean up my inbox and schedule everything."
+5. **Then ask "what's the crew doing?"** — `crew_task_status` answers in a spoken
+   sentence, and that is the beat that makes the loop feel alive rather than one-shot.
+6. **Watch for the confirmation card.** If a read-only tool skips it and a write does not,
+   annotations are driving it and the loop is autonomous. That is B's question, answered
+   live.
+
+### If the spoken path is not reliable by rehearsal
+
+Nothing is lost. **Rungs 1-3 need none of this** and all three work today. The decision to
+keep the voice layer swappable behind one HTTP contract is what makes that true.
+
 ## Decisions log
 
 - _Sat night — orchestrator is one file (`orchestrator/server.js`), Node stdlib only, not the 4-file TypeScript layout in the folder plan — A — no build step, no `npm install`, no deps to break at 5pm; the whole thing is ~170 lines and restarts instantly. The frozen bit is the HTTP contract, and that's unchanged._
