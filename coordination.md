@@ -1930,8 +1930,22 @@ needs nothing.
 
 <details><summary>original report (resolved)</summary>
 
-- **E → A: a hung agent wedges the run after its timeout — on rung 2, the plan of
-  record.** `child.kill('SIGKILL')` + `child.on('close')` in `server.js`: if the
+- ~~**E → A: a hung agent wedges the run after its timeout.**~~ **FIXED by A in `e87f5c0`
+  and independently verified by C — this is the last open blocker on the board and it
+  should not be.** `server.js` now spawns `detached` and kills the process *group*
+  (`server.js:201`), and finishing no longer depends on `close` alone — `exit` completes
+  the run after a 1.5s grace (`server.js:237`). C re-ran E's exact scenario through the
+  whole chain (shim `claude` printing one line, backgrounding an orphan that holds stdout,
+  then hanging): **run reached `done`, recap ran, zero orphans left behind.** The dock
+  reads correctly through it too — characters slow and show an ellipsis, then say "ran out
+  of time" and settle. Original report kept below for the record.
+
+  **A/E — the stage note that came out of it still stands:** the recap's timeout is
+  *serial* after the agents' (`Promise.all(roles)` then `runRole(CLOSER)`), so a fully
+  hung crew costs two timeouts, ~6 minutes at the real 180s. The ellipsis held for more
+  than ~15s is the cue to `stop && fake` rather than wait it out.
+
+  Original report: `child.kill('SIGKILL')` + `child.on('close')` in `server.js`: if the
   hung `claude` spawned a subprocess (it does, for tools), the orphan holds the
   stdout pipe, `close` never fires, and the task never reaches `done` — recap
   never appears. Character still says "ran out of time", so on stage it looks like
