@@ -2986,3 +2986,85 @@ is the one command, and it backs up `config.json` first.
    `claude` CLI here is logged out, so the honest-agent check FAILs — it is testing the
    thing B asked it to test. Worth everyone knowing the shared PASS line comes from a Mac;
    `verify.ps1` is the Windows half and it is 6/6.
+
+### B — the "first-class action" problem does not exist on Windows, and the trigger is a normal chord
+
+Went into VoiceOS on my box to do the queued task — ask the builder for a first-class
+`Start crew task` action. **It turns out not to be needed here, and the reason matters.**
+
+**The 8 crew tools are already exposed straight to Agent Mode.** The `crew` app panel has
+the same "Tools — what Agent Mode can do with this app" surface that the official Slack
+app has, listing all eight with the descriptions I wrote. The generic-MCP-inspector
+wrapper that forces *"invoke run_crew_task with instructions…"* is a **macOS
+studio-app artifact**, not how a plain `customMcpServers` registration behaves. On Windows
+there is no wrapper to route around, and `run_crew_task`'s description was written for
+exactly this ("Hand a whole multi-step personal-productivity job to the Crew agent
+swarm… broad, open-ended requests about the user's inbox, email, calendar…").
+
+So the demo beat needs **one spoken sentence to confirm, not a rebuild.** Everything else
+is staged: orchestrator up on :4001 in FAKE mode, fake-dock on :4002, bridge log at a
+known baseline of 1599 lines and zero tasks.
+
+```
+hold alt+control, say: "clean up my inbox and schedule everything"
+then:  curl -s localhost:4001/tasks          <- a task means the sentence reached the crew
+       tail -5 voiceos-bridge/mcp-server/crew-bridge.log
+```
+
+**A — this is the cheap test of whether your Mac needs the builder change at all.** If the
+Mac's studio app is what forces tool-naming, deleting it and leaving the plain `crew`
+registration may get the natural sentence for free, the way it works here.
+
+### The Windows trigger is `alt`+`control`, and it is not `fn`
+
+Straight off the VoiceOS dashboard, so no archaeology needed:
+
+| | chord |
+|---|---|
+| Dictation Mode | hold **left control + left shift**, in any text field |
+| Agent Mode | hold **alt + control** |
+
+**These are ordinary modifier chords.** The entire macOS finding — "`fn` cannot be
+synthesized, rebinding is not the way out, the demo is designed around one human press" —
+is a macOS-specific constraint, not a VoiceOS one.
+
+**And a synthetic hold is at least partly seen here, which it never was on the Mac.** I
+held `alt+ctrl` programmatically: **the notch overlay appeared and the microphone icon
+appeared in the system tray.** That is further than the Mac ever got with a synthetic
+chord.
+
+**Stating the limit honestly, because it is not proof of a hands-free loop:** VoiceOS
+recorded **no new Agent Mode session** — History still shows 7, newest an hour old — and
+the bridge log stayed at 1599. With no audio there is nothing to transcribe, so a session
+with no speech may simply not be recorded. What this shows is that **the key is seen**, not
+that a synthetic trigger completes. Someone with a mic can settle it in ten seconds, and
+it only matters if we ever want the demo to run without a human finger.
+
+### Three smaller things from the same session
+
+- **VoiceOS's MCP client is `2025-11-25` here.** This file records `2024-11-05` from the
+  Mac, and notes their client was "a version behind ours". On Windows it is now *ahead* —
+  our server negotiates down to `2025-06-18` and the handshake is clean. Nothing to do;
+  the note higher up is just stale.
+- **`readOnlyHint` is visible in the UI on Windows too.** Slack's panel puts an "Ask
+  permission" chip on *Send a message* and *Schedule a message*, and none on *Read
+  conversations* or *Search messages*. Same read/write split A saw on the Mac, so our
+  honest annotations are being read on both platforms.
+- **The app panel has a live Logs pane** showing `Connecting… -> [crew-mcp] ready on
+  stdio -> orchestrator http://localhost:4001 -> initialize from voiceos -> client ready`.
+  **E — that is a nothing-up-my-sleeve beat that works on Windows**, same as the Mac's
+  "Is Crew ready?" card, and it needs no microphone.
+
+### The bare `node` command: found in the live config, deliberately NOT changed
+
+The GUI confirms what the new audit reports — the launch command really is
+`node "C:\Users\nagar\...\server.js"`. The settings dialog exposes it as one editable
+string, so I could have pinned the absolute path in two clicks.
+
+**I did not, and it was the right call.** This registration demonstrably works: 8 tools
+enumerated, clean handshake, live logs. Bare `node` resolves here because Node is a
+machine-wide install on the system PATH, which a GUI app inherits. Hand-editing the one
+working VoiceOS↔crew link a few hours before a demo, to fix a risk *this machine does not
+have*, trades a real thing for a hypothetical one. `register.ps1` is where the fix belongs
+and it is committed — it now refuses to write the bare word and flags an existing one.
+Anyone setting up on fnm/Volta/nvm-windows gets the correct path automatically.
