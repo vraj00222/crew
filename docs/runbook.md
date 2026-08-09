@@ -20,6 +20,11 @@ On rung 4, VoiceOS hears it. On rungs 1–3, use the hedge: enable macOS
 Dictation (System Settings → Keyboard → Dictation), focus the terminal with the
 command pre-typed up to the quote, and dictate the phrase. Ugly beats
 disqualified. Decide which *before* 5pm, not on stage.
+**The hedge is tested, not assumed** (E's Mac): Dictation types a full spoken
+sentence into a terminal accurately, punctuation and all. Two cautions: dictate
+the exact demo phrase once at pre-flight to confirm "schedule" survives on the
+demo Mac's ears, and don't leave Dictation armed in a terminal between tests —
+anything you say that ends in Enter runs.
 
 ## 2. Pre-flight — 5:15, not 5:55
 
