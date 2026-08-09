@@ -332,6 +332,8 @@ async function runTask(task) {
 
   await runRole(task, CLOSER); // always speaks alone, and always last
   task.status = 'done';
+  // Give the microphone back, so the next ⌘⌥C can hear a person again.
+  if (MODE === 'voice') micTo(HUMAN_MIC);
   // The whole point of direct mode is that the mailbox really changed. If no
   // agent called a tool, it did not — say so here rather than letting the run
   // look identical to a narrated one.
@@ -349,6 +351,15 @@ async function runTask(task) {
 const VOICEOS_DB = process.env.VOICEOS_DB
   || `${process.env.HOME}/Library/Application Support/VoiceOS/voiceos.db`;
 const GREETING = process.env.CREW_GREETING || 'Hey. What can I do for you?';
+const HUMAN_MIC = process.env.CREW_HUMAN_MIC || 'MacBook Pro Microphone';
+
+/// Point the system input at a device. Best effort — a missing
+/// `switchaudio-osx` must never stop a run, it just means the handover is manual.
+const micTo = (device) => new Promise((resolve) => {
+  const p = spawn('SwitchAudioSource', ['-t', 'input', '-s', device], { stdio: 'ignore' });
+  p.on('close', (code) => { if (!code) console.log(`[wake] microphone -> ${device}`); resolve(); });
+  p.on('error', () => resolve());
+});
 const LISTEN_MS = Number(process.env.LISTEN_MS || 30_000);
 
 const sqlite = (sql) => new Promise((resolve) => {
@@ -433,6 +444,12 @@ async function wakeAndListen() {
     return startTask(process.env.CREW_PHRASE || 'clean up my inbox and schedule everything');
   }
   console.log(`[wake] heard: "${heard}"`);
+  // Hand the microphone to the crew. You spoke on the real mic; in `voice` mode
+  // the agents drive VoiceOS by speaking to BlackHole, and one VoiceOS cannot
+  // listen to both. Requires `voiceos-setup.sh auto` so VoiceOS follows the
+  // system default rather than a pinned device — then this is instant and costs
+  // no restart. Silent no-op in every other mode, where nobody is competing.
+  if (MODE === 'voice') await micTo('BlackHole 2ch');
   return startTask(heard);
 }
 

@@ -2,7 +2,8 @@
 # Apply the VoiceOS settings the voice loop needs.
 #   ./voiceos-setup.sh apply    quits VoiceOS, patches settings, relaunches
 #   ./voiceos-setup.sh revert   restores the newest backup
-#   ./voiceos-setup.sh mic ["Name"]  which mic VoiceOS hears (default: the real one)
+#   ./voiceos-setup.sh auto     VoiceOS follows the system input — lets the crew take the mic
+#   ./voiceos-setup.sh mic ["Name"]  pin which mic VoiceOS hears
 #   ./voiceos-setup.sh handsfree  rebind hands-free off `fn` so a script can trigger it
 #   ./voiceos-setup.sh show     print the settings that matter, change nothing
 #
@@ -45,6 +46,35 @@ apply)
   open -a VoiceOS
   sleep 5
   echo "applied:"; show
+  ;;
+
+auto)
+  # Let VoiceOS follow the SYSTEM default input instead of a pinned device.
+  #
+  # This is what makes one VoiceOS serve both halves of the demo. You speaking
+  # needs the real microphone; the agents speaking need BlackHole. Pinned, those
+  # are mutually exclusive and switching costs a VoiceOS restart mid-show.
+  # Unpinned, `SwitchAudioSource -t input` flips it instantly and VoiceOS follows
+  # — so the crew can take over the microphone the moment you stop talking.
+  cp "$CFG" "$CFG.backup-$(date +%Y%m%d-%H%M%S)"
+  osascript -e 'quit app "VoiceOS"' 2>/dev/null || true
+  sleep 3
+  pkill -f "VoiceOS.app/Contents/MacOS" 2>/dev/null || true
+  sleep 1
+  node -e '
+    const fs=require("fs"), p=process.argv[1];
+    const c=JSON.parse(fs.readFileSync(p,"utf8")), s=c.settings;
+    s.micExplicitlySet=false;      // follow the system default
+    s.agentVoiceEnabled=false;     // it keeps turning itself back on
+    s.muteWhenDictating=false;
+    fs.writeFileSync(p, JSON.stringify(c,null,2));
+  ' "$CFG"
+  open -a VoiceOS
+  sleep 5
+  echo "VoiceOS now follows the system input device."
+  echo "  you speak   : SwitchAudioSource -t input -s 'MacBook Pro Microphone'"
+  echo "  agents speak: SwitchAudioSource -t input -s 'BlackHole 2ch'"
+  show
   ;;
 
 mic)
