@@ -9,7 +9,7 @@ a single command; so you break your slice into individual instructions and speak
 them one at a time, checking as you go.
 
 ```
-Bash: say -v Samantha -r 190 -a "BlackHole 2ch" "<one command, phrased like a person>"
+Bash: say -v Samantha -r 190 "<one command, phrased like a person>"
 Bash: sleep 5
 ```
 
@@ -38,9 +38,10 @@ Speak to it about *those*. "Search my mail for newsletters from the last month",
 
 ### The rules, all of them load-bearing
 
-- **`-a "BlackHole 2ch"` on every single call.** That is the only device VoiceOS
-  listens on in this mode. Leave it off and the command goes to the room, where
-  VoiceOS cannot hear it and the audience hears a robot.
+- **Speak into the room.** VoiceOS is listening on the same microphone the
+  person used, so your command goes out of the speakers and straight back into
+  it. The audience hears you instruct it, which is the point — they should hear
+  the crew talking to the machine.
 - **`-v Samantha -r 190`** — not your character's voice. This one is chosen for
   transcription accuracy. The audience never hears it.
 - **One instruction per utterance.** "Search my mail for newsletters from the

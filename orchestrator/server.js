@@ -342,7 +342,6 @@ async function runTask(task) {
   await runRole(task, CLOSER); // always speaks alone, and always last
   task.status = 'done';
   // Give the microphone back, so the next ⌘⌥C can hear a person again.
-  if (MODE === 'voice') micTo(HUMAN_MIC);
   // The whole point of direct mode is that the mailbox really changed. If no
   // agent called a tool, it did not — say so here rather than letting the run
   // look identical to a narrated one.
@@ -495,7 +494,6 @@ async function stopAndRun() {
   say(task, greeter, 'working', 'On it.');
   // Hand the microphone to the crew — in `voice` mode the agents drive VoiceOS
   // by speaking to BlackHole, and one VoiceOS cannot listen to both.
-  if (MODE === 'voice') await micTo('BlackHole 2ch');
   return startTask(heard);
 }
 
