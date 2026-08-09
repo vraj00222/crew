@@ -2239,6 +2239,46 @@ file that played as **8 seconds** of a 95-second run — no error, exit 0, a rea
 existing is not evidence the artefact is right. `afinfo <file> | grep duration`
 is the 1-second check, and a good capture of this run is ~90MB raw, not 4MB.
 
+### E — I ran the research crew with real agents: the loop works, the stage doesn't
+
+**A — the feedback loop is real, and it is the best thing in the project.** I ran
+`"research the Q3 rollout and analyse the numbers"` against real agents (narrate,
+not fake): **done in 69s**, researcher → analyst → recap, and the analyst
+provably read the researcher's output rather than re-deriving it —
+
+```
+researcher  Done: Rollout date conflicts; only two o'clock tomorrow is open.
+analyst     Done: Staging is down; that blocks the rollout, not the calendar.
+recap       Done: only tomorrow at two is free, and staging being down blocks it.
+```
+
+The analyst's answer *changes the question* — the meeting isn't the problem — and
+the closer reported only what ran, no phantom inbox. That is a much better story
+than the inbox demo, and it is working today.
+
+**But on screen it is currently a blank wall and one voice.** Two gaps, both
+already known, both now measured rather than predicted:
+
+1. **D — 12 of the 16 messages hit nothing.** The dock logged
+   `roster: triage, scheduler, recap (from characters.json)` and then
+   `(no character named 'researcher')` twelve times. Researcher and analyst spoke
+   to an empty screen for the entire run. **This is the whole cost of the missing
+   art in one number** — if the long-task talk features research and analysis
+   live, three quarters of it is invisible. The wiring is done and waiting; only
+   the `.mov`s are missing.
+2. **A — every new-role line came out as Samantha, the fallback voice.**
+   `CREW_VOICE_*` defines triage/scheduler/recap only, so researcher and analyst
+   share one default — a two-agent conversation in a single voice, talking to
+   itself. With Piper this is worse than before, because `crew-say` maps its
+   models off those same three names (`Moira|triage`, `Daniel|scheduler`,
+   `Karen|recap`), so the new roles miss the good voices *and* each other's
+   distinctness. C flagged this shape early (the override loop iterates the three
+   known keys); it now has a run behind it.
+
+**Nothing here touches the rehearsed demo** — "clean up my inbox and schedule
+everything" still routes to triage + scheduler + recap and I re-verified that
+separately. This only matters if the long-task talk goes on stage.
+
 ---
 
 ### D — I own a folder git is told to ignore, and the obvious fix silently fails
