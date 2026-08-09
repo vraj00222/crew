@@ -6,7 +6,10 @@ fail() { echo "FAIL: $1"; exit 1; }
 
 node fake-dock.js > /tmp/crew-fakedock.log 2>&1 &
 DOCK_PID=$!
-FAKE=1 node server.js > /tmp/crew-srv.log 2>&1 &
+# LINE_MS is stage rhythm (4000ms, set from how long a line takes to SAY) and
+# this test is about contract shape, not rhythm. Left at the demo value the run
+# outlasts the poll budget below and the test fails as "never finished".
+FAKE=1 LINE_MS=200 node server.js > /tmp/crew-srv.log 2>&1 &
 SRV_PID=$!
 trap 'kill $SRV_PID $DOCK_PID 2>/dev/null' EXIT
 until curl -sf localhost:4001/status/nope -o /dev/null || [ $? -eq 22 ]; do sleep 0.2; done

@@ -14,7 +14,7 @@ and no `pip install` step.
 
 ## The fixture is a contract, not decoration
 
-`fixtures.json` is pinned by `orchestrator/prompts/execution.md`, which hardcodes the seeded
+`fixtures.json` is pinned by `orchestrator/prompts/execution-*.md`, which hardcodes the seeded
 inbox into the agents' prompt. **Change a sender or subject in one and you must change the
 other**, or triage narrates an inbox the audience cannot see.
 

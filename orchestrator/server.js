@@ -13,12 +13,21 @@ const PORT = 4001;
 const DOCK = process.env.DOCK_URL || 'http://localhost:4002/agent-status';
 const FAKE = process.env.FAKE === '1';
 const TIMEOUT_MS = Number(process.env.AGENT_TIMEOUT_MS || 180_000);
-// 1400 read well as bubbles, but the dock speaks these now and a line takes ~2s
-// to say — at 1400 two of ten were dropped to stop speech drifting. 2200 is the
-// speech rate, so every line lands. Raise it and the show just runs longer.
-const LINE_MS = Number(process.env.LINE_MS || 2200); // pacing between narration lines
-const MAX_LINES = Number(process.env.MAX_LINES || 8); // per agent, "Done:" always passes
+// Pacing has to be >= how long a line takes to SAY, or the dock's queue grows
+// every line and it starts dropping them. We both estimated ~2s; timed on the
+// demo Mac at rate 200 the real spread is 2.8-4.3s, average ~3.8s. That gap is
+// the whole reason lines went missing, at 1400 and again at 2200.
+// 4000 is the measurement, not a guess. Re-measure if CREW_RATE changes.
+const LINE_MS = Number(process.env.LINE_MS || 4000); // pacing between narration lines
+// 3 content lines + the "Done:" sign-off, per agent. Bounded on purpose: two
+// agents run in parallel but there is only one voice channel, so the show's
+// length is (total lines x LINE_MS) and nothing else. 3+3+2 = 8 lines, ~35s.
+const MAX_LINES = Number(process.env.MAX_LINES || 3); // per agent, "Done:" always passes
 const ALLOWED_TOOLS = process.env.ALLOWED_TOOLS || ''; // e.g. "mcp__voiceos__speak"
+// How the agents actually act: narrate (no tools) | direct (crew_* tools) | voice
+// (speak to VoiceOS). One prompt file each, all three known-good — switching is
+// an env var, not editing a prompt at 5:55pm with the room watching.
+const MODE = process.env.CREW_MODE || 'narrate';
 
 const tasks = new Map();
 let seq = 0;
@@ -65,14 +74,18 @@ function narrate(evt) {
   const out = [];
   for (const b of evt.message?.content || []) {
     if (b.type === 'text' && b.text.trim()) out.push(...toLines(b.text));
-    else if (b.type === 'tool_use') out.push(`using ${b.name}`);
+    // Tool calls used to narrate as "using crew_gmail_archive". Harmless while
+    // the only mode was dry-run and nothing called a tool — but the dock speaks
+    // these lines now, so the first live tool call would have had Moira read a
+    // function name to the room. The character already says a real line before
+    // every step; the tool name adds nothing an audience wants.
   }
   return out;
 }
 
 // Read prompts fresh every run — edit them without restarting the server.
 function buildPrompt(role, instructions) {
-  const execution = readFileSync(join(__dirname, 'prompts', 'execution.md'), 'utf8').trim();
+  const execution = readFileSync(join(__dirname, 'prompts', `execution-${MODE}.md`), 'utf8').trim();
   return readFileSync(join(__dirname, 'prompts', `${role}.md`), 'utf8')
     .replace('{{EXECUTION}}', execution)
     .replace('{{INSTRUCTIONS}}', instructions);

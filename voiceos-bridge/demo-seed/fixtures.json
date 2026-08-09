@@ -3,7 +3,7 @@
     "The demo inbox. This file is the contract between what the agents SAY and what",
     "the audience SEES on screen.",
     "",
-    "The first ten entries are pinned by orchestrator/prompts/execution.md, which",
+    "The first ten entries are pinned by orchestrator/prompts/execution-*.md, which",
     "hardcodes the seeded inbox into the agents' prompt: 6 newsletters (The Verge,",
     "Morning Brew, Substack x2, LinkedIn, Product Hunt), David Chen asking to sync",
     "about the Q3 rollout, Priya Nair wanting 30 minutes on the contract, and 2 real",
@@ -21,7 +21,7 @@
     "total": 18,
     "archive_expected": 14,
     "remaining_expected": 2,
-    "pinned_by": "orchestrator/prompts/execution.md"
+    "pinned_by": "orchestrator/prompts/execution-*.md"
   },
 
   "emails": [
