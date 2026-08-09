@@ -48,6 +48,42 @@ apply)
   echo "applied:"; show
   ;;
 
+dictate)
+  # Make control+option DICTATION-ONLY, so VoiceOS writes down what you say and
+  # does nothing about it.
+  #
+  # This is the difference between a demo of VoiceOS and a demo of the crew. Its
+  # chord is mode 3 = agent mode out of the box: on a live run "summarize the
+  # last 30 emails and make a note" made VoiceOS produce the Note ITSELF, in its
+  # own notch UI, while the crew was still introducing itself. The crew looked
+  # like decoration on top of a product that had already finished.
+  #
+  # mode 0 is plain dictation — transcribe, act on nothing. Then the crew is the
+  # only thing that acts, and the agents drive VoiceOS themselves afterwards.
+  # `./voiceos-setup.sh agentmode` puts it back.
+  MODE="${2:-0}"
+  cp "$CFG" "$CFG.backup-$(date +%Y%m%d-%H%M%S)"
+  osascript -e 'quit app "VoiceOS"' 2>/dev/null || true
+  sleep 3
+  pkill -f "VoiceOS.app/Contents/MacOS" 2>/dev/null || true
+  sleep 1
+  node -e '
+    const fs=require("fs"), p=process.argv[1], mode=Number(process.argv[2]);
+    const c=JSON.parse(fs.readFileSync(p,"utf8")), s=c.settings;
+    for (const k of (s.keyboardShortcuts||[]))
+      if ((k.keys||[]).some(x=>/control/.test(x))) k.mode = mode;
+    s.agentVoiceEnabled=false; s.muteWhenDictating=false;
+    fs.writeFileSync(p, JSON.stringify(c,null,2));
+  ' "$CFG" "$MODE"
+  open -a VoiceOS
+  sleep 4
+  echo "control+option is now mode $MODE $([ "$MODE" = 0 ] && echo "(dictation only — VoiceOS will not act)" || echo "(agent mode — VoiceOS acts)")"
+  ;;
+
+agentmode)
+  "$0" dictate 3
+  ;;
+
 auto)
   # Let VoiceOS follow the SYSTEM default input instead of a pinned device.
   #

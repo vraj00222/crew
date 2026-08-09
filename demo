@@ -24,20 +24,18 @@ if [ -z "${CREW_SAY:-}" ] && ls crew-dock/voices/*.onnx >/dev/null 2>&1; then
   export LINE_MS="${LINE_MS:-5500}"
 fi
 
-./run-demo.sh stop >/dev/null 2>&1
+./run-demo.sh stop >/dev/null 2>&1 &
+STOPPING=$!
 
-# Being ON main is not the same as being UP TO DATE with it — four other people
-# push to this branch all day. Say so rather than expecting anyone to remember a
-# git command before a demo. Never pulls by itself: a rebase seconds before you
-# present is a worse idea than running one commit behind.
-git fetch -q origin 2>/dev/null
-BEHIND=$(git rev-list --count HEAD..origin/main 2>/dev/null || echo 0)
-if [ "${BEHIND:-0}" -gt 0 ]; then
-  echo
-  echo "  ℹ️  $BEHIND new commit(s) on origin/main that you do not have."
-  echo "     git pull --rebase origin main   (then ./demo again)"
-  echo "     — or carry on; what you have works, it is just not the newest."
+# The behind-check costs ~1.7s of network on every start, which is a long time
+# to stand in front of a room. Off by default; CREW_CHECK_GIT=1 brings it back.
+if [ "${CREW_CHECK_GIT:-}" = 1 ]; then
+  git fetch -q origin 2>/dev/null
+  BEHIND=$(git rev-list --count HEAD..origin/main 2>/dev/null || echo 0)
+  [ "${BEHIND:-0}" -gt 0 ] && echo "  ℹ️  $BEHIND commit(s) behind origin/main"
 fi
+
+wait $STOPPING 2>/dev/null
 
 # Rebuild if the sources moved. C's guard, because a `git pull` that brings new
 # Swift otherwise leaves you demoing the previous build with no warning.
@@ -46,13 +44,19 @@ if [ ! -x "$DOCK_BIN" ] || [ -n "$(find crew-dock/Sources crew-dock/build.sh -ne
   printf 'building the dock... '; ./crew-dock/build.sh >/dev/null && echo ok
 fi
 
+# Both at once, and poll instead of sleeping. This used to take 4-5s of fixed
+# waits before a character could appear; nothing here needs to be sequential.
+: > /tmp/crew-dock.log
 "$DOCK_BIN" > /tmp/crew-dock.log 2>&1 &
-sleep 2
+node orchestrator/server.js > /tmp/crew-orchestrator.log 2>&1 &
+
+for _ in $(seq 1 100); do
+  grep -q 'listening on :4002' /tmp/crew-dock.log 2>/dev/null \
+    && curl -sf -o /dev/null localhost:4001/tasks 2>/dev/null && break
+  sleep 0.05
+done
 grep -q 'listening on :4002' /tmp/crew-dock.log || {
   echo "the dock never bound :4002:"; cat /tmp/crew-dock.log; exit 1; }
-
-node orchestrator/server.js > /tmp/crew-orchestrator.log 2>&1 &
-for _ in $(seq 1 20); do curl -sf -o /dev/null localhost:4001/status/x && break; sleep 0.3; done
 
 # The one thing that silently stops the key press working, said up front rather
 # than discovered by pressing it and getting nothing.
