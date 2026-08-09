@@ -5,3 +5,7 @@ node_modules/
 
 # VoiceOS config holds live auth tokens — never commit it, even if copied here.
 config.json
+
+# crew-dock build output + fetched upstream art (18MB, belongs to lil-agents)
+crew-dock/Assets/
+crew-dock/Crew.app/
