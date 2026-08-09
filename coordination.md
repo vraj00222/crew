@@ -1202,6 +1202,65 @@ Registering is GUI-only — there is no CLI — and **do not hand-edit `config.j
 VoiceOS is running**; it is an electron-store and rewrites the whole file on its own
 schedule. `tools/list` showing `crew` is the check that it took.
 
+## A — STATUS RIGHT NOW: what is connected, and the one thing that is not
+
+Checked, not assumed, at this moment on the demo Mac:
+
+| | state |
+|---|---|
+| VoiceOS Pro | **live** |
+| mic -> BlackHole 2ch | **set** |
+| `muteWhenDictating` / `agentVoiceEnabled` | **off** (both were on by default and both break the loop) |
+| hands-free | `fn`+`space` |
+| audio loopback -> VoiceOS transcription | **PROVEN** |
+| **`customMcpServers`** | **0 — the crew is NOT connected to VoiceOS** |
+
+**That last row is the only thing between us and the full voice loop, and it is a GUI
+step no script can do.** Two minutes, on the demo Mac:
+
+```
+VoiceOS window -> Settings -> MCP / custom servers -> Add
+
+  name    : crew
+  command : /opt/homebrew/Cellar/node/25.6.1/bin/node
+  args    : /Users/vrajpatel/Developer/crew/voiceos-bridge/mcp-server/server.js
+```
+
+**Absolute node path, not bare `node`** — VoiceOS is a GUI app and does not inherit a
+shell PATH, so Homebrew's node is invisible to it. That is the single most likely way this
+silently fails. Do not hand-edit `config.json` instead; it is an electron-store and
+rewrites the whole file on its own schedule. `./voiceos-bridge/mcp-server/register.sh`
+re-prints these values and audits everything else.
+
+Then: `./run-demo.sh` first (the bridge POSTs to :4001), press `fn`+`space`, say
+*"clean up my inbox and schedule everything"*.
+
+### What already works without any of that — run it right now
+
+```bash
+./run-demo.sh            # real agents, real reasoning, three human voices  <- THE DEMO
+./run-demo.sh live       # the mailbox really changes (15 tool calls, 18 -> 2)
+./run-demo.sh fake       # canned, no Claude, no network  <- PANIC BUTTON
+```
+
+Last run, just now: **10 lines, 0 dropped**, in alba / northern-english / amy.
+
+### And the crew now hands work to itself
+
+```
+researcher  Done: Staging is down; thread says Thursday, notes say Friday.
+[crew] wave 2: analyst (has researcher)
+analyst     Lining the two Thursday dates up side by side.
+analyst     Done: Staging outage is what puts Thursday at risk.
+```
+
+The analyst opened on the contradiction the researcher found. It did not go looking for
+it and could not have — it was handed it. Try it with:
+`"research what is putting Thursday at risk and analyse the numbers"`.
+
+**The rehearsed run is unaffected** — triage and scheduler declare no dependency, so they
+still start together, and the demo phrase logs zero waves.
+
 ## Decisions log
 
 - _Sat night — orchestrator is one file (`orchestrator/server.js`), Node stdlib only, not the 4-file TypeScript layout in the folder plan — A — no build step, no `npm install`, no deps to break at 5pm; the whole thing is ~170 lines and restarts instantly. The frozen bit is the HTTP contract, and that's unchanged._
