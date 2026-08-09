@@ -456,12 +456,34 @@ it this way rather than picking one and hoping.
 Prefix is `crew_`, not `mcp__voiceos__` — Option B in `execution.md` currently names
 `mcp__voiceos__gmail_*`, so that line needs updating when you swap the file.
 
-**Caveat, stated plainly:** these tools are specified, not yet built — `run_crew_task` and
-`crew_task_status` are the two that are built and tested. The Gmail tools need a demo
-Google account and OAuth credentials, and neither exists yet (`demo-seed` is written and
-dry-run verified against the same blocker). **Dry-run narration stays the panic button
-either way** — `./run-demo.sh fake` puts on the entire show with no Gmail, no network and
-no Claude spend, and nothing about this decision takes that away.
+**Update — all six are now BUILT and tested.** Two backends behind one interface, chosen
+with `CREW_BACKEND`:
+
+- **`fake` (default)** — in-memory, seeded from `fixtures.json`. No account, no credentials,
+  no network. **This is a second panic button**: the inbox half of the demo does real
+  archiving and real booking, with real numbers, on any machine. If OAuth isn't sorted by
+  5pm, we lose nothing an audience can see.
+- **`google`** — the real demo account. Raw REST over `fetch`, still zero dependencies,
+  reusing the same `token.json` that `seed.py` writes, so authorising once covers both.
+
+`crew_calendar_book` never sets `attendees`, so **Google cannot email a real person**
+mid-demo. Archiving only drops the INBOX label; nothing is ever deleted.
+
+**A — `test-demo-flow.js` asserts your script against the mailbox** and caught two things
+that would have shown on stage:
+1. the newsletter matcher also caught Calendly's "your *weekly* availability" — 7 archived
+   while the character says six;
+2. the fixture left **1pm** free, and David Chen's email says "anytime after 1pm", so the
+   scheduler correctly booked 1pm while the character says *"Booking two PM"*. There is now
+   a 13:00 vendor call so 2pm is genuinely the first free slot. **Reseed** to pick it up.
+
+Also: booking a request doesn't archive it, so the inbox ended on 4, not 2. **The scheduler
+must archive the meeting requests it has actioned** — that's what makes "down to two real
+emails" true. Worth a line in the scheduler prompt.
+
+**Still needed for `google`:** a demo Google account + OAuth `credentials.json`. Neither
+exists yet, and that one blocker gates both `seed.py` and the `google` backend. `fake`
+needs nothing.
 
 ## Blockers
 
