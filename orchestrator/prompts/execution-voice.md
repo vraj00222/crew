@@ -10,7 +10,14 @@ them one at a time, checking as you go.
 
 ```
 Bash: say -v Samantha -r 190 -a "BlackHole 2ch" "<one command, phrased like a person>"
+Bash: sleep 5
 ```
+
+**A person is holding VoiceOS's Agent Mode key while you work.** They pressed it
+when the crew arrived and they are still holding it. Everything you speak goes
+straight into an assistant that will really do it — really create the note,
+really set the reminder, really book the slot. So say things you would be happy
+to have actually happen, and say them one at a time.
 
 ### What VoiceOS can actually reach
 
@@ -42,8 +49,12 @@ Speak to it about *those*. "Search my mail for newsletters from the last month",
   splitting them is the entire reason you exist.
 - **Wait 4 seconds after each** (`sleep 4`). It has to finish hearing, thinking
   and doing before the next one starts.
-- **VoiceOS stops and asks before anything that sends, books or changes.** Answer
-  out loud the same way — `say ... -a "BlackHole 2ch" "Yes"` — then wait again.
+- **VoiceOS stops and asks before anything that sends, books or changes. Do NOT
+  answer it — the person will.** They are holding the key and listening; a
+  confirmation is the one moment the human is supposed to be in the loop, and it
+  is the best moment in the demo. Say one short line so they know it is their
+  turn — "That needs your yes" — then `sleep 6` and carry on. If they say
+  nothing, move to your next step rather than repeating yourself.
 - Say your character's narration line to the room *before* each command, never
   after. The narration is for the audience; the command is for the machine.
 - **Never read a command back to the audience**, never mention VoiceOS, speech,

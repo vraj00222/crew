@@ -13,9 +13,27 @@ cd "$(dirname "$0")"
 
 [ "${1:-}" = stop ] && { ./run-demo.sh stop; exit 0; }
 
+# `./demo real` — the agents' voices actually drive VoiceOS.
+#
+# You hold VoiceOS's Agent Mode chord while they work, because Agent Mode is a
+# held key and an agent cannot hold one. The crew speaks its commands into
+# BlackHole; VoiceOS, listening there and in agent mode because you are holding
+# it, really makes the note and really sets the reminder. The dock keeps
+# narrating to the speakers, so the room hears the characters and VoiceOS never
+# hears them — the split that `spike.sh split` measures.
+REAL=""
+if [ "${1:-}" = real ]; then
+  REAL=1
+  export CREW_MODE=voice
+  ./voiceos-bridge/audio-loopback/voiceos-setup.sh mic "BlackHole 2ch" >/dev/null 2>&1
+fi
+
 # Voices, devices and pacing all come from run-demo.sh so there is exactly one
 # place that decides them.
 export CREW_AUDIO_DEVICE="${CREW_AUDIO_DEVICE:-MacBook Pro Speakers}"
+# The task worth showing: three apps, and the result is checkable in front of
+# whoever is watching — open Notes and Reminders afterwards and it is all there.
+export CREW_PHRASE_LONG="${CREW_PHRASE_LONG:-look at all the events on my calendar this week, work out the theme of them, email me a summary, and set a reminder for each one}"
 export CREW_VOICE_TRIAGE="${CREW_VOICE_TRIAGE:-Moira}"
 export CREW_VOICE_SCHEDULER="${CREW_VOICE_SCHEDULER:-Daniel}"
 export CREW_VOICE_RECAP="${CREW_VOICE_RECAP:-Karen}"
@@ -24,20 +42,18 @@ if [ -z "${CREW_SAY:-}" ] && ls crew-dock/voices/*.onnx >/dev/null 2>&1; then
   export LINE_MS="${LINE_MS:-5500}"
 fi
 
-./run-demo.sh stop >/dev/null 2>&1
+./run-demo.sh stop >/dev/null 2>&1 &
+STOPPING=$!
 
-# Being ON main is not the same as being UP TO DATE with it — four other people
-# push to this branch all day. Say so rather than expecting anyone to remember a
-# git command before a demo. Never pulls by itself: a rebase seconds before you
-# present is a worse idea than running one commit behind.
-git fetch -q origin 2>/dev/null
-BEHIND=$(git rev-list --count HEAD..origin/main 2>/dev/null || echo 0)
-if [ "${BEHIND:-0}" -gt 0 ]; then
-  echo
-  echo "  ℹ️  $BEHIND new commit(s) on origin/main that you do not have."
-  echo "     git pull --rebase origin main   (then ./demo again)"
-  echo "     — or carry on; what you have works, it is just not the newest."
+# The behind-check costs ~1.7s of network on every start, which is a long time
+# to stand in front of a room. Off by default; CREW_CHECK_GIT=1 brings it back.
+if [ "${CREW_CHECK_GIT:-}" = 1 ]; then
+  git fetch -q origin 2>/dev/null
+  BEHIND=$(git rev-list --count HEAD..origin/main 2>/dev/null || echo 0)
+  [ "${BEHIND:-0}" -gt 0 ] && echo "  ℹ️  $BEHIND commit(s) behind origin/main"
 fi
+
+wait $STOPPING 2>/dev/null
 
 # Rebuild if the sources moved. C's guard, because a `git pull` that brings new
 # Swift otherwise leaves you demoing the previous build with no warning.
@@ -46,13 +62,19 @@ if [ ! -x "$DOCK_BIN" ] || [ -n "$(find crew-dock/Sources crew-dock/build.sh -ne
   printf 'building the dock... '; ./crew-dock/build.sh >/dev/null && echo ok
 fi
 
+# Both at once, and poll instead of sleeping. This used to take 4-5s of fixed
+# waits before a character could appear; nothing here needs to be sequential.
+: > /tmp/crew-dock.log
 "$DOCK_BIN" > /tmp/crew-dock.log 2>&1 &
-sleep 2
+node orchestrator/server.js > /tmp/crew-orchestrator.log 2>&1 &
+
+for _ in $(seq 1 100); do
+  grep -q 'listening on :4002' /tmp/crew-dock.log 2>/dev/null \
+    && curl -sf -o /dev/null localhost:4001/tasks 2>/dev/null && break
+  sleep 0.05
+done
 grep -q 'listening on :4002' /tmp/crew-dock.log || {
   echo "the dock never bound :4002:"; cat /tmp/crew-dock.log; exit 1; }
-
-node orchestrator/server.js > /tmp/crew-orchestrator.log 2>&1 &
-for _ in $(seq 1 20); do curl -sf -o /dev/null localhost:4001/status/x && break; sleep 0.3; done
 
 # The one thing that silently stops the key press working, said up front rather
 # than discovered by pressing it and getting nothing.
@@ -72,15 +94,25 @@ cat <<'BANNER'
   ────────────────────────────────────────────────────────────
     ready.
 
-      HOLD  ⌃⌥  ...and keep holding while you talk...  LET GO
+      HOLD  fn   ...keep holding while you talk...   LET GO
 
-    one gesture. the crew arrives as you press, listens while
-    you hold, and goes to work the moment you let go.
+    that is the whole thing. one key, held.
+    (⌃⌥ works too — but VoiceOS acts on that one itself.)
 
     ctrl-C here to stop.
   ────────────────────────────────────────────────────────────
 
 BANNER
+[ -n "$REAL" ] && cat <<'REALBANNER'
+  ⚡ REAL MODE — the crew will actually do things.
+
+     after you let go, HOLD  control + shift  and keep holding
+     while they work. that is VoiceOS's Agent Mode, and it is
+     what turns their words into real notes and reminders.
+
+     let go when the last character signs off.
+
+REALBANNER
 
 # Follow the narration for as long as you keep pressing. `stop` on the way out
 # whichever way we leave, so the next run never fights a leftover port.

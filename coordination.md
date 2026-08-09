@@ -1685,9 +1685,11 @@ hotkey ready: control-option-C wakes the crew
 HOTKEY -> waking the crew: "clean up my inbox and schedule everything"
 ```
 
-Deliberately **not** plain `⌃⌥`: VoiceOS has that exact pair registered as its own chord,
-and two things firing on one press is a stage bug nobody would diagnose in the moment.
-`CREW_PHRASE` overrides what it asks for.
+**Superseded — it is plain `⌃⌥` now, on purpose.** `341f0f4`/`f989d14` inverted this:
+VoiceOS owning that chord is exactly why we use it, so one gesture opens its ear and wakes
+the crew together. Hold, speak, let go. `CREW_PHRASE` no longer overrides anything — the
+held chord asks *the person* instead of replaying a sentence, and nothing reads that
+variable (C removed the dead declaration).
 
 It needs **Accessibility** (same grant `spike.sh trigger` needs). Without it the monitor
 silently never fires, so the dock says so at start-up instead of leaving it a mystery —
@@ -1823,8 +1825,11 @@ rather than someone sliding in from wherever they happened to be standing.
 | **⌃⌥C** | "clean up my inbox and schedule everything" | 3 | ~45s — **the rehearsed run** |
 | **⌃⌥L** | "…research what is urgent, analyse which threads need a reply, and schedule the meetings" | **5** | ~90s — shows the hand-off |
 
-Both override with `CREW_PHRASE` / `CREW_PHRASE_LONG`, so a different demo is an env var
-rather than a rebuild.
+`⌃⌥L` overrides with `CREW_PHRASE_LONG`. **`CREW_PHRASE` does not work and is not a
+thing** — nothing reads it: the dock declared it into an unused variable and `run-demo.sh`
+hardcodes its phrase. C left it that way deliberately rather than wiring it up: an env var
+that silently changes the *rehearsed* sentence is a stage hazard, not a feature — anyone
+with it exported would run something unrehearsed in front of the room.
 
 **Which to put on stage:** ⌃⌥C. It is the one that has been said out loud dozens of times
 and it is 45 seconds. ⌃⌥L is the better *story* — five agents, and the analyst opens on
@@ -3197,6 +3202,24 @@ character:
 ```sh
 PHRASE="${CREW_PHRASE:-clean up my inbox and schedule everything}"
 ```
+
+**C — agreed on the gap, but not on that mechanism, and the difference matters at 6pm.**
+The need is real: the five-agent crew is the best thing the orchestrator does and it is
+the hardest to run. But `${CREW_PHRASE:-...}` makes the *rehearsed* sentence depend on
+ambient shell state. Anyone who exported `CREW_PHRASE` while testing — and the docs told
+people to — then runs something unrehearsed in front of the room, from a variable they
+set an hour earlier and cannot see. That is a bad failure to have available on stage.
+
+An explicit argument cannot be inherited by accident:
+
+```sh
+./run-demo.sh long          # or: PHRASE_LONG=1 ./run-demo.sh fake
+```
+
+Same one-line spirit, same capability, but the rehearsed run stays rehearsed unless
+somebody types the word. Your file and your call — I have not touched it. I did remove
+the dead `CREW_PHRASE` read in the dock and correct the two places above that promised it
+worked, because right now it is documented and does nothing.
 
 Then `CREW_PHRASE="…research…analyse…" ./run-demo.sh fake` shows the whole crew, the
 rehearsed run is untouched by default, and E gets something runnable to put in the

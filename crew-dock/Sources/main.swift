@@ -90,6 +90,7 @@ struct Roster {
 
 final class DockController {
     private var characters: [String: AgentCharacter] = [:]
+    private var panel: ResultsPanel?
     /// Roles that have sent at least one line, i.e. the crew actually on stage.
     private var woken: [String] = []
     private let roster = Roster.load()
@@ -97,6 +98,7 @@ final class DockController {
     init() {
         guard let screen = NSScreen.main else { return }
         let vf = screen.visibleFrame
+        panel = ResultsPanel(screen: screen)
         // Spread them along the bottom, just above the dock — and fit the crew
         // to the screen rather than assuming it fits.
         //
@@ -116,7 +118,23 @@ final class DockController {
         let n = roster.characters.count
         let spacing = n > 1 ? min(w, (vf.width - w) / CGFloat(n - 1)) : 0
         let totalWidth = w + spacing * CGFloat(max(0, n - 1))
-        let startX = vf.midX - totalWidth / 2
+        // Along the TOP, and split to the corners rather than strung across the
+        // middle: the crew was standing in front of the terminal and the editor,
+        // which is most of the screen anyone is actually trying to watch. Half
+        // to the left edge, half to the right, and the middle left clear for the
+        // results panel — so a five-agent run frames the screen instead of
+        // covering it. CREW_BOTTOM=1 puts them back above the dock.
+        let atBottom = ProcessInfo.processInfo.environment["CREW_BOTTOM"] == "1"
+        let rowY = atBottom ? vf.minY - 12 : vf.maxY - AgentCharacter.totalHeight + 12
+        let leftCount = (n + 1) / 2
+        func slotX(_ i: Int) -> CGFloat {
+            if atBottom { return vf.midX - totalWidth / 2 + CGFloat(i) * spacing }
+            // Left group hugs the left edge, right group hugs the right.
+            let gap = min(w * 0.72, 210)
+            return i < leftCount
+                ? vf.minX + CGFloat(i) * gap
+                : vf.maxX - w - CGFloat(n - 1 - i) * gap
+        }
         for (i, spec) in roster.characters.enumerated() {
             guard let url = Bundle.main.url(forResource: spec.asset, withExtension: "mov")
                 ?? localAssetURL(spec.asset) else {
@@ -127,8 +145,8 @@ final class DockController {
                 continue
             }
             characters[spec.role] = AgentCharacter(role: spec.role, videoURL: url,
-                                         originX: startX + CGFloat(i) * spacing,
-                                         originY: vf.minY - 12,
+                                         originX: slotX(i),
+                                         originY: rowY,
                                          mirrored: spec.mirrored,
                                          // staggered entrance: a crew, not a rank
                                          slot: i)
@@ -206,13 +224,22 @@ final class DockController {
         guard now.timeIntervalSince(allDoneAt!) >= curtainAfter else { return }
         allDoneAt = nil
 
+        runFinished = true
         let keep = lastToFinish
         FileHandle.standardError.write(Data(
             "CURTAIN -> crew leaving, \(keep ?? "nobody") stays with the summary\n".utf8))
         for (role, c) in characters where role != keep { c.leave() }
     }
 
+    /// True once a run has ended, so the next incoming line starts a fresh
+    /// receipt instead of appending to the last one.
+    private var runFinished = true
+
     func apply(_ s: StatusServer.Status) {
+        if runFinished, s.state != "done" {
+            runFinished = false
+            panel?.clear()
+        }
         // stderr so the pipeline is verifiable from a log when you can't watch the screen
         let act = s.activity.isEmpty ? "" : " {\(s.activity)}"
         FileHandle.standardError.write(Data("DOCK <- \(s.character) [\(s.state)]\(act) \(s.message)\n".utf8))
@@ -224,7 +251,11 @@ final class DockController {
                 "  (no character named '\(s.character)' — spoken but NOT shown)\n".utf8))
             return
         }
-        if s.state == "done" { lastToFinish = s.character }
+        if s.state == "done" {
+            lastToFinish = s.character
+            // The receipt: what each agent actually finished, kept on screen.
+            panel?.finished(role: s.character, line: s.message)
+        }
         // First sight of this role: it joins the line-up and the crew re-centres.
         if !woken.contains(s.character) {
             woken.append(s.character)
@@ -250,25 +281,37 @@ guard let server = StatusServer(port: 4002, onStatus: { status in
 }
 server.start()   // prints "listening" itself, once the bind actually succeeds
 
-/// Global hotkey: ⌃⌥C wakes the crew, from anywhere, with no terminal.
+/// Global hotkey: hold ⌃⌥, speak, let go. No terminal, no typed command.
 ///
-/// The demo used to begin with somebody typing a command, which is a bad first
-/// beat — it says "a script did this". A chord says "I asked, and they came".
-/// It is deliberately NOT plain ⌃⌥: VoiceOS has that exact pair registered as
-/// its own chord, and two things firing on one press is a stage bug nobody
-/// would diagnose in the moment.
+/// The demo used to begin with somebody typing, which is a bad first beat — it
+/// says "a script did this". Holding a chord and talking says "I asked, and
+/// they came".
+///
+/// **It is deliberately plain ⌃⌥, because that is VoiceOS's own push-to-talk.**
+/// This comment used to say the exact opposite — that plain ⌃⌥ was avoided
+/// precisely *because* VoiceOS owns it — and `341f0f4` inverted the decision
+/// without updating the text, so the file argued with itself and the stale half
+/// was the one you met first reading top-down. Being the collision is the whole
+/// trick: one gesture opens VoiceOS's ear and wakes the crew together, which is
+/// what retired `fn`+`space` — the one step no script could ever perform.
+///
+/// Down wakes the crew and starts VoiceOS listening; up is when VoiceOS
+/// transcribes, so it is also when we read what you said. A tap shorter than
+/// `minimumHold` is not speech and keeps the ear open, so brushing the keys
+/// cannot send an empty instruction.
 ///
 /// Needs Accessibility (System Settings -> Privacy & Security -> Accessibility),
 /// the same grant `spike.sh trigger` needs. Without it the monitor silently
 /// never fires, so we say so at start-up rather than leaving it a mystery.
-/// Two chords, two tasks, so the demo is not one hardcoded sentence.
 ///
-/// ⌃⌥C is the rehearsed run — three agents, ~45s, said out loud dozens of times.
-/// ⌃⌥L is the long one — five agents, ~90s, and it shows the hand-off: the
-/// analyst waits for the researcher and opens on what the researcher found.
-/// Both are overridable, so a different demo is an env var rather than a build.
-let shortPhrase = ProcessInfo.processInfo.environment["CREW_PHRASE"]
-    ?? "clean up my inbox and schedule everything"
+/// ⌃⌥L stays as the rehearsal shortcut: the long five-agent task, no talking,
+/// which shows the hand-off — the analyst waits for the researcher and opens on
+/// what the researcher found. Override it with `CREW_PHRASE_LONG`.
+///
+/// There is no short-phrase constant any more, and that is the point: the held
+/// chord asks *the person* rather than replaying a sentence. `CREW_PHRASE` is
+/// read by nothing — it was left declared into an unused variable when the
+/// gesture replaced the fixed task.
 let longPhrase = ProcessInfo.processInfo.environment["CREW_PHRASE_LONG"]
     ?? "go through my inbox, research what is actually urgent, analyse which threads need a reply, and schedule the meetings"
 
@@ -321,8 +364,22 @@ if AXIsProcessTrusted() {
     let minimumHold: TimeInterval = 0.8
     NSEvent.addGlobalMonitorForEvents(matching: .flagsChanged) { e in
         let mods = e.modifierFlags.intersection(.deviceIndependentFlagsMask)
-        let held = mods.contains(.control) && mods.contains(.option)
-            && !mods.contains(.command) && !mods.contains(.shift)
+        // `fn` OR control+option, because they mean different things to VoiceOS
+        // and only one of them leaves the job to us:
+        //
+        //   fn             -> mode 0, plain dictation. VoiceOS writes down what
+        //                     you said and does NOTHING about it. The crew acts.
+        //   control+option -> mode 3, AGENT mode. VoiceOS does the job itself,
+        //                     which is what made it produce a Note in its own UI
+        //                     while the crew was still introducing itself.
+        //
+        // VoiceOS re-adds its own mode-3 binding on every relaunch, so that
+        // collision cannot be removed from its config — but `fn` avoids it
+        // entirely. We cannot SYNTHESIZE fn; detecting one is a different thing
+        // and works fine. Both are accepted so neither habit is wrong.
+        let held = mods.contains(.function)
+            || (mods.contains(.control) && mods.contains(.option)
+                && !mods.contains(.command) && !mods.contains(.shift))
 
         // Held modifiers repeat flags events, so only act on a real transition.
         guard held != chordDown else { return }
@@ -361,11 +418,19 @@ if AXIsProcessTrusted() {
         lastWake = now
         wakeTheCrew(longPhrase)
     }
-    FileHandle.standardError.write(Data(
-        "hotkey ready — hold control+option, speak, let go\n".utf8))
-} else {
+    // Lead with fn: it is the one VoiceOS transcribes without acting on, so it
+    // is the trigger that leaves the job to the crew. Both banners name both
+    // keys — the operator reads this line, and "control+option" alone stopped
+    // being the whole truth the moment fn was accepted.
     FileHandle.standardError.write(Data((
-        "hotkey OFF — no Accessibility permission, so control+option will do nothing.\n"
+        "hotkey ready — hold fn, speak, let go\n"
+        + "  control+option also works, but it is VoiceOS's agent mode: VoiceOS does the job itself.\n").utf8))
+} else {
+    // Name fn too. The same monitor detects both, so both are dead without the
+    // grant — saying only "control+option" invites the reader to try fn and
+    // conclude the dock is broken rather than unpermitted.
+    FileHandle.standardError.write(Data((
+        "hotkey OFF — no Accessibility permission, so neither fn nor control+option will do anything.\n"
         + "  System Settings -> Privacy & Security -> Accessibility -> add this app or your terminal.\n").utf8))
 }
 
