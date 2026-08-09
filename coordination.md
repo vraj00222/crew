@@ -779,9 +779,13 @@ we wired first.
 
 | | verdict | needs |
 |---|---|---|
-| **Convex** | **the only one we can use today** — spectator view, off the stage path | the premium month, nobody's permission |
-| **a1mobile** | maybe — one booth question decides it | them to expose a webhook |
-| **Lightberry** | opportunistic only — it is robot hardware, not a laptop voice layer | a robot on the floor and their say-so | The voice layer is swappable by design.
+| **a1mobile** | the only one that could improve the demo — one booth question decides it | them to expose a webhook |
+| **Lightberry** | opportunistic only — it is robot hardware, not a laptop voice layer | a robot on the floor and their say-so |
+| **Convex** | **no** — we have no problem it solves. Reasoning below | a real reason, which we do not have |
+
+**None of these is on the critical path, and if none of them happens we lose nothing.**
+The demo works today. A sponsor integration is only worth doing if it makes the demo
+better — not because the sponsor is in the room. The voice layer is swappable by design.
 
 ### Lightberry — I had this ranked first. That was wrong; it is hardware-bound
 
@@ -806,20 +810,32 @@ either alone.
 That depends entirely on hardware access on the day. **Ask if there's a robot on the floor
 and whether it can hit an HTTP endpoint. Do not plan around a yes.**
 
-### Convex — yes, but strictly off the stage path
+### Convex — not unless it earns a place. Right now it doesn't
 
-Wrong tool for the critical path: we have no database problem. The entire state of a run
-is one `Map` in memory for 45 seconds, and adding a hosted backend to that is pure new
-risk on the one path that must not fail.
+I pitched a spectator view: crew status streamed to a page the audience opens on their
+phones. **Talked out of it, correctly.** Look at what that actually is — asking a room to
+look down at their phones during a 45-second demo whose entire point is characters
+walking around a screen and talking out loud. It competes with the thing we built. That
+is a sponsor integration wearing a feature's clothes.
 
-**Where it genuinely fits — a live spectator view.** The crew's status streamed to a web
-page the audience and judges open on their own phones while the demo runs. That is what
-reactive sync is actually for, it is visibly impressive during judging, and **if it dies
-mid-demo nothing on stage notices** — it reads `/status/:taskId`, it is not in the path.
-Optionally: run history across rehearsals, which we currently keep in `/tmp`.
+**We have no problem Convex solves.** One run is a `Map` in memory for 45 seconds on one
+machine, with one user, and no state that outlives the demo. No database problem, no sync
+problem, no multi-user problem. Adding a hosted backend buys a dependency and a network
+call and returns nothing an audience can see.
 
-Staged, not started — waiting on the month of premium. Whoever picks it up: it is a new
-directory, so it collides with nobody.
+**Do not build it for the prize.** It would be the only thing in this repo that exists for
+a reason other than the demo working, and this whole build has gone well because that has
+never been true.
+
+**What would change my mind** — a real problem it is the right answer to:
+- the dock becomes a web app rather than Swift (it isn't, and shouldn't become one today)
+- we need run history across rehearsals for something other than curiosity
+- a second device genuinely has to see live state — a phone as the trigger *and* display
+- a judge asks for it, which is a business reason and Vraj's call, not a technical one
+
+Until one of those is true this stays unbuilt. If someone wants the sponsor prize anyway,
+say so out loud as a *business* decision and time-box it — but it goes in its own
+directory, off the demo path, and nobody touches `run-demo.sh` for it.
 
 ### a1mobile — what changes if you *phone* the crew (A investigated)
 

@@ -24,6 +24,24 @@ const LINE_MS = Number(process.env.LINE_MS || 4000); // pacing between narration
 // length is (total lines x LINE_MS) and nothing else. 3+3+2 = 8 lines, ~35s.
 const MAX_LINES = Number(process.env.MAX_LINES || 3); // per agent, "Done:" always passes
 const ALLOWED_TOOLS = process.env.ALLOWED_TOOLS || ''; // e.g. "mcp__voiceos__speak"
+
+// `direct` mode's prompt tells each agent to call crew_gmail_archive(...), but a
+// headless `claude -p` has no MCP server unless it is handed one — and B caught
+// that we never handed it one. The failure was invisible rather than loud: the
+// prompt says "narrate what is true and carry on, never announce a failure", so
+// an agent with no tools narrates the prompt's own table, which is correct for
+// the seeded mailbox. Rung 3 looked exactly like rung 2 while claiming the
+// mailbox had really changed. Generated, not committed: the server path inside
+// the config resolves against the spawning process's cwd, so a checked-in
+// relative path is right from exactly one directory.
+const BRIDGE = join(__dirname, '..', 'voiceos-bridge', 'mcp-server');
+const MCP_CONFIG = JSON.stringify({
+  mcpServers: { crew: { command: process.execPath, args: [join(BRIDGE, 'server.js')] } },
+});
+const CREW_TOOLS = [
+  'crew_gmail_list_inbox', 'crew_gmail_archive', 'crew_gmail_label',
+  'crew_calendar_find_slot', 'crew_calendar_book', 'crew_calendar_list',
+].map((t) => `mcp__crew__${t}`).join(',');
 // How the agents actually act: narrate (no tools) | direct (crew_* tools) | voice
 // (speak to VoiceOS). One prompt file each, all three known-good — switching is
 // an env var, not editing a prompt at 5:55pm with the room watching.
@@ -95,16 +113,24 @@ const toLines = (s) =>
     .map((l) => (l.length <= 110 ? l : l.slice(0, 110).replace(/\s+\S*$/, '') + '…'));
 
 // Ignore the `result` event — it repeats the final assistant text verbatim.
-function narrate(evt) {
+// Counted per run so a mode that is supposed to touch things can be shown to
+// have touched them. Without this, "the agents used the tools" is exactly the
+// kind of claim that reads true from a log while being false — the failure B
+// caught, where a toolless agent narrates the prompt's own numbers and rung 3
+// is indistinguishable from rung 2.
+let toolCalls = 0;
+
+function narrate(evt, role) {
   if (evt.type !== 'assistant') return [];
   const out = [];
   for (const b of evt.message?.content || []) {
     if (b.type === 'text' && b.text.trim()) out.push(...toLines(b.text));
-    // Tool calls used to narrate as "using crew_gmail_archive". Harmless while
-    // the only mode was dry-run and nothing called a tool — but the dock speaks
-    // these lines now, so the first live tool call would have had Moira read a
-    // function name to the room. The character already says a real line before
-    // every step; the tool name adds nothing an audience wants.
+    // Logged, never narrated. The dock speaks these lines, so a tool name here
+    // would have had a character read a function name to the room.
+    else if (b.type === 'tool_use') {
+      toolCalls++;
+      console.log(`[tool] ${role} -> ${b.name}`);
+    }
   }
   return out;
 }
@@ -156,7 +182,12 @@ function runRole(task, role) {
     if (FAKE) { push(CANNED[role]); return finish(); }
 
     const args = ['-p', buildPrompt(role, task.instructions, task), '--output-format', 'stream-json', '--verbose'];
-    if (ALLOWED_TOOLS) args.push('--allowedTools', ALLOWED_TOOLS);
+    // Only direct mode calls tools. narrate must stay toolless — it is the safe
+    // rung precisely because the agents cannot touch anything — and voice drives
+    // VoiceOS by speaking, so it needs Bash rather than the crew tools.
+    if (MODE === 'direct') args.push('--mcp-config', MCP_CONFIG, '--allowedTools', ALLOWED_TOOLS || CREW_TOOLS);
+    else if (MODE === 'voice') args.push('--allowedTools', ALLOWED_TOOLS || 'Bash');
+    else if (ALLOWED_TOOLS) args.push('--allowedTools', ALLOWED_TOOLS);
     const child = spawn('claude', args, { cwd: __dirname, stdio: ['ignore', 'pipe', 'pipe'] });
 
     const killer = setTimeout(() => {
@@ -173,7 +204,7 @@ function runRole(task, role) {
         if (!line.trim()) continue;
         let evt;
         try { evt = JSON.parse(line); } catch { continue; }
-        push(narrate(evt));
+        push(narrate(evt, role));
       }
     });
     child.stderr.on('data', (d) => process.stderr.write(`[${role}] ${d}`));
@@ -194,6 +225,14 @@ async function runTask(task) {
   await Promise.all(task.roles.map((r) => runRole(task, r)));
   await runRole(task, CLOSER); // always speaks alone, and always last
   task.status = 'done';
+  // The whole point of direct mode is that the mailbox really changed. If no
+  // agent called a tool, it did not — say so here rather than letting the run
+  // look identical to a narrated one.
+  if (MODE === 'direct' && !FAKE) {
+    console.log(toolCalls
+      ? `[tool] ${toolCalls} tool calls this run — the mailbox really changed.`
+      : '[tool] NO TOOL CALLS — direct mode narrated only. The mailbox is untouched.');
+  }
 }
 
 function startTask(instructions) {
