@@ -3,6 +3,7 @@
 #   ./run-demo.sh          real agents, narrated — nothing is touched  <- SAFE
 #   ./run-demo.sh live     real agents calling the crew_* tools; the mailbox changes
 #   ./run-demo.sh voice    real agents speaking commands to VoiceOS  <- the real thing
+#   ./run-demo.sh wait     bring everything up and let VOICEOS start the task
 #   ./run-demo.sh fake     canned narration, no Claude calls  <- PANIC BUTTON
 #   ./run-demo.sh stop     kill everything
 #
@@ -63,12 +64,14 @@ stop() {
 [ "${1:-}" = stop ] && { stop; echo "stopped."; exit 0; }
 
 FAKE=""
+WAIT=""
 case "${1:-}" in
   fake)  FAKE="FAKE=1"; LABEL="canned, no Claude" ;;
   live)  export CREW_MODE=direct; LABEL="direct — the mailbox really changes" ;;
   voice) export CREW_MODE=voice;  LABEL="voice — agents speak to VoiceOS" ;;
+  wait)  export CREW_MODE=narrate; LABEL="narrate — waiting for VoiceOS to start it"; WAIT=1 ;;
   "")    export CREW_MODE=narrate; LABEL="narrate — real agents, nothing touched" ;;
-  *)     echo "unknown mode '$1' — use: (none) | live | voice | fake | stop"; exit 1 ;;
+  *)     echo "unknown mode '$1' — use: (none) | live | voice | fake | wait | stop"; exit 1 ;;
 esac
 # Fail here, not on stage: a missing prompt file means every agent dies silently.
 [ -n "$FAKE" ] || [ -f "orchestrator/prompts/execution-${CREW_MODE}.md" ] \
@@ -105,9 +108,29 @@ done
 echo "orchestrator up on :4001  [$LABEL]"
 echo
 
+# `wait` is the VoiceOS-driven demo: everything is up, nothing has been asked
+# for, and the trigger is a human speaking rather than this script. Watching the
+# task list is how we know VoiceOS actually reached the orchestrator — the thing
+# a spoken demo has to prove and the thing the bridge log alone cannot.
+if [ -n "$WAIT" ]; then
+  echo "READY — nothing has been asked for yet."
+  echo
+  echo "  1. press fn+space"
+  echo "  2. say: \"$PHRASE\""
+  echo
+  echo "waiting for VoiceOS to call run_crew_task (ctrl-C to give up)..."
+  for _ in $(seq 1 600); do
+    ID=$(curl -sf localhost:4001/tasks 2>/dev/null | node -pe 'JSON.parse(require("fs").readFileSync(0)).at(-1)?.taskId||""' 2>/dev/null)
+    [ -n "$ID" ] && break
+    sleep 1
+  done
+  [ -n "$ID" ] || { echo "nothing arrived. Is the Crew app registered, and did the trigger fire?"; exit 1; }
+  echo "VoiceOS started $ID — the crew is live."
+else
 ID=$(curl -sf -X POST localhost:4001/start-task -H 'content-type: application/json' \
   -d "{\"instructions\":\"$PHRASE\"}" | node -pe 'JSON.parse(require("fs").readFileSync(0)).taskId')
-echo "\"$PHRASE\" -> $ID"
+fi
+echo "task: $ID"
 echo "watch the dock. narration below:"
 echo
 

@@ -1481,6 +1481,58 @@ the exact phrases and what the audience sees, the way you did the rest.
 
 Second, when you have time: nobody has said the talk out loud over a run yet.
 
+## 🎯 CHECKPOINT — the VoiceOS-driven demo is ready to run the moment B's helper lands
+
+**`./run-demo.sh wait`** — new mode, and the missing piece on my side. Every other mode
+fires the task itself, which is exactly what a VoiceOS demo must not do. `wait` brings the
+dock and orchestrator up, asks for **nothing**, and blocks until a task appears:
+
+```
+READY — nothing has been asked for yet.
+
+  1. press fn+space
+  2. say: "clean up my inbox and schedule everything"
+
+waiting for VoiceOS to call run_crew_task (ctrl-C to give up)...
+```
+
+The moment VoiceOS calls the tool it prints `VoiceOS started task_1 — the crew is live`
+and the run proceeds normally: characters, voices, spoken summary at the end.
+
+**Why this matters beyond convenience:** the bridge log proves the *tool was called*. This
+proves *a task exists because of it*. Those are different claims, and this project has
+been caught out five times by an instrument that answered a slightly different question
+than the one being asked.
+
+New endpoint `GET /tasks` backs it — additive, nothing existing changes shape.
+
+### B — this is what your helper plugs into
+
+Get `run_crew_task` reachable from a natural sentence and the whole demo is:
+
+```bash
+./run-demo.sh wait     # A's Mac, everything up, nothing asked for
+# press fn+space, say the phrase
+```
+
+Nothing else needs to change on my side. If your helper exposes it under a different name,
+that is fine — `wait` watches for *any* task, not a particular phrasing.
+
+### CHECKPOINT RESULT on the demo Mac, this commit
+
+```
+18 ok, 0 failed, 2 N/A
+16 lines reached the dock, 10 spoken, 0 dropped
+orchestrator/test.sh PASS
+```
+
+| rung | needs | state |
+|---|---|---|
+| 1 `fake` | nothing at all | ready |
+| 2 `./run-demo.sh` | `claude` only | ready |
+| 3 `live` | nothing (fake backend) | ready — 15 tool calls, mailbox 18 → 2 |
+| 4 `wait` + VoiceOS | B's helper | **rig ready, waiting on one action** |
+
 ## Decisions log
 
 - _Sat night — orchestrator is one file (`orchestrator/server.js`), Node stdlib only, not the 4-file TypeScript layout in the folder plan — A — no build step, no `npm install`, no deps to break at 5pm; the whole thing is ~170 lines and restarts instantly. The frozen bit is the HTTP contract, and that's unchanged._

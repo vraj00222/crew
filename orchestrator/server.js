@@ -320,6 +320,16 @@ http.createServer((req, res) => {
     return;
   }
 
+  // Additive to the frozen contract — nothing existing changes shape. This is
+  // how we see that VoiceOS actually reached the orchestrator when VoiceOS,
+  // rather than a script, started the task: the bridge log proves the tool was
+  // called, this proves a task exists because of it.
+  if (req.method === 'GET' && url.pathname === '/tasks') {
+    return send(res, 200, [...tasks.values()].map((t) => ({
+      taskId: t.taskId, status: t.status, instructions: t.instructions,
+    })));
+  }
+
   const match = url.pathname.match(/^\/status\/(.+)$/);
   if (req.method === 'GET' && match) {
     const task = tasks.get(match[1]);
