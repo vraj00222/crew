@@ -53,7 +53,8 @@ const WHISPER_MODEL = process.env.CREW_WHISPER_MODEL || 'mlx-community/whisper-l
 // The one queued call. `mode` decides the TeXML: announce = say and hang up
 // (nothing recorded at all); ask = say, beep, listen. One at a time on
 // purpose — there is one phone and one voice channel, same as the dock.
-let call = { mode: 'announce', message: process.env.CREW_CALL_DEFAULT || 'Hello from your crew. The job is done.' };
+const DEFAULT_MSG = process.env.CREW_CALL_DEFAULT || 'Hello from your crew. The job is done.';
+let call = { mode: 'announce', message: DEFAULT_MSG, spoken: DEFAULT_MSG, audioId: null };
 // The current ask's answer: null until the transcript lands. /answer polls it.
 let answer = null;
 
@@ -75,14 +76,22 @@ const base = (req) => {
   return `${proto}://${host}`;
 };
 
-// The leading pause keeps the first words from being clipped while the audio
-// path settles — the same reason the dock paces its lines.
+// Play the synthesised line when we have one, fall back to robotic <Say>.
+const speech = (req, text, audioId) =>
+  audioId && ttsById.has(audioId)
+    ? `<Play>${base(req)}/audio/${audioId}.mp3</Play>`
+    : `<Say>${esc(text)}</Say>`;
+
+// The leading pause is answer-to-ear time: TeXML starts executing the moment
+// the call connects, which is a beat before a human has the phone at their
+// ear — a live test at length="1" lost half the intro. Do not trim it back.
 const answerTexml = (req) => call.mode === 'ask'
   ? `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Pause length="1"/>
-  <Say>${esc(call.message)} Please answer after the beep, then hang up or just go quiet.</Say>
+  <Pause length="2"/>
+  ${speech(req, call.spoken, call.audioId)}
   <Record maxLength="${RECORD_S}" playBeep="true" trim="trim-silence"
+          timeout="3" finishOnKey="#"
           action="${base(req)}/record-done"
           recordingStatusCallback="${base(req)}/recording-status"/>
   <Say>Goodbye.</Say>
@@ -90,14 +99,14 @@ const answerTexml = (req) => call.mode === 'ask'
 </Response>`
   : `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Pause length="1"/>
-  <Say>${esc(call.message)}</Say>
+  <Pause length="2"/>
+  ${speech(req, call.spoken, call.audioId)}
   <Hangup/>
 </Response>`;
 
-const doneTexml = `<?xml version="1.0" encoding="UTF-8"?>
+const doneTexml = (req) => `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say>Got it. The crew is back on it. Goodbye.</Say>
+  ${speech(req, GOODBYE, ttsByText.get(GOODBYE))}
   <Hangup/>
 </Response>`;
 
@@ -117,6 +126,68 @@ function openaiKey() {
 }
 
 const OPENAI_MODEL = process.env.CREW_TRANSCRIBE_MODEL || 'gpt-4o-mini-transcribe';
+
+// --- the voice of the call ---
+// Telnyx's default <Say> voice is the robotic one everyone knows from IVRs,
+// and through a phone codec it is genuinely hard to follow. So when there is
+// an OpenAI key we synthesise the speech ourselves and hand the call a <Play>
+// URL instead — the same trick that made settle-wise's calls sound human,
+// minus the Vapi dependency. Synthesis happens at QUEUE time, before the dial,
+// so the audio is sitting ready when the call answers. No key, or a failed
+// synth → <Say> fallback, because a robotic call beats a silent one.
+const TTS_MODEL = process.env.CREW_TTS_MODEL || 'gpt-4o-mini-tts';
+const TTS_VOICE = process.env.CREW_TTS_VOICE || 'coral';
+const ttsById = new Map();   // id -> mp3 buffer, served at /audio/<id>.mp3
+const ttsByText = new Map(); // text -> id, so the constant goodbye is made once
+let nextTtsId = 1;
+
+async function tts(text) {
+  if (!openaiKey()) return null;
+  if (ttsByText.has(text)) return ttsByText.get(text);
+  const r = await fetch('https://api.openai.com/v1/audio/speech', {
+    method: 'POST',
+    headers: { authorization: `Bearer ${openaiKey()}`, 'content-type': 'application/json' },
+    body: JSON.stringify({
+      model: TTS_MODEL,
+      voice: TTS_VOICE,
+      input: text,
+      // Every line is a separate render, and an expressive model treats each
+      // as a fresh take — a live test's goodbye came out sounding like a
+      // different person than the intro. Pin one persona, one register.
+      instructions:
+        'A real person mid-way through one continuous, friendly work phone call. ' +
+        'Every line must sound like the SAME speaker in the SAME call: identical tone, ' +
+        'pace and energy — calm, warm, medium energy, natural pauses, a slight smile. ' +
+        'Short lines get the same relaxed delivery as long ones, never a chirpy sign-off. ' +
+        'Never announcer-like, never IVR, never robotic.',
+      response_format: 'mp3',
+    }),
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (!r.ok) throw new Error(`OpenAI TTS HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
+  const id = nextTtsId++;
+  ttsById.set(id, Buffer.from(await r.arrayBuffer()));
+  ttsByText.set(text, id);
+  // The cache only ever holds this session's handful of lines, but bound it
+  // anyway — a long rehearsal shouldn't hoard every mp3 it ever spoke.
+  if (ttsById.size > 20) {
+    const oldest = ttsById.keys().next().value;
+    ttsById.delete(oldest);
+    for (const [t, i] of ttsByText) if (i === oldest) ttsByText.delete(t);
+  }
+  return id;
+}
+
+// What an ask sounds like, start to finish. The opening and close are the
+// house style, fixed here so every agent's call sounds the same: say why we
+// are calling, ask, and once the person has answered — thanks, and hang up.
+const ASK_INTRO =
+  "Hi — it's your crew calling. The agents are running, and one of them has a query that needs your approval before it can carry on. Here it is.";
+// The 3s pause matches the Record timeout below — the outro must promise
+// exactly what the call will do, or the person sits waiting like our user did
+// on the first live test and gives up.
+const ASK_OUTRO = "Go ahead after the beep — when you're done, just pause, and I'll take it from there.";
+const GOODBYE = "Okay, got it. I'll pass that along and the crew will carry on. Bye.";
 
 async function openaiTranscribe(mp3) {
   const form = new FormData();
@@ -203,10 +274,28 @@ http.createServer(async (req, res) => {
     if (typeof m !== 'string' || !m.trim()) {
       return reply(res, 400, 'application/json', `{"error":"${path === '/ask' ? 'question' : 'message'} (string) required"}`);
     }
-    call = { mode: path === '/ask' ? 'ask' : 'announce', message: m.trim() };
+    const mode = path === '/ask' ? 'ask' : 'announce';
+    const spoken = mode === 'ask'
+      ? `${ASK_INTRO} ${m.trim()} ${ASK_OUTRO}`
+      : m.trim();
+    let audioId = null;
+    try {
+      audioId = await tts(spoken);
+      if (mode === 'ask') await tts(GOODBYE); // made once, cached for /record-done
+    } catch (e) { console.error(`[voice] TTS failed, <Say> fallback: ${e.message}`); }
+    call = { mode, message: m.trim(), spoken, audioId };
     answer = null; // a new ask forgets the previous answer
-    console.log(`[voice] queued ${call.mode}: "${call.message}"`);
+    console.log(`[voice] queued ${call.mode} (${audioId ? 'openai voice' : 'telnyx say'}): "${call.message}"`);
     return reply(res, 200, 'application/json', '{"ok":true}');
+  }
+
+  // The synthesised speech the TeXML <Play> points back at.
+  const audioMatch = path.match(/^\/audio\/(\d+)\.mp3$/);
+  if (req.method === 'GET' && audioMatch) {
+    const buf = ttsById.get(Number(audioMatch[1]));
+    if (!buf) return reply(res, 404, 'application/json', '{"error":"no such audio"}');
+    res.writeHead(200, { 'content-type': 'audio/mpeg', 'content-length': buf.length });
+    return res.end(buf);
   }
 
   if (path === '/voice') {
@@ -219,7 +308,7 @@ http.createServer(async (req, res) => {
 
   if (req.method === 'POST' && path === '/record-done') {
     await readBody(req); // nothing kept from it — the recording callback has the URL
-    return xml(res, doneTexml);
+    return xml(res, doneTexml(req));
   }
 
   if (req.method === 'POST' && path === '/recording-status') {
