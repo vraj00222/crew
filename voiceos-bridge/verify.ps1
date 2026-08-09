@@ -43,12 +43,17 @@ if (-not $Real) {
 }
 
 try {
-    Run "1. MCP protocol (in-process)"      "node server.js --selftest" $mcp | Out-Null
-    Run "2. MCP transport (real subprocess)" "node test-stdio.js"        $mcp | Out-Null
-    Run "3. Demo flow vs mailbox"            "node test-demo-flow.js"    $mcp | Out-Null
-    Run "4. demo-seed fixtures"              "uv run seed.py --dry-run"  $seed | Out-Null
+    Run "1. MCP protocol (in-process)"    "node server.js --selftest"      $mcp | Out-Null
+    Run "2. What the crew says out loud"  "node test-status-speech.js"     $mcp | Out-Null
+    # Against the stub the whole run is scripted, so the status loop MUST reach
+    # "the crew is finished". Against a real orchestrator it paces at LINE_MS and
+    # won't inside one test, so only the stub run demands it.
+    $stdio = if ($Real) { "node test-stdio.js" } else { "set REQUIRE_DONE=1 && node test-stdio.js" }
+    Run "3. MCP transport + status loop"  $stdio                           $mcp | Out-Null
+    Run "4. Demo flow vs mailbox"         "node test-demo-flow.js"         $mcp | Out-Null
+    Run "5. demo-seed fixtures"           "uv run seed.py --dry-run"       $seed | Out-Null
     if ($Google) {
-        Run "5. Demo flow vs REAL Google" "set CREW_BACKEND=google && node test-demo-flow.js" $mcp | Out-Null
+        Run "6. Demo flow vs REAL Google" "set CREW_BACKEND=google && node test-demo-flow.js" $mcp | Out-Null
     }
 } finally {
     if ($started -and -not $started.HasExited) {

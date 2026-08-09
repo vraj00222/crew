@@ -21,12 +21,15 @@ if (-not $Real) {
 
 try {
     $env:PHRASE = $Phrase
+    # The stub's run is scripted, so the follow-up loop must actually reach
+    # "the crew is finished". A real orchestrator paces at LINE_MS and won't.
+    $env:REQUIRE_DONE = if ($Real) { "0" } else { "1" }
     & node "$here\test-stdio.js"
     $code = $LASTEXITCODE
 
     if ($code -eq 0 -and -not $Real -and (Test-Path "$here\stub.out")) {
         Write-Host "`n--- what the orchestrator actually received ---" -ForegroundColor Cyan
-        Get-Content "$here\stub.out" | Select-Object -Last 6
+        Get-Content "$here\stub.out" | Select-Object -Last 14
     }
 } finally {
     if ($stub -and -not $stub.HasExited) {

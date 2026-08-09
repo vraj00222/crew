@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 // Crew VoiceOS bridge — MCP server (stdio). Node stdlib only, no deps, no build step.
 //
-//   VoiceOS  --(spoken command)-->  run_crew_task  --POST-->  :4001/start-task
+//   VoiceOS  --(spoken command)-->  run_crew_task     --POST-->  :4001/start-task
+//   VoiceOS  --("how's it going?")->  crew_task_status --GET -->  :4001/status/:id
+//                                        `-> one spoken sentence, not JSON
 //
 // Register:  voiceos add mcp
 //   command: node   args: ["<abs path>/server.js"]
@@ -16,8 +18,9 @@
 // STDOUT IS THE PROTOCOL CHANNEL. Never console.log here — it corrupts the stream
 // and the client silently drops the server. All human output goes to stderr.
 
-const { appendFileSync } = require('node:fs');
+const { appendFileSync, readFileSync } = require('node:fs');
 const { join } = require('node:path');
+const { speakStatus } = require('./status-speech.js');
 
 // Which mailbox the crew_gmail_*/crew_calendar_* tools act on.
 //   fake   — in-memory, seeded from demo-seed/fixtures.json. No account needed.
@@ -48,6 +51,32 @@ function audit(event, data) {
   return line;
 }
 
+// --- what the crew is currently working on ---
+// The demo is a *loop*, not a one-shot: the human says one sentence, then asks
+// "what's the crew doing?" and later "are they done?". VoiceOS has no memory of a
+// taskId across those turns, and a person will never say one out loud — so the
+// bridge remembers it and crew_task_status takes it as optional.
+let lastTaskId = null;
+
+// If VoiceOS respawns this server between starting the task and asking about it,
+// the in-memory id is gone but the audit log still has it. Cheap to read, and the
+// worst case is a stale id from an earlier run, which the orchestrator answers
+// with a 404 and we report honestly rather than inventing progress.
+function rememberedTaskId() {
+  if (lastTaskId) return lastTaskId;
+  try {
+    const lines = readFileSync(LOG_PATH, 'utf8').trim().split('\n');
+    for (let i = lines.length - 1; i >= 0; i--) {
+      let rec;
+      try { rec = JSON.parse(lines[i]); } catch { continue; } // torn line: keep scanning
+      if (rec.event === 'orchestrator_ok' && rec.taskId) return rec.taskId;
+    }
+  } catch {
+    /* no log yet — not knowing is a valid answer here */
+  }
+  return null;
+}
+
 // --- tools ---
 const TOOLS = [
   {
@@ -71,22 +100,39 @@ const TOOLS = [
       },
       required: ['instructions'],
     },
+    annotations: {
+      title: 'Put the crew to work',
+      readOnlyHint: false,
+      destructiveHint: false, // archiving only unfiles mail; booking only adds an event
+      idempotentHint: false, // saying it twice starts two runs
+      openWorldHint: true,
+    },
   },
   {
     name: 'crew_task_status',
     description:
-      'Check how a Crew task that is already running is progressing, and what each ' +
-      'agent last did. Only for following up on a task previously started by ' +
-      'run_crew_task — never use this to start new work.',
+      'Ask what the Crew is doing right now, how far along it is, or whether it has ' +
+      'finished. Use this for any follow-up about work already running — "what are ' +
+      'they doing?", "how is it going?", "are they done yet?", "what did the crew ' +
+      'do?". Answers with a short spoken progress report naming each agent. ' +
+      'Takes no arguments in the normal case: it reports on the most recent task. ' +
+      'Never use this to start new work — that is run_crew_task.',
     inputSchema: {
       type: 'object',
       properties: {
         taskId: {
           type: 'string',
-          description: 'The taskId returned by run_crew_task, e.g. "task_1".',
+          description:
+            'Optional. Only needed to ask about an older task by id, e.g. "task_1". ' +
+            'Omit it to report on the task that is running now.',
         },
       },
-      required: ['taskId'],
+    },
+    annotations: {
+      title: 'Ask the crew how it is going',
+      readOnlyHint: true, // pure GET against the orchestrator; changes nothing
+      idempotentHint: true,
+      openWorldHint: true,
     },
   },
 ];
@@ -103,6 +149,16 @@ function backend() {
   return _backend;
 }
 
+// A note on `annotations`, because the values are load-bearing and it is tempting
+// to lie: VoiceOS confirms anything that "sends, books, or changes something", and
+// its tool declarations carry a `requiresConfirmation` boolean. If it derives that
+// from these MCP hints, three of these tools are genuinely read-only and go through
+// without a human click — which is the difference between an autonomous loop and
+// one that stops dead mid-demo with nobody at the keyboard. So they are declared
+// exactly as they behave, no more: archive/label are writes but `destructiveHint`
+// is false because archiving only drops the INBOX label and nothing is ever
+// deleted. Whether VoiceOS actually reads them is the 5-minute check the moment
+// the Pro trial lands (see coordination.md).
 const WORK_TOOLS = [
   {
     name: 'crew_gmail_list_inbox',
@@ -116,6 +172,7 @@ const WORK_TOOLS = [
         limit: { type: 'number', description: 'Max messages to return. Default 25.' },
       },
     },
+    annotations: { title: 'Read the inbox', readOnlyHint: true, idempotentHint: true, openWorldHint: true },
   },
   {
     name: 'crew_gmail_archive',
@@ -129,6 +186,13 @@ const WORK_TOOLS = [
         ids: { type: 'array', items: { type: 'string' }, description: 'Explicit ids, instead of a query.' },
       },
     },
+    annotations: {
+      title: 'Archive mail out of the inbox',
+      readOnlyHint: false,
+      destructiveHint: false, // removes the INBOX label only — reversible, nothing deleted
+      idempotentHint: true, // archiving an already-archived message is a no-op
+      openWorldHint: true,
+    },
   },
   {
     name: 'crew_gmail_label',
@@ -141,6 +205,13 @@ const WORK_TOOLS = [
         ids: { type: 'array', items: { type: 'string' } },
       },
       required: ['label'],
+    },
+    annotations: {
+      title: 'Label mail',
+      readOnlyHint: false,
+      destructiveHint: false, // adds a label; removes nothing
+      idempotentHint: true,
+      openWorldHint: true,
     },
   },
   {
@@ -156,6 +227,7 @@ const WORK_TOOLS = [
         afterISO: { type: 'string', description: 'Only consider slots at or after this ISO time.' },
       },
     },
+    annotations: { title: 'Find a free slot', readOnlyHint: true, idempotentHint: true, openWorldHint: true },
   },
   {
     name: 'crew_calendar_book',
@@ -172,6 +244,13 @@ const WORK_TOOLS = [
       },
       required: ['summary', 'startISO'],
     },
+    annotations: {
+      title: 'Book a meeting',
+      readOnlyHint: false,
+      destructiveHint: false, // adds an event; never overwrites or cancels one
+      idempotentHint: false, // booking twice puts two meetings on the calendar
+      openWorldHint: true,
+    },
   },
   {
     name: 'crew_calendar_list',
@@ -180,6 +259,7 @@ const WORK_TOOLS = [
       type: 'object',
       properties: { dayOffset: { type: 'number' } },
     },
+    annotations: { title: "Read the day's calendar", readOnlyHint: true, idempotentHint: true, openWorldHint: true },
   },
 ];
 
@@ -246,6 +326,7 @@ async function callTool(name, args) {
         return text(`The orchestrator rejected the task (HTTP ${r.status}): ${r.body.slice(0, 200)}`, true);
       }
       const taskId = r.json?.taskId ?? '(no taskId returned)';
+      if (r.json?.taskId) lastTaskId = r.json.taskId; // so "what's the crew doing?" needs no id
       audit('orchestrator_ok', { taskId, status: r.json?.status });
       log(`started ${taskId}`);
       return text(
@@ -260,19 +341,25 @@ async function callTool(name, args) {
   }
 
   if (name === 'crew_task_status') {
-    const taskId = args?.taskId;
-    if (typeof taskId !== 'string' || !taskId.trim()) {
-      return text('crew_task_status needs a "taskId" string.', true);
+    const asked = typeof args?.taskId === 'string' ? args.taskId.trim() : '';
+    const taskId = asked || rememberedTaskId();
+    // Nobody says a taskId out loud, so "no id and nothing running" is a normal
+    // conversational turn, not an error — answer it like one.
+    if (!taskId) {
+      return text("The crew hasn't been given anything to do yet.");
     }
     try {
       const r = await orchFetch(`/status/${encodeURIComponent(taskId)}`, { method: 'GET' });
-      if (!r.ok) return text(`No such task ${taskId} (HTTP ${r.status}).`, true);
-      const agents = r.json?.agents || [];
-      // A's note: an agent starts 'idle' and only 'done' means finished.
-      const lines = agents.map((a) => `${a.name} (${a.state}): ${a.lastMessage || '—'}`);
-      return text(
-        `Task ${taskId} is ${r.json?.status}.\n` + (lines.join('\n') || 'No agents reporting yet.')
-      );
+      if (r.status === 404) {
+        lastTaskId = null; // a remembered id from a previous orchestrator run
+        return text(`I can't find ${taskId} any more — the orchestrator has no record of it.`, true);
+      }
+      if (!r.ok) return text(`The orchestrator could not report on ${taskId} (HTTP ${r.status}).`, true);
+      lastTaskId = taskId; // an id asked for by hand becomes the one we follow
+      const spoken = speakStatus(r.json);
+      log(`crew_task_status ${taskId} -> ${spoken}`);
+      audit('crew_task_status', { taskId, status: r.json?.status, spoken });
+      return text(spoken);
     } catch (e) {
       return text(explainFailure(e), true);
     }

@@ -13,11 +13,39 @@ Requires Node 18+ (uses global `fetch`). Verified on Node 24, Windows 11.
 | tool | args | does |
 |---|---|---|
 | `run_crew_task` | `instructions: string` | `POST :4001/start-task` → wakes the swarm |
-| `crew_task_status` | `taskId: string` | `GET :4001/status/:id` → what each agent last did |
+| `crew_task_status` | `taskId?: string` | `GET :4001/status/:id` → one spoken sentence about the run |
 
 `run_crew_task` passes the transcript through **verbatim** — no normalising. A's router is
 keyword-based (`inbox|email|mail` → triage, `schedul|calendar|meeting|book` → scheduler) and
 falls back to spawning both, so a garbled transcript still puts characters on stage.
+
+### `crew_task_status` — the half that makes it a loop
+
+Nobody says "task underscore one" out loud, so **`taskId` is optional**: the bridge
+remembers the task it started and reports on that one. `run_crew_task` sets it in memory,
+and if VoiceOS respawns the server in between, `crew-bridge.log` is read back for the last
+started task — the follow-up question works either way.
+
+VoiceOS reads a tool's reply back **verbatim**, so the reply is a sentence, not a struct.
+`status-speech.js` is that translation and nothing else; it has no I/O so every branch is
+testable with `node test-status-speech.js`.
+
+```
+Triage and Scheduler are both waking up. Recap hasn't started yet.
+Triage is archiving six newsletters and Scheduler is booking two PM with David Chen. Recap hasn't started yet.
+Scheduler is booking two PM with David Chen. Triage is already finished and Recap hasn't started yet.
+The crew is finished. Inbox cleared, two meetings booked.
+```
+
+Three things it gets right that are easy to get wrong:
+
+- **Only `done` means finished** (A's clarification to the contract). An unfamiliar state is
+  reported as still running, never as the end of the run.
+- **A's final `Done:` line is POSTed twice**, once as `working` and then as `done`. In that
+  window the agent has plainly said its last word, so the text wins over the state —
+  otherwise the crew says "Recap reports inbox cleared" about an agent that has gone home.
+- **Recap's sign-off is the summary**, by design, so it becomes the closing sentence. If
+  recap never got a line out, everyone else's last line is read instead.
 
 **Work** — how the agents actually change the mailbox (names frozen in `coordination.md`):
 
@@ -73,11 +101,18 @@ On A's Mac the path is wherever the repo is cloned; the server itself is platfor
 ```
 
 ```bash
-node server.js --selftest   # protocol only, no transport, no orchestrator needed
-node test-stdio.js          # real subprocess + pipes (this is the honest one)
-node test-demo-flow.js      # the whole demo, asserted against the mailbox
+node server.js --selftest      # protocol only, no transport, no orchestrator needed
+node test-status-speech.js     # what the crew says out loud — no network at all
+node test-stdio.js             # real subprocess + pipes (this is the honest one)
+node test-demo-flow.js         # the whole demo, asserted against the mailbox
 CREW_BACKEND=google node test-demo-flow.js   # same, against the real account
 ```
+
+`stub-orchestrator.js` walks a whole scripted run — one phase per `/status` call, from
+waking up to finished — so the follow-up loop is testable end to end on a Windows box with
+no Mac, no Claude and no account. `REQUIRE_DONE=1 node test-stdio.js` against the stub
+insists the loop actually reaches "the crew is finished"; against a real orchestrator it
+won't inside one test, because A paces narration at `LINE_MS`.
 
 `test-demo-flow.js` is the one that matters most. It runs the actual demo through the tools
 and asserts that **the numbers the characters say out loud are true of the mailbox**: six
@@ -122,3 +157,26 @@ That file is the answer to "did VoiceOS transcribe it right?". Tail it while spe
   protocol violation. The test asserts exactly 3 responses to 4 messages.
 - Failures come back as readable sentences (`isError: true`), not stack traces — VoiceOS
   reads the text out loud, so it should say *which hop* broke.
+- **VoiceOS renames every custom MCP tool** to `custom_mcp_<server>_<tool>`, so
+  `crew_gmail_archive` is `custom_mcp_crew_crew_gmail_archive` from inside VoiceOS. Nothing
+  in this repo hardcodes a VoiceOS-side name, and nothing should — but that is the name to
+  grep for in VoiceOS's own logs when a spoken command appears to do nothing.
+
+## Tool annotations, and why they are not flattering
+
+Every tool declares MCP `annotations`. VoiceOS confirms anything that "sends, books, or
+changes something", and its own tool declarations carry a `requiresConfirmation` boolean —
+**if it derives that from these hints, the three read-only tools go through without a human
+click**, which is the difference between an autonomous loop and one that stops dead with
+nobody at the keyboard. That makes it tempting to declare everything harmless. They are
+declared exactly as the tools behave instead:
+
+| tool | `readOnlyHint` | `destructiveHint` | why |
+|---|---|---|---|
+| `crew_task_status`, `crew_gmail_list_inbox`, `crew_calendar_find_slot`, `crew_calendar_list` | `true` | — | pure reads |
+| `crew_gmail_archive`, `crew_gmail_label` | `false` | `false` | writes, but archiving only drops the INBOX label — reversible, nothing deleted |
+| `crew_calendar_book` | `false` | `false` | adds an event; never overwrites or cancels one. Not idempotent — booking twice books twice |
+| `run_crew_task` | `false` | `false` | starts work that changes mail and calendar |
+
+**Whether VoiceOS reads any of this is still unverified** — it needs a live Pro trial:
+register, call `tools/list`, and see whether the read-only tools stop asking.

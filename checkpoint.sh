@@ -70,8 +70,13 @@ FAKE=1 node orchestrator/server.js >/tmp/crew-chk-orch.log 2>&1 &
 CHK_ORCH=$!
 sleep 1
 node voiceos-bridge/mcp-server/test-stdio.js >/tmp/crew-chk-mcp.log 2>&1 \
-  && ok "MCP protocol (initialize, tools/list, run_crew_task)" \
+  && ok "MCP protocol (initialize, tools/list, run_crew_task, status loop)" \
   || bad "MCP stdio test — see /tmp/crew-chk-mcp.log"
+# What VoiceOS reads back to the room when someone asks how it is going. Pure
+# function, no orchestrator and no network — it stays checkable when :4001 is down.
+node voiceos-bridge/mcp-server/test-status-speech.js >/tmp/crew-chk-speech.log 2>&1 \
+  && ok "status replies are sentences, not JSON" \
+  || bad "status speech — see /tmp/crew-chk-speech.log"
 kill $CHK_ORCH 2>/dev/null; wait $CHK_ORCH 2>/dev/null
 node voiceos-bridge/mcp-server/test-demo-flow.js >/tmp/crew-chk-flow.log 2>&1 \
   && ok "gmail/calendar tools — every spoken number true of the mailbox" \

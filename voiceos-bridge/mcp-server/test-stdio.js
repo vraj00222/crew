@@ -88,7 +88,33 @@ const frame = (o) => JSON.stringify(o) + '\n';
   const out = call.result?.content?.[0]?.text || '';
   console.log(`  ${call.result.isError ? '!!' : 'ok'}  run_crew_task     -> ${JSON.stringify(out)}`);
 
-  // 4. a bad call must come back as a readable tool error, not a crash
+  // 4. the loop: ask "what's the crew doing?" with NO taskId, repeatedly.
+  //    Nobody says "task underscore one" out loud, so this is the only version of
+  //    the question that will ever actually be asked. Each answer has to be a
+  //    sentence VoiceOS can read straight out — no JSON, no newlines, no (state).
+  //    Skipped when step 3 could not reach an orchestrator — there is no task to
+  //    ask about, and that case is already reported as exit 2 at the bottom.
+  let sawDone = false;
+  let id = 100;
+  for (let poll = 1; poll <= 8 && !sawDone && !call.result.isError; poll++) {
+    child.stdin.write(frame({ jsonrpc: '2.0', id, method: 'tools/call', params: { name: 'crew_task_status', arguments: {} } }));
+    const r = await waitFor(id++);
+    if (r.error) fail(`crew_task_status errored: ${JSON.stringify(r.error)}`);
+    const said = r.result?.content?.[0]?.text || '';
+    if (r.result?.isError) fail(`crew_task_status returned an error: ${JSON.stringify(said)}`);
+    if (!said.trim()) fail('crew_task_status said nothing at all');
+    if (/[{}[\]"]|\n|\(\w+\)/.test(said)) fail(`not speakable — VoiceOS would read this aloud: ${JSON.stringify(said)}`);
+    if (/hasn't been given anything to do/.test(said)) fail('the bridge forgot the taskId it just started');
+    console.log(`  ok  status (no id) #${poll} -> ${JSON.stringify(said)}`);
+    sawDone = /crew is finished/.test(said);
+    if (!sawDone) await new Promise((r2) => setTimeout(r2, 150));
+  }
+  if (sawDone) console.log('  ok  loop closed       -> the human is told, out loud, that it finished');
+  else if (call.result.isError) console.log('  --  status loop skipped (nothing on :4001)');
+  else if (process.env.REQUIRE_DONE === '1') fail('never reported the run as finished after 8 asks');
+  else console.log('  --  still running after 8 asks (real orchestrator — expected, it paces at LINE_MS)');
+
+  // 4b. a bad call must come back as a readable tool error, not a crash
   child.stdin.write(frame({ jsonrpc: '2.0', id: 4, method: 'tools/call', params: { name: 'run_crew_task', arguments: {} } }));
   const bad = await waitFor(4);
   if (!bad.result?.isError) fail('missing-instructions call should have returned isError:true');
