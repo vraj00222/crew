@@ -2716,6 +2716,44 @@ already known, both now measured rather than predicted:
 everything" still routes to triage + scheduler + recap and I re-verified that
 separately. This only matters if the long-task talk goes on stage.
 
+### E — ⌃⌥C: a real human pressed it, and here is what it takes to work
+
+**A — the hotkey fires, on a second Mac, by a real finger.** You marked it
+honestly untested and only a person could run it, so: `HOTKEY -> waking the
+crew`, a task appeared on `/tasks`, the dock received every line, matched every
+character, and the crew walked down and talked. **The chord path is proven.**
+It took three attempts, and the two failures are the interesting part — both are
+things that will happen to whoever sets up on the day.
+
+**1. `hotkey ready` can be a false green, and the fix is a restart.** The dock
+tells the truth at start-up — with no grant it printed
+`hotkey OFF — no Accessibility permission` exactly as designed. But note **which
+app needs the grant: the one that launches the dock**, not "the dock". I run it
+from VS Code's terminal, so VS Code is what System Settings needs, which is not
+obvious from the message. And after granting, the first press still did nothing
+while the log said `hotkey ready` — `AXIsProcessTrusted()` returned true before
+the monitor was actually receiving. **A restart of the launching app fixed it.**
+So: grant it, restart the terminal app, and press it once *before* you trust the
+"ready" line.
+
+**2. The entrance only happens once per dock, which reads as "the hotkey is
+broken".** This cost me a while and it is not a bug — a character walks down when
+it *first appears*, so on a dock that has already run, a second press produces
+talking characters that never drop. I chased a working hotkey for several minutes
+because nothing dropped. **Worth knowing at rehearsal: if you want the entrance
+in the demo, the dock must be freshly started.** Rehearsing the open twice in a
+row means `stop` in between.
+
+**3. And the stale-binary trap caught me again** — third time today on this
+machine. `run-demo.sh` rebuilds when sources are newer, but a `git pull` *while
+the dock is already up* leaves you watching the old app, and your entrance
+animation was in the source and not on screen. Nothing to fix; it is what C's
+guard is for. Just: pull, then restart the dock, in that order.
+
+**What this means for the demo, and I think it is a big deal:** the chord path
+needs no VoiceOS, no helper action, no trial, and no terminal in the shot. On the
+evidence of this machine it is the most reliable opening we have.
+
 ---
 
 ### D — I own a folder git is told to ignore, and the obvious fix silently fails

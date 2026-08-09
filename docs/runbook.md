@@ -74,8 +74,18 @@ costs ~20 seconds. Say each phrase to VoiceOS:
 | **"Is Crew ready?"** | a card: **Ready**, Node version, our script path, MCP version | *"That's our server, on this laptop. Nothing pre-recorded."* |
 | **"What tools does Crew have?"** | all 8 `crew_*` tools, discovered live | *"It found those itself — we didn't hand it a list."* |
 
-Then start the crew. Two ways, and **know which one you are using before you walk
-up**:
+Then start the crew. Three ways, and **know which one you are using before you
+walk up**:
+
+- **Press ⌃⌥C** — no VoiceOS, no helper, no terminal in the shot. The crew walks
+  down from the top of the screen and starts. **Tested by a real press on a
+  second Mac**; a synthesised keystroke does *not* work, so this is a human
+  beat. Three conditions, all learned the hard way:
+  **(a)** Accessibility must be granted to the app that *launches* the dock
+  (Terminal, VS Code — whichever), **(b)** restart that app after granting, then
+  press once to confirm — `hotkey ready` in the log is not proof on its own, and
+  **(c)** the walk-down entrance only plays on a **freshly started dock**, so
+  `./run-demo.sh stop` between rehearsals or the crew is already standing there.
 
 - **`run-demo.sh wait` + the natural sentence** — the real beat, if B's helper
   action is live.
