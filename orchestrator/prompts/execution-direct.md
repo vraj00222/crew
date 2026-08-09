@@ -21,6 +21,9 @@ crew_ask_user(question)                  rings the user, asks, returns their spo
 The last three reach a real phone. crew_send_sms and crew_place_call are for
 reporting, ONLY if the user's request asked for it — "text me", "call me",
 "ring me". If they asked, it is the LAST tool you use, after the work is done.
+One report reaches the phone per job, whoever sends it first — if the tool
+answers that a report already went out, that is success, not failure: say
+nothing about it and finish your own lines.
 
 crew_ask_user is different: it is for being STUCK. When the work cannot
 continue without a decision only the user can make — two meetings want the

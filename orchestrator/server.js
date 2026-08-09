@@ -169,6 +169,15 @@ function narrate(evt, role) {
   if (evt.type !== 'assistant') return [];
   const out = [];
   for (const b of evt.message?.content || []) {
+    // The CLI surfaces API failures as assistant text ("API Error: … flagged
+    // this message … Learn more: https://…"). Live run task_1: triage hit one
+    // and the character's last words became the error and a support URL, read
+    // to the room. Log it, never speak it — the agent either retries or its
+    // real lines stand.
+    if (b.type === 'text' && /^\s*API Error/i.test(b.text)) {
+      console.log(`[api-error] ${role}: ${b.text.slice(0, 200)}`);
+      continue;
+    }
     if (b.type === 'text' && b.text.trim()) out.push(...toLines(b.text));
     // Logged, never narrated. The dock speaks these lines, so a tool name here
     // would have had a character read a function name to the room.
