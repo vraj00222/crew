@@ -149,7 +149,7 @@ is one command all three machines run to prove they're looking at the same syste
 
 | | state |
 |---|---|
-| orchestrator, all 3 execution modes | **PASS** |
+| orchestrator, all 3 execution modes selectable | **PASS** — but see `direct` below |
 | full chain, real headless agents | **PASS — ~45s end to end** |
 | dock receives | **16/16 lines, correct order** |
 | dock speaks | **10/10 lines, 0 dropped** |
@@ -190,6 +190,13 @@ Every one of these would have hit on stage, and every one of them looked fine in
 
 ### Known-broken, on purpose or not
 
+- **`direct` mode gives the agents no tools.** The prompt tells each agent to call
+  `crew_gmail_archive(…)`, but a headless `claude -p` only has an MCP server if it is
+  passed one, and nothing passes it. The failure is quiet by design: the prompt says
+  *"narrate what is true and carry on"*, so an agent with no tools recites the numbers
+  from its own prompt — correct for the seeded mailbox — and the run looks perfect while
+  touching nothing. Config and a contract test are committed; the one-line wiring is
+  tracked in `coordination.md`.
 - **The voice loop's last link is untested.** Audio provably reaches the virtual
   microphone; whether VoiceOS *transcribes* it is unverified, because the app is behind
   a paywall on both machines that have it installed. Everything around it is scripted
