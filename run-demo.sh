@@ -1,8 +1,14 @@
 #!/bin/bash
 # The whole demo, one command. This is what gets run on stage.
-#   ./run-demo.sh          real agents (headless claude), ~30s
+#   ./run-demo.sh          real agents, narrated — nothing is touched  <- SAFE
+#   ./run-demo.sh live     real agents calling the crew_* tools; the mailbox changes
+#   ./run-demo.sh voice    real agents speaking commands to VoiceOS  <- the real thing
 #   ./run-demo.sh fake     canned narration, no Claude calls  <- PANIC BUTTON
 #   ./run-demo.sh stop     kill everything
+#
+# Each mode is a whole prompt file that is known-good on its own
+# (orchestrator/prompts/execution-*.md). Dropping down a rung at 5:55pm is a
+# different word on this command line, never an edit to a prompt.
 set -uo pipefail
 cd "$(dirname "$0")"
 PHRASE="clean up my inbox and schedule everything"
@@ -28,7 +34,16 @@ stop() {
 [ "${1:-}" = stop ] && { stop; echo "stopped."; exit 0; }
 
 FAKE=""
-[ "${1:-}" = fake ] && FAKE="FAKE=1"
+case "${1:-}" in
+  fake)  FAKE="FAKE=1" ;;
+  live)  export CREW_MODE=direct ;;
+  voice) export CREW_MODE=voice ;;
+  "")    export CREW_MODE=narrate ;;
+  *)     echo "unknown mode '$1' — use: (none) | live | voice | fake | stop"; exit 1 ;;
+esac
+# Fail here, not on stage: a missing prompt file means every agent dies silently.
+[ -n "$FAKE" ] || [ -f "orchestrator/prompts/execution-${CREW_MODE}.md" ] \
+  || { echo "no prompt for mode '$CREW_MODE'"; exit 1; }
 
 stop
 [ -x crew-dock/Crew.app/Contents/MacOS/Crew ] || { echo "building dock..."; ./crew-dock/build.sh >/dev/null; }
@@ -47,7 +62,7 @@ for _ in $(seq 1 20); do
   curl -s -o /dev/null -w '' localhost:4001/status/x 2>/dev/null && break
   sleep 0.3
 done
-echo "orchestrator up on :4001 ${FAKE:+(FAKE MODE)}"
+echo "orchestrator up on :4001 ${FAKE:+(FAKE MODE) }[mode: ${FAKE:+canned}${FAKE:-$CREW_MODE}]"
 echo
 
 ID=$(curl -sf -X POST localhost:4001/start-task -H 'content-type: application/json' \
@@ -66,15 +81,19 @@ done
 kill $TAIL 2>/dev/null; wait $TAIL 2>/dev/null
 
 # The orchestrator finishes ~10s before the room does — speech trails the bubbles.
-# Without this the summary prints over the recap and `stop` cuts Karen off
-# mid-sentence, which is how the show ends silently on stage.
-LAST=""; STILL=0
-for _ in $(seq 1 40); do
-  NOW=$(grep -c '^SAY ->' /tmp/crew-dock.log 2>/dev/null); NOW=${NOW:-0}
-  [ "$NOW" = "$LAST" ] && STILL=$((STILL + 1)) || STILL=0
-  [ "$STILL" -ge 3 ] && break
-  LAST=$NOW; sleep 1
+# Without this the summary prints over the recap and `stop` cuts the last
+# character off mid-sentence, which is how the show ends silently on stage.
+#
+# Wait on the recap's own sign-off rather than on silence: the gap while the
+# recap agent spawns is several seconds of no speech, and a silence-based wait
+# reads that as the end and returns before the last character has said a word.
+RECAP_LAST=$(echo "$S" | node -pe 'JSON.parse(require("fs").readFileSync(0)).agents.at(-1).lastMessage' 2>/dev/null)
+for _ in $(seq 1 60); do
+  grep -Fq "$RECAP_LAST" /tmp/crew-dock.log 2>/dev/null \
+    && grep -F "$RECAP_LAST" /tmp/crew-dock.log | grep -q '^SAY ->' && break
+  sleep 1
 done
+sleep 1   # the line is logged when `say` starts, so let the audio finish
 echo
 echo "=== final ==="
 echo "$S" | node -pe 'JSON.parse(require("fs").readFileSync(0)).agents.map(a=>`  ${a.name} [${a.state}] ${a.lastMessage}`).join("\n")'

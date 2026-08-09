@@ -77,9 +77,13 @@ final class Narrator {
     /// That is the same "the log is not evidence" trap that already cost us a
     /// run, so the name is resolved once, out loud, before the show.
     ///
-    /// Falls back to the default output instead of refusing to speak: the dock
-    /// is the *audience* channel, so the system default is always the safe way
-    /// to fail — narration on the wrong speaker beats a silent demo.
+    /// Never refuses to speak — narration on the wrong speaker beats a silent
+    /// demo. But it prefers the *built-in speakers* over the system default,
+    /// because the system default is not a safe place to land here: the audio
+    /// rig switches the default output around, so falling back to it could put
+    /// narration on BlackHole — i.e. straight into VoiceOS's ear, which is the
+    /// exact collision the device split exists to prevent. Built-in speakers
+    /// are the audience channel by definition, and BlackHole can never match.
     private static func resolveDevice(_ name: String) -> String? {
         if !name.isEmpty, name.allSatisfy(\.isNumber) { return name }  // device ID
 
@@ -104,11 +108,16 @@ final class Narrator {
             return name
         }
 
-        let warning = "SAY !! no audio output device named \"\(name)\" — falling back "
-            + "to the default output so the dock still speaks. Available: "
+        // "MacBook Air Speakers", "MacBook Pro Speakers", "iMac Speakers" — the
+        // built-in output. A loopback device ("BlackHole 2ch") never matches.
+        let builtIn = devices.first { $0.hasSuffix("Speakers") }
+
+        let landing = builtIn.map { "\"\($0)\"" } ?? "the system default output"
+        let warning = "SAY !! no audio output device named \"\(name)\" — narrating to "
+            + "\(landing) instead so the dock still speaks. Available: "
             + devices.joined(separator: " | ") + "\n"
         FileHandle.standardError.write(Data(warning.utf8))
-        return nil
+        return builtIn
     }
 
     /// Called on every status POST. Safe to call from any thread.

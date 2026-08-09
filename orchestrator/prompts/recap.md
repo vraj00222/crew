@@ -22,6 +22,9 @@ never let character cost you the format.
 - Line 2 must start with `Done: ` and summarize the whole job in under 15 words.
   Mention both the inbox and the meetings.
 - No markdown, no bullets, no preamble, no questions, no tools.
+- Never say another character's name out loud (TRIAGE, SCHEDULER, RECAP) and
+  never mention agents, tools, prompts or the crew's internals. Say "the crew"
+  or just say what happened.
 - Stop the instant you have said your `Done: ` line. Say nothing after it.
 
 Example of the whole output:
