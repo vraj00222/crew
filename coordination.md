@@ -1757,6 +1757,52 @@ t+30s  886  546  338
 tuning is four constants (`roam`, the leg range, the pause range, and the clip phases). If
 the lanes feel too narrow or the pauses too short on your Air, they are one number each.
 
+## 📈 A — a longer task really does drop more agents. Proven, five on screen
+
+Vraj asked whether a longer ask spawns a bigger crew. It does, and it always did — routing
+matches every crew member whose keywords appear, so the crew grows with the sentence:
+
+| what you say | who drops |
+|---|---|
+| "clean up my inbox" | 2 — triage, recap |
+| "clean up my inbox and schedule everything" | 3 — the rehearsed run |
+| "…find out what is urgent and schedule the meetings" | 4 — + researcher |
+| "…research what is urgent, analyse which threads need a reply, and schedule the meetings" | **5 — the whole crew** |
+
+**But four of five would have been heard and not seen**, because `characters.json` only had
+three roles. Added placeholder rows for `researcher` and `analyst` reusing the two upstream
+clips (one mirrored) so the capability is visible **today**. Verified: `spoken but NOT
+shown: 0`, all five on screen.
+
+**D — those two rows are yours the moment you have art.** Swap `asset`, drop `mirrored`,
+nothing else changes. They are marked as A's stopgap in the file's own `_comment`.
+
+### The five-agent run, real agents, and the hand-off is visible in the output
+
+```
+researcher  Done: only Marcus's staging outage is genuinely urgent.
+[crew] wave 2: analyst (has triage, scheduler, researcher)
+analyst     Nine in ten came from a machine, not a person.
+analyst     One of these is not like the others — Marcus, waiting since yesterday.
+analyst     Done: Reply to Marcus about staging first.
+recap       Done: inbox down to two, both meetings booked, reply to Marcus about staging first.
+```
+
+The analyst named Marcus because the researcher handed it that finding — it ran *after*
+three agents and was given all three sign-offs. The recap then carried the analyst's
+recommendation, not just counts. **That is the feedback loop doing something an audience
+can hear**, rather than three agents narrating in parallel.
+
+23 lines, 16 spoken, ~90s. Longer than the rehearsed run by design: five agents, more to say.
+
+### Still open, honestly
+
+- **Voice-driven still needs the trigger.** `⌃⌥C` works; VoiceOS reaching `run_crew_task`
+  from a natural sentence is B's first-class-action change.
+- **The long phrasing is not rehearsed.** The 3-agent run is the one that has been said
+  out loud dozens of times. If the five-agent version goes on stage it needs its own
+  rehearsal — it is 90s, not 45s.
+
 ## Decisions log
 
 - _Sat night — orchestrator is one file (`orchestrator/server.js`), Node stdlib only, not the 4-file TypeScript layout in the folder plan — A — no build step, no `npm install`, no deps to break at 5pm; the whole thing is ~170 lines and restarts instantly. The frozen bit is the HTTP contract, and that's unchanged._

@@ -1,38 +1,69 @@
 {
   "_comment": [
     "The crew roster. D owns this file and the art; C owns the loader in Sources/main.swift.",
-    "Adding a crew member is a row here plus a .mov in Assets/ — no Swift edit.",
+    "Adding a crew member is a row here plus a .mov in Assets/ \u2014 no Swift edit.",
     "",
     "characters[]:",
-    "  role     — must match the `character` field the orchestrator POSTs to :4002.",
-    "  asset    — Assets/<asset>.mov, transparent HEVC, portrait. No extension here.",
-    "  mirrored — flip horizontally. Only needed while two roles share one clip.",
+    "  role     \u2014 must match the `character` field the orchestrator POSTs to :4002.",
+    "  asset    \u2014 Assets/<asset>.mov, transparent HEVC, portrait. No extension here.",
+    "  mirrored \u2014 flip horizontally. Only needed while two roles share one clip.",
     "  Order is left-to-right on screen.",
     "",
     "activities{}: playback rate while `working`, keyed on the POST's `activity`",
-    "  rather than on the role — so two agents doing research move alike and this",
+    "  rather than on the role \u2014 so two agents doing research move alike and this",
     "  file never has to learn the roster. 1.0 is the clip's natural speed.",
     "  Omit an activity and it falls back to the plain `working` tempo (1.15).",
     "",
     "If this file is missing or unparseable the dock uses the built-in three and",
     "logs it, so the rehearsed run can never be broken by a bad edit here.",
     "",
-    "D: researcher and analyst have no art yet — that is your gap. Add a row each",
+    "D: researcher and analyst have no art yet \u2014 that is your gap. Add a row each",
     "once the .movs exist. Until then they are spoken but not shown, and the dock",
-    "logs exactly that."
+    "logs exactly that.",
+    "PLACEHOLDER (A, stopgap): researcher and analyst reuse the two upstream clips so a longer task visibly drops more characters TODAY. D \u2014 these two rows are yours the moment you have art; swap `asset` and drop `mirrored`. Nothing else needs to change."
   ],
-
   "characters": [
-    { "role": "triage",    "asset": "walk-bruce-01", "mirrored": false },
-    { "role": "scheduler", "asset": "walk-jazz-01",  "mirrored": false },
-    { "role": "recap",     "asset": "walk-bruce-01", "mirrored": true  }
+    {
+      "role": "triage",
+      "asset": "walk-bruce-01",
+      "mirrored": false
+    },
+    {
+      "role": "scheduler",
+      "asset": "walk-jazz-01",
+      "mirrored": false
+    },
+    {
+      "role": "researcher",
+      "asset": "walk-jazz-01",
+      "mirrored": true
+    },
+    {
+      "role": "analyst",
+      "asset": "walk-bruce-01",
+      "mirrored": false
+    },
+    {
+      "role": "recap",
+      "asset": "walk-bruce-01",
+      "mirrored": true
+    }
   ],
-
   "activities": {
-    "sorting":  { "rate": 1.15 },
-    "booking":  { "rate": 1.15 },
-    "research": { "rate": 0.90 },
-    "analysis": { "rate": 0.80 },
-    "summary":  { "rate": 1.00 }
+    "sorting": {
+      "rate": 1.15
+    },
+    "booking": {
+      "rate": 1.15
+    },
+    "research": {
+      "rate": 0.9
+    },
+    "analysis": {
+      "rate": 0.8
+    },
+    "summary": {
+      "rate": 1.0
+    }
   }
 }
