@@ -108,7 +108,7 @@ async function main() {
   const mcp = client();
   await mcp.init();
 
-  console.log(dim(`\n  --- CrewOS, the conversation. MCP server on stdio -> orchestrator ${ORCH} ---`));
+  console.log(dim(`\n  --- Crew, the conversation. MCP server on stdio -> orchestrator ${ORCH} ---`));
   console.log(dim(`      (this is exactly what VoiceOS calls; the only thing missing is the mic)`));
 
   await you(OPENING);

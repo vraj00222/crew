@@ -1,6 +1,6 @@
 # VoiceOS feedback — from building a custom MCP integration against it
 
-Written while building CrewOS at Hack with VoiceOS (9 Aug 2026). Everything below
+Written while building Crew at Hack with VoiceOS (9 Aug 2026). Everything below
 comes from installing VoiceOS on **two machines — macOS and Windows 11** — reading
 its shipped config and bundle, and building an MCP server against it. Findings are
 what we observed, with what we did about it. Nothing here is a guess about intent.
@@ -200,8 +200,8 @@ people most likely to keep using and recommending the product.
 
 ## What we built on it, for context
 
-**CrewOS** — you say one sentence out loud, and a crew of agents works your inbox
-and calendar while three characters narrate themselves on your dock. VoiceOS is the
+**Crew** — you say one sentence out loud, and a crew of agents works your inbox
+and calendar while five characters narrate themselves on your dock. VoiceOS is the
 ear: it hears the sentence, calls `run_crew_task` on our MCP server, and can be asked
 "what's the crew doing?" mid-run and get a spoken answer back. Eight MCP tools, Node
 stdlib only.
