@@ -802,6 +802,61 @@ Optionally: run history across rehearsals, which we currently keep in `/tmp`.
 Staged, not started — waiting on the month of premium. Whoever picks it up: it is a new
 directory, so it collides with nobody.
 
+### a1mobile — what changes if you *phone* the crew (A investigated)
+
+**Findings first: there is no public developer API.** Neither `a1mobile.com` nor the
+business dashboard documents an API, webhook, custom action, or MCP surface. The product
+is an AI receptionist you buy, not a platform you build on — as far as anything public
+shows. **So this is a booth question, and it is a single one:**
+
+> *"Can your AI call an HTTP endpoint we host, and read our reply back to the caller?"*
+
+Yes → we can do this in an afternoon. No → it is not possible at all, and no amount of
+our work changes that. Do not build anything before that answer.
+
+**What the architecture would actually become:**
+
+```
+today  human speaks -> VoiceOS -> MCP run_crew_task -> POST :4001/start-task -> agents -> dock
+phone  human CALLS  -> a1 AI   -> webhook           -> POST :4001/start-task -> agents -> dock
+                     ^                                                                     |
+                     +----- crew_task_status sentence read back down the call <-------------+
+```
+
+**Almost nothing changes, and that is the point of the frozen contract.** The trigger side
+needs *no new code*: `/start-task` already takes `{instructions}` as plain text, so a
+webhook body is the same thing VoiceOS sends. The read-back already exists too — B's
+`crew_task_status` returns a spoken sentence, which is exactly what you want a phone to
+say while a 45-second run is happening.
+
+**Two things genuinely do change, and one of them is a real problem:**
+
+1. **The orchestrator would have to be reachable from the internet.** A carrier's cloud
+   cannot reach `localhost:4001`, so it needs a tunnel — and that puts **the public
+   internet on the stage path**, which is the one thing every other decision here has
+   avoided. It also exposes an endpoint that spawns Claude sessions, unauthenticated,
+   on the demo machine. If we do this it needs a shared secret and it must be a *rung
+   above* the local path, never a replacement.
+2. **A 45-second silence on a phone call is a long time.** The status sentence has to be
+   read back periodically, not once at the end.
+
+**Verdict: additive trigger, never the critical path.** If a1mobile can hit a webhook, it
+is the best opening beat we could have — texting the crew from outside the room beats a
+keypress. If they can't, we lose nothing, because the local path was always the plan.
+
+**What this investigation was worth on its own — a real bug on the demo phrase.** Testing
+routing against *transcript*-shaped input rather than typed input:
+
+```
+"Clean up my in box and schedule everything."   -> scheduler + recap     <- TRIAGE MISSING
+```
+
+A speech-to-text pass writes "in box" as two words and half the demo silently vanished —
+no error, just one character that never wakes. That is reachable from VoiceOS today, not
+only from a phone. `rolesFor` now matches how a transcriber spells things rather than how
+a person types them (`in box`, `in-box`, `e-mail`, `e mail` all covered). Nine transcript
+variants now route correctly; `hi` still falls back to the full crew.
+
 ### a1mobile — one question, then decide
 
 "AI native carrier that talks, texts, and handles tasks." The interesting beat is

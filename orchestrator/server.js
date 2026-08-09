@@ -39,7 +39,10 @@ let seq = 0;
 // row plus a prompt file — no dock change needed for it to be heard, and none
 // for it to be seen once the dock has a slot for the name.
 const CREW = {
-  triage:     { activity: 'sorting',  match: /inbox|email|mail/ },
+  // Transcripts are messier than typed text — a speech-to-text pass writes "in
+  // box" as two words, and that alone dropped TRIAGE from the demo's own phrase.
+  // Match how a transcriber spells things, not how a person types them.
+  triage:     { activity: 'sorting',  match: /in[\s-]?box|e[\s-]?mail|mail/ },
   scheduler:  { activity: 'booking',  match: /schedul|calendar|meeting|book/ },
   researcher: { activity: 'research', match: /research|look up|find out|investigate|dig into/ },
   analyst:    { activity: 'analysis', match: /analy|compare|report|numbers|breakdown/ },
