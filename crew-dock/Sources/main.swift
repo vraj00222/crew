@@ -24,7 +24,9 @@ final class DockController {
             }
             characters[role] = AgentCharacter(role: role, videoURL: url,
                                          originX: startX + CGFloat(i) * AgentCharacter.width,
-                                         originY: vf.minY - 12)
+                                         originY: vf.minY - 12,
+                                         // recap reuses triage's clip — mirror it
+                                         mirrored: role == "recap")
         }
     }
 

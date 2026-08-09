@@ -15,7 +15,7 @@ final class AgentCharacter {
     static let charHeight: CGFloat = 170
     static let bubbleHeight: CGFloat = 86
 
-    init(role: String, videoURL: URL, originX: CGFloat, originY: CGFloat) {
+    init(role: String, videoURL: URL, originX: CGFloat, originY: CGFloat, mirrored: Bool = false) {
         self.role = role
 
         let height = Self.charHeight + Self.bubbleHeight
@@ -41,6 +41,10 @@ final class AgentCharacter {
         videoLayer = AVPlayerLayer(player: player)
         videoLayer.frame = CGRect(x: (Self.width - vidWidth) / 2, y: 0, width: vidWidth, height: Self.charHeight)
         videoLayer.videoGravity = .resizeAspect
+        // Upstream ships two walk loops for three roles, so triage and recap were
+        // the same sprite twice. Mirroring one of them costs nothing and stops
+        // the audience seeing the same character in two places at once.
+        if mirrored { videoLayer.transform = CATransform3DMakeScale(-1, 1, 1) }
         content.layer?.addSublayer(videoLayer)
 
         bubble = BubbleView(frame: NSRect(x: 0, y: Self.charHeight - 6, width: Self.width, height: Self.bubbleHeight))
@@ -50,17 +54,52 @@ final class AgentCharacter {
         window.orderFrontRegardless()
     }
 
+    /// Playback rate per state. There are only two walk loops upstream and three
+    /// characters, so state has to read as *tempo* rather than as a new clip:
+    /// an amble while waiting, a brisk walk while working, an easy one once the
+    /// job is done. Same asset, three legible behaviours.
+    private static func rate(for state: String) -> Float {
+        switch state {
+        case "idle": return 0.55   // barely moving — waiting to be given something
+        case "done": return 0.70   // still walking, just unhurried
+        default:     return 1.15   // working: a shade faster than natural
+        }
+    }
+
     func apply(message: String, state: String) {
         let waking = window.alphaValue == 0
         if waking {
-            player.play()
             NSAnimationContext.runAnimationGroup { ctx in
                 ctx.duration = 0.45
                 window.animator().alphaValue = 1
             }
         }
         bubble.set(text: message, done: state == "done")
-        if state == "done" { player.pause() } else { player.play() }
+
+        // NEVER pause. Pausing on "done" froze the character mid-stride, and
+        // because two agents finish long before the recap does, most of the show
+        // was played to a screen of statues. A frozen character reads as a
+        // crashed app — which is exactly the impression the dock exists to avoid.
+        //
+        // play() first: setting `rate` alone is ignored while the item is still
+        // getting ready, which is exactly the case on the very first line.
+        player.play()
+        player.rate = Self.rate(for: state)
+
+        // A real line just arrived: bob, so the character reads as *saying* it
+        // rather than as a walking sprite that happens to have a caption.
+        if !message.isEmpty && message != "waking up" { bob() }
+    }
+
+    /// One small hop, on the layer so it costs nothing and can't fight AppKit.
+    private func bob() {
+        let hop = CABasicAnimation(keyPath: "position.y")
+        hop.fromValue = videoLayer.position.y
+        hop.toValue = videoLayer.position.y + 7
+        hop.duration = 0.16
+        hop.autoreverses = true
+        hop.timingFunction = CAMediaTimingFunction(name: .easeOut)
+        videoLayer.add(hop, forKey: "bob")
     }
 
     func reset() {
