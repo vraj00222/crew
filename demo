@@ -50,15 +50,23 @@ if grep -q 'hotkey OFF' /tmp/crew-dock.log; then
   echo "     Then run ./demo again."
 fi
 
+# The one step no script can do, said before you need it rather than after it
+# silently fails. `fn` cannot be synthesized — rebinding to an ordinary chord was
+# tried and VoiceOS does not see posted events either. So hands-free is one human
+# press, ONCE, and it stays on: after that ⌃⌥C greets you and you simply talk.
 cat <<'BANNER'
 
   ────────────────────────────────────────────────────────────
     ready. nothing has been asked for yet.
 
-      ⌃⌥C   the crew cleans the inbox and books the meetings
-      ⌃⌥L   the long one — five agents, and they hand off
+    FIRST, ONCE:  press fn + space
+                  that opens VoiceOS's ear and leaves it open.
+                  without it the crew asks and never hears you.
 
-    press it as many times as you like. ctrl-C here to stop.
+    THEN:  ⌃⌥C   the crew arrives and asks what you want — just talk
+           ⌃⌥L   the long one, five agents, no question asked
+
+    press as many times as you like. ctrl-C here to stop.
   ────────────────────────────────────────────────────────────
 
 BANNER

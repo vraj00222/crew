@@ -436,11 +436,21 @@ async function wakeAndListen() {
 
   waking = false;
   if (!heard) {
+    // Distinguish "you said nothing" from "VoiceOS was not listening", because
+    // they look identical from here and only one of them is your fault. A run
+    // where the transcript table never moved means the microphone was never
+    // opened — hands-free is a human press and nothing we do can make it.
+    const after = Number(await sqlite('SELECT COALESCE(MAX(rowid),0) FROM voice_sessions;')) || 0;
+    if (after === before) {
+      console.log('[wake] VoiceOS never heard ANYTHING — hands-free is probably off.');
+      console.log('       press fn+space once, then try again. It stays on after that.');
+    } else {
+      console.log('[wake] heard something but nothing usable — running the rehearsed task');
+    }
     // Never leave a character standing there having asked a question. Falling
-    // back to the rehearsed phrase means a failed transcription costs the demo
-    // its opening line, not the demo.
-    console.log('[wake] nothing heard — running the rehearsed task instead');
-    say(task, greeter, 'working', 'Nothing? I will start with the inbox.');
+    // back means a failed transcription costs the demo its opening line, not
+    // the demo.
+    say(task, greeter, 'working', 'I did not catch that. I will start with the inbox.');
     return startTask(process.env.CREW_PHRASE || 'clean up my inbox and schedule everything');
   }
   console.log(`[wake] heard: "${heard}"`);
