@@ -1,0 +1,220 @@
+{
+  "_readme": [
+    "The demo inbox. This file is the contract between what the agents SAY and what",
+    "the audience SEES on screen.",
+    "",
+    "The first ten entries are pinned by orchestrator/prompts/execution.md, which",
+    "hardcodes the seeded inbox into the agents' prompt: 6 newsletters (The Verge,",
+    "Morning Brew, Substack x2, LinkedIn, Product Hunt), David Chen asking to sync",
+    "about the Q3 rollout, Priya Nair wanting 30 minutes on the contract, and 2 real",
+    "emails needing a human reply. Change a sender or subject here and you MUST change",
+    "it there too, or triage will narrate an inbox nobody can see.",
+    "",
+    "The arithmetic is load-bearing: 6 newsletters + 8 noise = 14 archived, 2 meeting",
+    "requests go to the scheduler, and exactly 2 emails are left. That is what makes",
+    "'Done: inbox down to two real emails' literally true on stage.",
+    "",
+    "Times are relative offsets resolved at seed time, so this never goes stale."
+  ],
+
+  "meta": {
+    "total": 18,
+    "archive_expected": 14,
+    "remaining_expected": 2,
+    "pinned_by": "orchestrator/prompts/execution.md"
+  },
+
+  "emails": [
+    {
+      "id": "nl-verge",
+      "category": "newsletter",
+      "from_name": "The Verge",
+      "from_email": "newsletter@theverge.com",
+      "subject": "The biggest announcements from this week in tech",
+      "hours_ago": 9,
+      "body": "Installer #412\n\nThis week: the new foldables everyone is pretending to be surprised by, a very good keyboard, and why your smart home still cannot turn off a light reliably.\n\nRead in browser -> theverge.com/installer\nUnsubscribe -> theverge.com/preferences"
+    },
+    {
+      "id": "nl-morningbrew",
+      "category": "newsletter",
+      "from_name": "Morning Brew",
+      "from_email": "crew@morningbrew.com",
+      "subject": "☕ Markets shrug it off",
+      "hours_ago": 6,
+      "body": "Good morning. Futures are up, nobody knows why, and an analyst has already been on television to explain it with total confidence.\n\nMARKETS: S&P +0.4% • Nasdaq +0.7%\nTOGETHER WITH a company you have never heard of\n\nUnsubscribe -> morningbrew.com/unsub"
+    },
+    {
+      "id": "nl-substack-1",
+      "category": "newsletter",
+      "from_name": "Platformer",
+      "from_email": "platformer@substack.com",
+      "subject": "What the new model releases actually change",
+      "hours_ago": 27,
+      "body": "Today: a long look at what shipped this month, what it means for people building on top of it, and the part of the announcement everyone skipped.\n\nYou are receiving this because you subscribed on Substack.\nUnsubscribe -> substack.com/settings"
+    },
+    {
+      "id": "nl-substack-2",
+      "category": "newsletter",
+      "from_name": "The Diff",
+      "from_email": "thediff@substack.com",
+      "subject": "Longreads + Open Thread",
+      "hours_ago": 32,
+      "body": "This week's links, plus the open thread. Paid subscribers can comment below.\n\nUnsubscribe -> substack.com/settings"
+    },
+    {
+      "id": "nl-linkedin",
+      "category": "newsletter",
+      "from_name": "LinkedIn News",
+      "from_email": "news-noreply@linkedin.com",
+      "subject": "Your weekly digest: 14 people viewed your profile",
+      "hours_ago": 20,
+      "body": "See who's viewing your profile this week.\n\nAlso trending in your network: someone you worked with in 2019 is now a Founder & CEO in stealth.\n\nManage email preferences -> linkedin.com/settings"
+    },
+    {
+      "id": "nl-producthunt",
+      "category": "newsletter",
+      "from_name": "Product Hunt Daily",
+      "from_email": "daily@producthunt.com",
+      "subject": "Today's top products — #1 is an AI that reads your inbox",
+      "hours_ago": 8,
+      "body": "1. Inbox Zero AI — your email, handled\n2. A notetaker that joins your meetings\n3. Yet another terminal, but pretty\n\nUnsubscribe -> producthunt.com/notifications"
+    },
+
+    {
+      "id": "mtg-david-chen",
+      "category": "meeting-request",
+      "from_name": "David Chen",
+      "from_email": "david.chen@northwind.example.com",
+      "subject": "Q3 rollout — can we sync tomorrow afternoon?",
+      "hours_ago": 3,
+      "important": true,
+      "body": "Hi,\n\nCan we sync tomorrow afternoon about the Q3 rollout? I want to walk through the migration plan before it goes to the wider team on Thursday.\n\nAnytime after 1pm works on my end — an hour should be plenty.\n\nThanks,\nDavid",
+      "_demo_note": "The money shot. Scheduler books this at 2pm tomorrow, which is free in calendar.json by design."
+    },
+    {
+      "id": "mtg-priya-nair",
+      "category": "meeting-request",
+      "from_name": "Priya Nair",
+      "from_email": "priya.nair@lattice-legal.example.com",
+      "subject": "30 min this week to go over the contract?",
+      "hours_ago": 5,
+      "important": true,
+      "body": "Hello,\n\nI need 30 min this week to go over the contract — there are two clauses in the renewal I would rather talk through than put in writing.\n\nHappy to work around you. Mornings are easier for me.\n\nBest,\nPriya Nair\nLattice Legal"
+    },
+
+    {
+      "id": "reply-urgent-client",
+      "category": "needs-reply",
+      "from_name": "Marcus Webb",
+      "from_email": "marcus.webb@northwind.example.com",
+      "subject": "URGENT: staging is down before the Thursday demo",
+      "hours_ago": 1,
+      "important": true,
+      "starred": true,
+      "body": "Staging has been throwing 502s since about 9 this morning and Thursday's client walkthrough runs on it.\n\nI need to tell the client something by end of day. Are we looking at a fix today, or should I move the walkthrough to next week?\n\nSorry to be the bearer of this one.\n\nMarcus",
+      "_demo_note": "One of the 2 that survive triage. Genuinely needs a human — that is the point the demo makes."
+    },
+    {
+      "id": "reply-landlord",
+      "category": "needs-reply",
+      "from_name": "Sandra Okonkwo",
+      "from_email": "sandra.okonkwo@baypropertymgmt.example.com",
+      "subject": "Lease renewal — need your decision by Friday",
+      "hours_ago": 22,
+      "important": true,
+      "body": "Hi,\n\nYour lease is up on the 30th. I need to know by Friday whether you are renewing for another year so I can either draw up the paperwork or list the unit.\n\nThe new rate would be $3,150. Let me know either way.\n\nSandra"
+    },
+
+    {
+      "id": "travel-united",
+      "category": "travel",
+      "from_name": "United Airlines",
+      "from_email": "confirmation@united.example.com",
+      "subject": "Your trip is confirmed: SFO → SEA, confirmation KX8ZQ2",
+      "hours_ago": 30,
+      "body": "You're all set.\n\nCONFIRMATION: KX8ZQ2\nUA 1442  SFO → SEA   departs 7:15 AM, arrives 9:38 AM\nUA 1685  SEA → SFO   departs 6:40 PM, arrives 8:55 PM\n\nSeat 14A • Group 2 • Carry-on included\nCheck in 24 hours before departure."
+    },
+
+    {
+      "id": "noise-github",
+      "category": "noise",
+      "from_name": "GitHub",
+      "from_email": "notifications@github.com",
+      "subject": "[crew] CI passed on sameer (build #48)",
+      "hours_ago": 2,
+      "body": "All checks have passed for commit b5095dc on branch sameer.\n\nView run -> github.com/vraj00222/crew/actions"
+    },
+    {
+      "id": "noise-slack",
+      "category": "noise",
+      "from_name": "Slack",
+      "from_email": "feedback@slack.com",
+      "subject": "You have 12 unread messages in #general",
+      "hours_ago": 11,
+      "body": "While you were away, there were 12 new messages in #general and 3 in #random.\n\nOpen Slack -> slack.com"
+    },
+    {
+      "id": "noise-receipt-coffee",
+      "category": "noise",
+      "from_name": "Square",
+      "from_email": "receipts@squareup.com",
+      "subject": "Receipt from Sightglass Coffee — $6.75",
+      "hours_ago": 26,
+      "body": "Sightglass Coffee\n1 Cortado          $4.75\n1 Croissant        $2.00\n--------------------------\nTotal              $6.75\n\nVisa ••••4417"
+    },
+    {
+      "id": "noise-aws",
+      "category": "noise",
+      "from_name": "Amazon Web Services",
+      "from_email": "no-reply@aws.amazon.com",
+      "subject": "Your AWS bill for July is available",
+      "hours_ago": 44,
+      "body": "Your total for July was $41.83.\n\nThis is an automated message. View the full breakdown in the Billing console."
+    },
+    {
+      "id": "noise-promo",
+      "category": "noise",
+      "from_name": "Figma",
+      "from_email": "hello@figma.com",
+      "subject": "Config tickets are 30% off this week only",
+      "hours_ago": 35,
+      "body": "Join thousands of designers and developers. Early-bird pricing ends Sunday.\n\nUnsubscribe -> figma.com/email-preferences"
+    },
+    {
+      "id": "noise-security",
+      "category": "noise",
+      "from_name": "Google",
+      "from_email": "no-reply@accounts.google.com",
+      "subject": "Security alert: new sign-in on Windows",
+      "hours_ago": 14,
+      "body": "Your Google Account was just signed in to from a new Windows device.\n\nIf this was you, you don't need to do anything."
+    },
+    {
+      "id": "noise-calendly",
+      "category": "noise",
+      "from_name": "Calendly",
+      "from_email": "notifications@calendly.com",
+      "subject": "Reminder: your weekly availability is nearly full",
+      "hours_ago": 17,
+      "body": "You have 3 open slots left this week.\n\nManage availability -> calendly.com/event_types"
+    }
+  ],
+
+  "_calendar_readme": [
+    "Existing commitments, so the scheduler has to actually find a gap rather than",
+    "dropping events into an empty week. Two gaps are deliberate:",
+    "  - tomorrow 14:00-15:00 is FREE  -> David Chen's Q3 sync ('Booking two PM with David Chen')",
+    "  - day-after 10:00-10:30 is FREE -> Priya's 30-minute contract review",
+    "Fill either one and the demo's best line stops being true."
+  ],
+
+  "calendar": [
+    { "id": "cal-standup-1", "summary": "Eng standup",            "days_ahead": 1, "start": "09:00", "end": "09:15" },
+    { "id": "cal-design",    "summary": "Design review — onboarding", "days_ahead": 1, "start": "11:00", "end": "12:00" },
+    { "id": "cal-1on1",      "summary": "1:1 with Marcus",        "days_ahead": 1, "start": "15:30", "end": "16:00" },
+    { "id": "cal-standup-2", "summary": "Eng standup",            "days_ahead": 2, "start": "09:00", "end": "09:15" },
+    { "id": "cal-allhands",  "summary": "All hands",              "days_ahead": 2, "start": "13:00", "end": "14:00" },
+    { "id": "cal-retro",     "summary": "Sprint retro",           "days_ahead": 3, "start": "16:00", "end": "17:00" },
+    { "id": "cal-walkthru",  "summary": "Client walkthrough (staging)", "days_ahead": 4, "start": "10:00", "end": "11:00" }
+  ]
+}
