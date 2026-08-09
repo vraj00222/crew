@@ -387,11 +387,19 @@ if AXIsProcessTrusted() {
         lastWake = now
         wakeTheCrew(longPhrase)
     }
-    FileHandle.standardError.write(Data(
-        "hotkey ready — hold control+option, speak, let go\n".utf8))
-} else {
+    // Lead with fn: it is the one VoiceOS transcribes without acting on, so it
+    // is the trigger that leaves the job to the crew. Both banners name both
+    // keys — the operator reads this line, and "control+option" alone stopped
+    // being the whole truth the moment fn was accepted.
     FileHandle.standardError.write(Data((
-        "hotkey OFF — no Accessibility permission, so control+option will do nothing.\n"
+        "hotkey ready — hold fn, speak, let go\n"
+        + "  control+option also works, but it is VoiceOS's agent mode: VoiceOS does the job itself.\n").utf8))
+} else {
+    // Name fn too. The same monitor detects both, so both are dead without the
+    // grant — saying only "control+option" invites the reader to try fn and
+    // conclude the dock is broken rather than unpermitted.
+    FileHandle.standardError.write(Data((
+        "hotkey OFF — no Accessibility permission, so neither fn nor control+option will do anything.\n"
         + "  System Settings -> Privacy & Security -> Accessibility -> add this app or your terminal.\n").utf8))
 }
 
