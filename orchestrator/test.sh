@@ -4,7 +4,7 @@ set -u
 cd "$(dirname "$0")"
 fail() { echo "FAIL: $1"; exit 1; }
 
-node fake-dock.js > /tmp/crew-dock.log 2>&1 &
+node fake-dock.js > /tmp/crew-fakedock.log 2>&1 &
 DOCK_PID=$!
 FAKE=1 node server.js > /tmp/crew-srv.log 2>&1 &
 SRV_PID=$!
@@ -37,6 +37,7 @@ echo "$S" | node -e '
 curl -sf -X POST localhost:4001/start-task -H 'content-type: application/json' \
   -d '{"instructions":"just tidy my email"}' > /dev/null
 sleep 0.3
-grep -q '"character":"triage"' /tmp/crew-dock.log || fail "nothing reached the dock"
+grep -q '"character":"triage"' /tmp/crew-fakedock.log \
+  || fail "nothing reached the dock — $(head -2 /tmp/crew-fakedock.log)"
 
 echo "PASS — contract, routing, and dock push all good"
