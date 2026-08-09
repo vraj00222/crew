@@ -348,9 +348,67 @@ const a1 = () => (_a1 ??= require('./a1mobile.js'));
 // on stage in a way a clean "start the voice server" sentence never does.
 const VOICE_URL = `http://localhost:${process.env.CREW_VOICE_PORT || 4003}`;
 // How long crew_ask_user waits for the person to pick up, talk, and the
-// transcript to land. The orchestrator's per-agent timeout must be longer than
-// this or the agent gets killed mid-conversation (AGENT_TIMEOUT_MS, 180s).
+// transcript to land. The orchestrator sizes its per-agent kill timer off this
+// same number in direct mode, so an agent can no longer be killed mid-call.
 const ASK_WAIT_MS = Number(process.env.CREW_ASK_WAIT_MS || 120_000);
+
+// Who we are and where to report it. The orchestrator sets all three when it
+// spawns the agent that owns this bridge process (see its mcpConfig). Absent —
+// a hand-run bridge, or VoiceOS's own — announcing is simply skipped.
+const ROLE = process.env.CREW_ROLE || '';
+const TASK_ID = process.env.CREW_TASK_ID || '';
+const EVENTS_URL = process.env.CREW_ORCH_EVENTS || '';
+
+// Put a line on stage for the character that is holding the phone. Nothing this
+// function does may break a call: it is the narration of the event, not the
+// event, so every failure is swallowed. The whole point is the two minutes
+// between the dial and the transcript, during which this agent writes nothing
+// to stdout and the dock would otherwise sit frozen while the presenter's phone
+// rings in their hand.
+async function announce(kind, message, text) {
+  if (!EVENTS_URL || !TASK_ID || !ROLE) return;
+  try {
+    await fetch(EVENTS_URL, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ taskId: TASK_ID, role: ROLE, kind, message, text }),
+      signal: AbortSignal.timeout(3000),
+    });
+  } catch { /* the dock is decoration here — a call must never fail over it */ }
+}
+
+// --- the deterministic route ---
+// The same idea as `./run-demo.sh fake`, for the phone: a rung that cannot fail
+// because it depends on nothing outside this process. No a1mobile, no team key,
+// no tunnel, no Telnyx, no whisper, no network. The dock still gets the entire
+// performance — the character still says it is calling you, still says what you
+// "said", and the crew still works from that answer — so the story the audience
+// watches is identical. What is missing is only the ringing.
+//
+// This exists because the real path has five things that can be down at 5:55pm
+// (key, verified number, voice server, tunnel, transcription) and a hackathon
+// demo cannot be one bad wifi away from having no third act.
+//   CREW_PHONE_FAKE=1   everything below is simulated, and says so
+//   CREW_FAKE_ANSWER    force one specific answer, for a rehearsed run
+const PHONE_FAKE = process.env.CREW_PHONE_FAKE === '1';
+// Long enough that the room reads "calling you…" on the dock before the answer
+// lands on top of it. Pacing, not latency simulation.
+const FAKE_ASK_MS = Number(process.env.CREW_FAKE_ASK_MS || 6000);
+
+// Keyword-matched, not generated — a planner is a thing that can be wrong on
+// stage, and the whole point of this route is that it cannot be. Ordered most
+// specific first; the last entry is what an unrehearsed question gets.
+const FAKE_ANSWERS = [
+  [/anything else|something else|what else/i, "No, that's everything. Thanks."],
+  [/which|who|whose|pick|choose|David|Priya|wins?\b/i, 'Give the two PM slot to David, and offer Priya Thursday morning.'],
+  [/junk|spam|important|archive|delete|bin/i, "Archive it, it's junk — but anything from the bank, keep."],
+  [/book|schedule|move|reschedule|slot|calendar/i, 'Book it, and keep the afternoon after four clear.'],
+];
+const fakeAnswer = (q) =>
+  process.env.CREW_FAKE_ANSWER
+  || (FAKE_ANSWERS.find(([re]) => re.test(q)) || [null, 'Use your best judgment on that one, I trust you.'])[1];
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function queueOnVoiceServer(path, body) {
   try {
@@ -368,10 +426,22 @@ async function queueOnVoiceServer(path, body) {
   }
 }
 
+async function sendSms(args) {
+  const body = args?.body;
+  if (typeof body !== 'string' || !body.trim()) throw new Error('crew_send_sms needs a non-empty "body"');
+  if (PHONE_FAKE) return { fake: true, to: args?.to || 'the demo phone', body };
+  return a1().sendSms({ to: args?.to, body });
+}
+
 async function callWithMessage(args) {
   const message = args?.message;
   if (typeof message !== 'string' || !message.trim()) throw new Error('crew_place_call needs a non-empty "message"');
+  if (PHONE_FAKE) {
+    await announce('calling', 'Calling your phone now.');
+    return { fake: true, to: args?.to || 'the demo phone', message };
+  }
   await queueOnVoiceServer('/say', { message });
+  await announce('calling', 'Calling your phone now.');
   return a1().placeCall({ to: args?.to });
 }
 
@@ -383,13 +453,45 @@ async function callWithMessage(args) {
 async function askUser(args) {
   const question = args?.question;
   if (typeof question !== 'string' || !question.trim()) throw new Error('crew_ask_user needs a non-empty "question"');
-  await queueOnVoiceServer('/ask', { question });
+  // The deterministic route. Same beats, same timing, same lines on the dock —
+  // the only thing that does not happen is the ringing.
+  if (PHONE_FAKE) {
+    const text = fakeAnswer(question);
+    await announce('calling', `I need you on this one. Calling you now: ${question.trim()}`);
+    await sleep(FAKE_ASK_MS);
+    await announce('answered', `You said: ${text}. Carrying on.`, text);
+    return { fake: true, answered: true, text };
+  }
+
+  // Real path, but never fatal. If the voice server or the tunnel is down there
+  // will be no call at all, and killing the agent over it would throw away the
+  // rest of its work. Being stuck is the state it was already in, so it gets
+  // told plainly that the line is dead and carries on deciding for itself —
+  // and it is told the line failed, not that "you did not answer", because we
+  // never actually rang and should not say we did.
+  try {
+    await queueOnVoiceServer('/ask', { question });
+  } catch (e) {
+    await announce('calling', 'I could not get through to you — deciding this one myself.');
+    return { answered: false, unreachable: true, text: null, reason: e.message };
+  }
+  // Said on the dock BEFORE the dial, and it carries the question itself: the
+  // room can hear the characters but not the earpiece, so this is the only way
+  // the audience knows what the presenter is being asked while they pick up.
+  await announce('calling', `I need you on this one. Calling you now: ${question.trim()}`);
   const placed = await a1().placeCall({ to: args?.to });
   if (placed.dry) return placed;
   const r = await fetch(`${VOICE_URL}/answer?timeout=${ASK_WAIT_MS}`, {
     signal: AbortSignal.timeout(ASK_WAIT_MS + 10_000),
   });
   const { text } = await r.json();
+  // The answer goes on stage AND onto the task, so every agent that runs after
+  // this one is handed what the user decided rather than re-guessing it.
+  await announce(
+    'answered',
+    text ? `You said: ${text}. Carrying on.` : 'No answer — I will use my best judgment.',
+    text || undefined
+  );
   return { ...placed, answered: !!text, text: text || null };
 }
 
@@ -404,7 +506,7 @@ const WORK_DISPATCH = {
   crew_calendar_book: (a) => backend().book(a),
   crew_calendar_list: (a) => backend().listEvents(a),
   // Outward-facing on purpose, and real — see the tool descriptions above.
-  crew_send_sms: (a) => a1().sendSms({ to: a?.to, body: a?.body }),
+  crew_send_sms: (a) => sendSms(a),
   crew_place_call: (a) => callWithMessage(a),
   crew_ask_user: (a) => askUser(a),
 };
@@ -460,14 +562,24 @@ function workReply(name, result) {
       return result?.reason || 'That meeting could not be booked.';
     case 'crew_calendar_list':
       return `${thereAre(result?.events?.length ?? 0, 'event')} on ${result?.day || 'that day'}.`;
+    // `dry` is the real client staging a send; `fake` is the deterministic
+    // route standing in for the whole phone. Both are told to the agent as
+    // plainly as they are told to us — an agent that thinks it really texted
+    // someone will say so out loud, and that is a lie on stage.
     case 'crew_send_sms':
       if (result?.dry) return 'Rehearsal mode — the text was written but not really sent.';
+      if (result?.fake) return 'Simulated — the text was composed but no phone was contacted. Report it as done.';
       return 'The text is sent — it should be on the phone now.';
     case 'crew_place_call':
       if (result?.dry) return 'Rehearsal mode — the call was staged but the phone will not ring.';
+      if (result?.fake) return 'Simulated — no phone was contacted. Report it as done.';
       return 'Calling now — the phone should start ringing in a moment.';
     case 'crew_ask_user':
       if (result?.dry) return 'Rehearsal mode — the question was staged but the phone will not ring.';
+      if (result?.unreachable) {
+        return 'The phone line is down, so nobody was actually called. Decide with your '
+          + 'best judgment and say out loud which way you went.';
+      }
       if (result?.answered) return `The user said: "${result.text}"`;
       return 'The user did not answer, or said nothing. Decide with your best judgment and say which way you went.';
     default:
@@ -664,7 +776,11 @@ function serve() {
     }
   });
   process.stdin.on('end', () => process.exit(0));
-  log(`ready on stdio -> orchestrator ${ORCH_URL} (log: ${LOG_PATH})`);
+  // The fake phone is loud in the log on purpose. It is the one setting that
+  // makes the show look completely normal while nothing leaves the machine —
+  // exactly the state you must never discover by wondering why a phone that
+  // was supposed to ring did not.
+  log(`ready on stdio -> orchestrator ${ORCH_URL}${PHONE_FAKE ? ' [PHONE FAKE — no phone will ring]' : ''} (log: ${LOG_PATH})`);
 }
 
 // --- self-test: drives this same handler through a real handshake, no client needed ---

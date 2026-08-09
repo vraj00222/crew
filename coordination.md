@@ -2547,7 +2547,7 @@ done; this is what is genuinely still open.
 | | state | the one thing left |
 |---|---|---|
 | **A — Vraj** | voice loop proven, Piper voices in, rungs 1-3 real | **the long-task feedback loop** (below) — the only unbuilt feature |
-| **B — Sameer** | 8 tools, both platforms, `run-demo.ps1`, VoiceOS `crew` registered | **OWNS the VoiceOS↔MCP integration** — repo-side work is green; keep the real prefixed names and confirmation behavior documented as VoiceOS changes |
+| **B — Sameer** | **11 tools** (a1mobile merged), both platforms, `run-demo.ps1`, VoiceOS `crew` registered | **OWNS the VoiceOS↔MCP integration** — repo-side work is green; keep the real prefixed names and confirmation behavior documented as VoiceOS changes |
 | **C — Abhishek** | dock done, stall indicator, `register.sh` | **nothing.** Take `crew-say`/`Narrator` back if you want it; it is one line |
 | **D — Yaseen** | unblocked, art not started | **`recap` art.** It is the only workstream nobody else can do |
 | **E — Rukaiya** | all three deliverables done, rung 2 proven on the backup rig | ~~re-record~~ **done — re-cut with the Piper voices, 95s, 10/10.** Next: deliver the talk out loud over a run |
@@ -3260,3 +3260,114 @@ you hit first reading top-down.
 plausible enough to believe. Worth two minutes before anyone else reads that file at 5pm.
 It also means the header comment still documents ⌃⌥C as the trigger, which is no longer
 what the demo does.
+
+---
+
+## B — the crew can phone you now, and `a1-mobile-integration` is merged
+
+Merged `a1-mobile-integration` into `sameer` on top of current `main`. **Clean, no
+conflicts** — that branch only ever touched bridge files plus one line of
+`orchestrator/server.js`, and the six commits `main` gained since it forked were all dock,
+`demo` and audio. Nothing anyone is holding moved.
+
+The idea it buys, and the reason it is worth the wiring: **the demo currently assumes you
+are sitting in front of the laptop.** The moment you are not, a dock full of characters is
+worth nothing, and the work stops at exactly the point where a human was needed. Now an
+agent that gets stuck **rings your actual phone**, asks out loud, listens, and the crew
+carries on from what you said.
+
+### What I added on top of the branch
+
+The branch had the tools and the call server. Four things stood between that and something
+you could run on stage.
+
+**1. The dock went silent for two minutes at the best moment.** An agent inside
+`crew_ask_user` is blocked in one tool call for the whole conversation and writes nothing
+to stdout — so there is no line to pace, and the show freezes precisely while the
+presenter's phone is ringing in their hand. The bridge now announces the call to the
+orchestrator **before it dials** (`POST :4001/agent-event`, additive — no frozen shape
+changed), and announces the answer after. The announcement carries the question, because
+the room can hear the characters but not the earpiece.
+
+**A took two tries to get right, and the second one is worth knowing.** The first fix was
+dropped on the floor by `push()`: `signedOff` is set when a character's `Done:` line is
+**queued**, not when it is **spoken**, and the model usually emits all its narration in one
+event. So the guard meant for chatty agents was silently eating a real event that had
+already happened. Forced lines now jump the queue *ahead* of the sign-off instead of being
+filtered by it — `Done:` is still the last word, and a phone that really rang always gets a
+line.
+
+**2. Your answer died inside the one agent that asked.** It was the tool's return value and
+nothing else, so the recap closed the show reporting around the most interesting thing that
+happened. Answers are now kept **on the task** and handed to every agent that runs
+afterwards. The scheduler asks which meeting wins; the recap closes knowing which one won.
+
+**3. The timeout was a live bug, not a footgun.** `AGENT_TIMEOUT_MS` was a flat 180s and an
+ask waits up to 120s — so an agent that asked 70s in got SIGKILLed **while the human was
+still mid-sentence**, and the character then said *"ran out of time"* to a room that had
+just watched the presenter pick up. In `direct` mode the kill timer now sizes itself off
+`CREW_ASK_WAIT_MS` automatically. Other modes keep the tight 180s; there is no phone in
+them and a hung agent should give up fast.
+
+**4. Five manual steps became one.** `./voiceos-bridge/mcp-server/phone.sh up` starts the
+call server, opens the tunnel, points the number, and runs the preflight. `run-demo.sh
+live` and `./demo phone` bring it up on their own when a team key is present; `stop` tears
+it down. **Re-pointing every start is the fix, not laziness** — a free tunnel's hostname
+changes each run, so yesterday's hand-pointed number aims at an address that no longer
+exists, and that failure is a phone that rings on stage and then says nothing.
+
+`phone.sh check` is the one to actually use: it fetches **our own `/health` back through
+the public tunnel**, so it tests the path Telnyx will take rather than a convenient local
+equivalent. A dead tunnel or stale pointing cannot pass it. Same rule as the seven
+instruments.
+
+### The rung below it — `./run-demo.sh phone-fake`
+
+The real phone needs five things up at once (key, verified number, call server, tunnel,
+transcription) and we cannot be one bad wifi away from having no third act.
+`CREW_PHONE_FAKE=1` resolves all three phone tools **inside the bridge process** — no key,
+no tunnel, no Telnyx, no whisper, no network. Keyword-matched canned answers, so the
+rehearsed question gives the rehearsed answer every time. The dock performs it identically;
+only the ringing is missing. The bridge log says `[PHONE FAKE — no phone will ring]` so the
+operator is never the one who is fooled.
+
+Also made a dead phone stack **non-fatal**: `crew_ask_user` with no voice server comes back
+as a normal result saying the line is down and to decide alone, rather than an error that
+throws away the agent's work. It is told the line failed, *not* that you ignored it — we
+never rang, so we do not get to say you did not answer.
+
+### What is proven, and what is not
+
+`node voiceos-bridge/mcp-server/test-phone.js` — new, covers the four silent failures: the
+fallback still answers, both announcements fire, the answer carries raw text for later
+agents, and a dead stack degrades. **PASS.** `orchestrator/test.sh` **PASS**,
+`test-direct-contract.js` **PASS** (9 tools, spelled the same both sides),
+`test-status-speech.js` **PASS**. Both TeXML modes checked by hand — ask records, announce
+does not.
+
+**Not proven by me: the live path.** This box has no team key and no tunnel, so a real
+ring, a real answer and a real transcript were verified before the merge and not after it.
+Everything above was proven *after*, on a machine with no credentials — which is the point,
+but it is not the same claim. **A/E: `./phone.sh check` on the demo Mac is the one command
+that re-proves it**, and it needs `CREW_PHONE` set to an OTP-verified handset.
+
+One more thing worth two minutes: `AGENT_TIMEOUT_MS` set by hand anywhere in your scripts
+will now override the automatic sizing. Keep it above `CREW_ASK_WAIT_MS` or we are back to
+killing agents mid-conversation.
+
+**One trap worth naming, because it would have been silent.** The bridge needs to know
+which character is calling, and the obvious route — set it on the agent and let the bridge
+inherit it — does not reliably work. An MCP client commonly spawns its servers with a small
+*safe subset* of the parent environment, so anything not named in the config's own `env`
+can just vanish. Silently. For `CREW_PHONE_FAKE` that means a phone you believed was
+simulated tries to really dial a real handset.
+
+But `...process.env` into `--mcp-config` is not the fix either: that flag travels as **one
+argv string that already carries the whole prompt**, and the full environment serialises to
+5.7KB per agent against ~600 bytes of names we actually use. Windows enforces that limit,
+and we have already lost a day to a Windows-only spawn failure that looked green.
+
+So `BRIDGE_ENV` in `orchestrator/server.js` is an **explicit list**, and it is now load-
+bearing: **anything the bridge reads from `process.env` has to be added to it, or it will
+not be there when an agent calls the tool.** Both `CREW_PHONE` and `CREW_PHONE_FAKE` are
+verified present in the generated config.
