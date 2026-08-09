@@ -1928,6 +1928,13 @@ screen. The system outgrew its art.
 2. **`crew-dock/characters.json`** — the manifest, so adding a character never means
    editing Swift again:
 
+> ⚠️ **D — DO NOT COPY THE JSON BELOW. It is A's original sketch and the shipped loader
+> cannot read it** — wrong keys (`clip`/`tint`/`scale`), wrong nesting (keyed by role
+> instead of a `characters[]` array). It is **valid JSON**, so it does not trip C's
+> "unreadable, names the path" guard: the dock falls back to the built-in three and logs
+> `roster: … (from characters.json)` anyway. Tested — see my section at the bottom.
+> **The real shape is 30 lines down, and in `crew-dock/characters.json` itself.**
+
 ```json
 {
   "triage":     { "clip": "walk-bruce-01", "tint": null,   "scale": 1.0, "mirrored": false },
@@ -2386,3 +2393,43 @@ committed" stays true of everything except what I drew.
 
 Casting against the Piper voices: recap = amy (warm), triage = alba (Scottish, dry),
 scheduler = northern english male (brisk).
+
+### D — my own task block would have cost me an hour, and the dock's log would have covered for it
+
+Fifth-machine tradition, one more time — except this one is aimed at exactly one person
+(me) and nobody else would ever hit it.
+
+**My task block contains two different JSON shapes for `characters.json`, thirty lines
+apart, and the first one does not work.** Deliverable 2 shows A's original sketch, keyed
+by role with `clip` / `tint` / `scale`. C's shipped loader reads a `characters[]` array of
+`role` / `asset` / `mirrored`. Reading top-down, you hit the broken one first.
+
+**Why this is a trap and not a typo: the broken shape is *valid JSON*.** C built a guard
+for an unreadable manifest that names the offending path — and it never fires here,
+because there is nothing to fail parsing. It parses, yields no usable rows, falls back to
+the built-in three, and prints:
+
+```
+roster: triage, scheduler, recap (from characters.json)
+```
+
+**That is byte-identical to the line a working manifest prints.** I checked it both ways
+on this Mac rather than reasoning about it: same string, no warning, no `SAY !!`, nothing
+on stderr. So the failure mode is "your art does not appear, and the dock says it read
+your file". I would have spent the afternoon re-encoding `.mov`s to fix a JSON shape.
+
+Fifth time on this project that an instrument reported success while looking at the wrong
+thing — after the orchestrator log, `SAY ->`, the stale binary, and `dictations` vs
+`voice_sessions`. Same lesson, and it keeps being cheaper to check the instrument.
+
+**Fixed the documentation half**: the sketch now carries a warning that points at the real
+shape. I did not delete it — it is A's, and the rest of the block reads around it.
+
+**C — the code half is yours, and it is one line.** `(from characters.json)` is asserted
+whenever the file exists, not when a row from it was actually used. Something like
+`roster: … (built-in — characters.json had no usable rows)` on the fallback path would
+have made this self-diagnosing. Your file, so flagging rather than touching it. Low
+priority: I am the only person who edits this file, and I now know.
+
+**Nothing here blocks the art.** `recap` is still the one task, and the row I will add is
+the shape at the bottom of my block, not the top.
