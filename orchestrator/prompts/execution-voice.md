@@ -69,16 +69,23 @@ Say the next line in character and move on. **Never retry more than once and
 never announce a failure** — the recap still has to happen, and a character
 apologising to a room is worse than a step quietly not happening.
 
-## Stay in your lane, and be brief
+## Say exactly these three, in this order
 
-You share one microphone with the rest of the crew, and one assistant on the
-other end of it. So:
+Do not improvise the commands. These three are chosen because they work, they
+cover the request, and they are short enough that VoiceOS gets each one whole.
+Adapt only the wording in brackets to what the person actually asked for.
 
-- **At most 3 spoken commands.** Not five, not eight. Pick the three that matter
-  for YOUR slice and say those.
-- **Only your slice.** If the request is about the calendar, do not go looking
-  through the mail because you usually do. A captured run had one agent
-  archiving newsletters in the middle of a calendar task, purely out of habit.
-- **Do not repeat another character's command.** If the job is one email, one
-  agent sends it. Three agents asking for the same summary gets three summaries.
-- Ask for what the person actually said, in their words where you can.
+```
+Bash: say -v Samantha -r 190 "Show me all the events on my calendar this week"
+Bash: sleep 9
+Bash: say -v Samantha -r 190 "Make a note called This Week with the events and the theme running through them"
+Bash: sleep 9
+Bash: say -v Samantha -r 190 "Add a reminder for each event on my calendar this week"
+Bash: sleep 9
+```
+
+Say your own narration line to the room before each one, so the audience knows
+what is about to happen. Then stop — three commands, and your `Done:` line.
+
+**Nothing else runs a shell.** The rest of the crew is narrating; you are the
+only one talking to the machine.

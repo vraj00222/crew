@@ -245,8 +245,13 @@ function runRole(task, role) {
     // rung precisely because the agents cannot touch anything — and voice drives
     // VoiceOS by speaking, so it needs Bash rather than the crew tools.
     if (MODE === 'direct') args.push('--mcp-config', MCP_CONFIG, '--allowedTools', ALLOWED_TOOLS || CREW_TOOLS);
-    // Only the closer gets a shell in voice mode — it is the only one speaking.
-    else if (MODE === 'voice' && role === CLOSER) args.push('--allowedTools', ALLOWED_TOOLS || 'Bash');
+    // Only the closer gets a shell in voice mode. Omitting --allowedTools does
+    // NOT restrict anything — it hands over the default toolset, Bash included —
+    // so a live run had TRIAGE speaking to VoiceOS when only the closer should.
+    // Non-speakers get a harmless list so the flag is present and Bash is not.
+    else if (MODE === 'voice') {
+      args.push('--allowedTools', role === CLOSER ? (ALLOWED_TOOLS || 'Bash') : 'Read');
+    }
     else if (ALLOWED_TOOLS) args.push('--allowedTools', ALLOWED_TOOLS);
     // `detached` makes the agent its own process-group leader so the timeout can
     // kill the whole tree. An agent spawns tool subprocesses, and SIGKILLing only
