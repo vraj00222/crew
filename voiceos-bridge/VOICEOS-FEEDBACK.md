@@ -58,8 +58,17 @@ obvious one. Documenting the prefix scheme would be the cheaper half of that.
 
 VoiceOS's tool declarations carry a `requiresConfirmation` boolean, there's an
 `AGENT_CONFIRM_REQUIRED` code path, and your site states that anything which sends,
-books, or changes something stops and shows the user first. We could find no global
-bypass, which we read as deliberate, and we think it's the right default.
+books, or changes something stops and shows the user first. There is no *global* bypass
+in settings, which we read as deliberate, and we think it's the right default.
+
+There is, however, a top-level config key named
+**`codingAgentDangerouslyBypassPermissions`** (`false` on our install). We haven't worked
+out what it governs — the name suggests the coding-agent feature rather than custom MCP
+tools — but it means a bypass exists for at least one path. **If something like it is
+intended to be reachable for MCP tools, it isn't discoverable**: it's in neither the UI
+nor the docs we could find, and the only reason we know it exists is that we read the
+config. Either document it or surface it in settings; a `Dangerously` prefix in a JSON
+file is a thing people will find and flip without knowing what it does.
 
 The problem it creates for agent-shaped products: our crew runs unattended for ~45
 seconds and performs a dozen mailbox actions. A confirmation on each one means a
@@ -124,11 +133,25 @@ find out.
 programmatically; rebind to a chord if you need to script it." Anyone building a
 hands-free or automated flow hits this.
 
-## 6. Onboarding terminates at the paywall with no way past it
+## 6. The config schema moved, and anything scripted against the old shape breaks silently
 
-On both machines onboarding stops at "Start your 7-day free trial" ($143.88/yr),
-`onboardingCompleted` stays `false`, and there is no skip. We understand the business
-reason. Two consequences worth weighing:
+Between our morning inspection and the afternoon, `muteWhenDictating` and
+`agentVoiceEnabled` moved from the top level into `settings`, and `onboardingCompleted`
+into `onboarding`. Our setup script happened to read the nested shape and was fine; one
+written against the earlier shape would have written a top-level key the app ignores, and
+the loopback rig would then fail with **no error and nothing to search for.**
+
+**Suggestion:** if `config.json` is something integrators are expected to read — and with
+no CLI on Windows it effectively is — give it a `schemaVersion`. `appliedMigrations` is
+already in the file, so the concept exists internally; exposing a version would let anyone
+scripting against it fail loudly instead of silently.
+
+## 7. Onboarding terminates at the paywall with no way past it
+
+Until we redeemed the event's free month, onboarding stopped at "Start your 7-day free
+trial" ($143.88/yr), `onboardingCompleted` stayed `false`, and there was no skip. Once
+redeemed it completed straight away and Gmail connected without any trouble — so this is
+about the *evaluation* path, not the product. Two consequences worth weighing:
 
 - A developer evaluating the MCP integration can't see `customMcpServers` work at all
   before paying — the integration surface is behind the same gate as the product.
@@ -140,19 +163,20 @@ reason. Two consequences worth weighing:
 without the full subscription. The people who register a custom MCP server are the
 people most likely to keep using and recommending the product.
 
-## 7. Smaller things
+## 8. Smaller things
 
-- `connectedIntegrations` on Windows is `[]` and `nativeActionToggles` is the same
-  list as macOS (editText, insertText, openApp, setVolume, controlPlayback,
-  reminders) — **no email, no calendar-write on either platform.** The macOS build
-  additionally has Apple Mail scriptable from inside the bundle, so the platforms are
-  further apart in practice than the toggle list suggests. Worth stating plainly:
-  it's the difference between "I can use the calendar" and "I can read it."
+- **`nativeActionToggles` doesn't reflect connected integrations.** After connecting
+  Gmail, `connectedIntegrations` became `["gmail"]` but the toggle list was unchanged
+  (editText, insertText, openApp, setVolume, controlPlayback, reminders) — no email
+  action appears. We assume the toggles cover only *native OS* actions and integrations
+  are dispatched elsewhere, but from outside it reads as "Gmail is connected and yet
+  there is no email action", which is confusing when you're deciding what to build
+  natively vs. via MCP. A one-line label on that section would fix it.
 - The `dictations` table in `voiceos.db` is an excellent debugging hook — being able
   to confirm exactly what was transcribed settles "did it mishear me?" instantly.
   Mention it in developer docs; we found it by looking.
-- Onboarding sits at step 15 of an unknown total. A progress count would tell a user
-  whether they're nearly done or nowhere near.
+- Onboarding shows a step number with no total (we saw step 15, then 16 of
+  `onboardingStepVersion` 24). A count would tell a user whether they're nearly done.
 
 ---
 

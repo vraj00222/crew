@@ -43,8 +43,18 @@ it canned. Swap in three real headless agents reasoning about a real inbox:
 ./run-demo.sh stop     # kill everything
 ```
 
-The dock is Swift/AppKit, so `run-demo.sh` is macOS-only. **Everything upstream of it
-runs anywhere** — on Windows or Linux, watch the same narration arrive as HTTP:
+The dock is Swift/AppKit, so `run-demo.sh` is macOS-only. **On Windows, run the same
+pipeline with the same ports and the same entry point** — characters and speech are
+replaced by a stand-in that prints what it received:
+
+```powershell
+.\run-demo.ps1           # canned agents, whole pipeline, zero Claude spend
+.\run-demo.ps1 -Talk     # the demo as a conversation -- this is the pitch
+.\run-demo.ps1 -Voice    # orchestrator up, then you SPEAK into VoiceOS
+.\run-demo.ps1 -Stop
+```
+
+Or by hand, on any OS:
 
 ```bash
 node orchestrator/fake-dock.js       # stand-in for the dock, prints what it receives
@@ -248,8 +258,13 @@ on anyone else's process being up. Each side has a stub of the others.
 | **A** — Vraj | orchestrator, role prompts, the dock, the audio rig | Mac — the demo machine |
 | **B** — Sameer | MCP bridge, Gmail/Calendar tools, demo-seed | Windows |
 | **C** — Abhishek | dock characters, speech bubbles, narration | Mac |
-| **D** — Yaseen | character art + visual identity | |
-| **E** — Rukaiya | rehearsal, resilience, backup rig | |
+| **D** — Yaseen | character art + visual identity | Mac |
+| **E** — Rukaiya | rehearsal, resilience, backup rig | Mac |
+
+Four Macs and one Windows box, which is why there are two runners. `run-demo.sh` builds
+and launches the Swift dock and is macOS-only; `run-demo.ps1` runs the same pipeline,
+ports and entry point on Windows with a stand-in for the dock — verified at 16 lines
+received, the same number the Mac reports.
 
 New here? **[`docs/onboarding.md`](docs/onboarding.md)** is the front door — clone to a
 running demo in about sixty seconds, plus the file-ownership map and the merge ritual.

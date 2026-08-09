@@ -10,4 +10,9 @@
 *.md    text eol=lf
 
 # PowerShell only ever runs on B's box; CRLF is fine and native there.
+#
+# KEEP EVERY .ps1 STRICTLY ASCII. Windows PowerShell 5.1 reads a BOM-less script as
+# cp1252, and an em dash (E2 80 94) ends in byte 0x94 -- which cp1252 maps to a right
+# double quotation mark, and PowerShell accepts that as a STRING DELIMITER. One em dash
+# in a comment silently opens a string and the file stops parsing. Use "--".
 *.ps1   text eol=crlf

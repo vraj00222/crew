@@ -15,14 +15,38 @@ gets you from `git clone` to a running demo in about sixty seconds.** This file 
 live state of the day; that one is the process, the file-ownership map (how we avoid
 conflicts), and the merge ritual.
 
+**Four Macs and one Windows box.** That ratio is the reason `run-demo.sh` was never the
+whole story: it builds and launches the Swift dock, so it is macOS-only and always will
+be, and B could not run the thing B was building against.
+
 - **A — Vraj** — Claude Max, **Mac** — **confirmed demo machine**
-- **B — Sameer** — Windows
+- **B — Sameer** — **Windows** — the only non-Mac. Runs `run-demo.ps1`
 - **C — Abhishek** — Mac
-- **D — Yaseen** — character art + visual identity *(new)*
-- **E — Rukaiya** — rehearsal, resilience, backup rig *(new)*
+- **D — Yaseen** — Mac — character art + visual identity
+- **E — Rukaiya** — Mac — rehearsal, resilience, backup rig
 
 Subscriptions: A Claude Max; B OpenAI Plus + Claude Pro; C Claude Pro.
 D and E — put yours in your row so we know what you can run.
+
+**`run-demo.ps1` is the Windows half of `run-demo.sh`** — same pipeline, same ports, same
+entry point, with fake-dock printing what it received in place of characters and speech.
+Verified on B's box: **16 lines reached the dock, which is A's exact Mac number.** Four of
+you will never need it; the fifth could not rehearse without it.
+
+```powershell
+.\run-demo.ps1           # canned agents, whole pipeline, zero Claude spend
+.\run-demo.ps1 -Talk     # the demo as a conversation -- this is the pitch
+.\run-demo.ps1 -Voice    # orchestrator up, then you SPEAK into VoiceOS
+.\run-demo.ps1 -Stop
+```
+
+**Windows gotcha, and it cost me a parse error before I spotted the pattern: every `.ps1`
+in this repo is strictly ASCII, and that is load-bearing.** Windows PowerShell 5.1 reads a
+BOM-less script as cp1252, and an em dash (`—`, `E2 80 94`) ends in byte `0x94` — which
+cp1252 maps to a **right double quotation mark, and PowerShell treats that as a string
+delimiter.** So one em dash in a comment silently opens a string and the whole file stops
+parsing. `verify.ps1`, `register.ps1` and `test.ps1` are all ASCII-only for this reason;
+keep it that way. Use `--`.
 
 **Why this matters:** the mic-loopback trick (BlackHole, `say`, switching the system audio input) is macOS-only tooling. B can't run that spike locally. But most of B's work — the MCP server, the demo-seed scripts, and testing the human→VoiceOS→orchestrator hop with VoiceOS-for-Windows and B's own voice — has zero Mac dependency. Only the inner loop (agent speaks → VoiceOS hears it) needs a Mac, and now that we know which one, no need to set it up twice.
 
@@ -110,7 +134,7 @@ Switch anytime with `/effort` or `/model`. If usage gets tight, add `--fallback-
 | **D — Yaseen** | character art + visual identity | **machine set up, CHECKPOINT PASS on `6255b5d` (12 ok / 0 failed / 6 N/A) — fifth machine.** Art itself not started yet. Clean setup needed `node` (not installed); getting there found **a hang in `checkpoint.sh` on any machine without node — see Blockers, it's A's file.** Next: build the dock, watch a `fake` run, then the `researcher` + `analyst` `.mov`s | nothing. Your work is new files only; you cannot be blocked by us |
 | **E — Rukaiya** | rehearsal, resilience, backup rig | **backup rig PROVEN — clean clone → full show → CHECKPOINT PASS (17 ok / 0 failed) on a second MacBook Air.** Clone to spoken demo in 72s, 16 lines received, 10 spoken, 0 dropped. C's speaker fallback fired for real here (no `MacBook Pro Speakers` on an Air) and saved the run — see my section at the bottom. Onboarding fixed where my run disproved it. **Break-glass table now TESTED, row by row — one row was half-true: a hung agent can wedge the whole run after saying "ran out of time" (A: repro + fix in my section and Blockers).** **All three deliverables done: `docs/runbook.md` written (one page, folds in the voice-only rule + Dictation hedge + tested break-glass), and a clean 10/10 run recorded with audio — 75s, 11MB, on my Desktop, posting to the chat.** | nothing |
 | A | orchestrator + dock + audio rig | **CHECKPOINT READY — everyone run `./checkpoint.sh`, see the Checkpoint section at the bottom.** Orchestrator done, 3 modes (`narrate`/`live`/`voice`) selected by a flag not a file edit. Audio split decided + measured. 10/10 lines spoken, 0 dropped. Three accents + written personalities. Characters no longer freeze. `docs/demo-script.md` written. Full chain with real agents: ~45s, PASS | VoiceOS Pro trial not active — still the only thing left on A's side |
-| B | voiceos-bridge (mcp-server + demo-seed + Gmail/Calendar tools) | **`verify.ps1` 6 suites all green. Checkpoint 13 ok / 1 failed — and the 1 is A's new check working correctly:** `claude` on this box is installed but logged out, which the old `have claude` test called a PASS. Nothing on B's side regressed; my machine genuinely cannot run an agent, and now it says so. A — good fix, that is exactly the hole. All 8 tools built and tested. **`crew_task_status` closes the loop: no taskId needed, and it answers in a spoken sentence instead of a JSON dump** — see below. Tool `annotations` declared on all 8 tools, honestly. Gmail decision made; A unblocked. VoiceOS installed on Windows and inspected — see the tool-naming finding. **A: two things for you in Blockers — `direct` mode has no MCP wiring, so rung 3 narrates without touching anything, and `checkpoint.sh`'s claude check is a false green. Plus one bug in `CANNED`, off the rehearsed path.** | VoiceOS Pro trial (same paywall as A, now confirmed on a 2nd machine) + a demo Google account & OAuth creds |
+| B | voiceos-bridge (mcp-server + demo-seed + Gmail/Calendar tools) | **VoiceOS Pro is LIVE on Windows and Gmail is connected — but `customMcpServers` is empty, so VoiceOS still cannot reach the crew. That GUI step is the last thing between us and the voice loop; see my section below.** `run-demo.ps1` now runs the whole pipeline on Windows (16 lines to the dock, A's exact number), so the one non-Mac can finally rehearse. `verify.ps1` 6 suites all green. Checkpoint 13 ok / 1 failed — and the 1 is A's new check working correctly: `claude` on this box is logged out, which the old `have claude` test called a PASS. All 8 tools built and tested. **`crew_task_status` closes the loop: no taskId needed, and it answers in a spoken sentence instead of a JSON dump** — see below. Tool `annotations` declared on all 8 tools, honestly. Gmail decision made; A unblocked. VoiceOS installed on Windows and inspected — see the tool-naming finding. **A: two things for you in Blockers — `direct` mode has no MCP wiring, so rung 3 narrates without touching anything, and `checkpoint.sh`'s claude check is a false green. Plus one bug in `CANNED`, off the rehearsed path.** | VoiceOS Pro trial (same paywall as A, now confirmed on a 2nd machine) + a demo Google account & OAuth creds |
 | C | crew-dock (took option 2) | **the dock talks, and the handover is proven.** `Narrator.swift` speaks every `/agent-status` line via `say`, per-character voices, never two at once. Re-verified this morning from a **throwaway clone of current `main`** — clone → speaking app in 13s. **A's audio split + new voices then re-verified on my Air against A's unmodified `run-demo.sh`: 16 received, 10 spoken, 0 failed.** Nothing left to hand-carry to A's Mac but two commands. **Stall indication shipped: a `working` agent gone quiet for 10s now slows and trails an ellipsis instead of looking identical to a healthy one. Roster moved to `crew-dock/characters.json` — D, the shape is agreed and working, adding a character is a row plus a .mov.** **Reviewed and kept A's character fix — verified by screen capture, not by log — and fixed the stale-binary hole that let `checkpoint.sh` PASS while grading an old build** | **nothing — CHECKPOINT PASS (17 ok / 0 failed)** |
 
 ### ✅ FULL CHAIN INTEGRATED — B's MCP server → A's orchestrator → A's dock
@@ -1665,6 +1689,53 @@ killing loopback rigs, `fn` being unsynthesizable, and the concrete ask — **de
 agent products run unattended on VoiceOS. Findings only; no config contents, no tokens.
 **Someone with a Product Hunt account made before the event needs to post it** — that is
 a rule we cannot retrofit, so check now whether any of the five of us qualifies.
+
+### B — VoiceOS is ACTIVE on Windows. Audited it. One gap, and it is the important one
+
+Pro is live, onboarding is finished, **and Gmail is connected.** Read with `register.ps1`,
+which prints an allowlist of keys and never dumps the file:
+
+```
+onboarding.onboardingCompleted   True     <- the paywall is behind us
+connectedIntegrations            gmail    <- NEW. finding 4 said "no Gmail path at all"
+customMcpServers                 0        <- *** VoiceOS CANNOT REACH THE CREW ***
+settings.muteWhenDictating       True     <- still on; kills a loopback rig
+settings.agentVoiceEnabled       True     <- still on; VoiceOS hears its own replies
+```
+
+**The gap: `customMcpServers` is empty, so `run_crew_task` does not exist as far as VoiceOS
+is concerned.** Everything either side of that hop is tested — VoiceOS hears you, our
+server answers, the crew runs — but nothing connects them yet. **There is no CLI on
+Windows, so this is a GUI step somebody has to do:** tray icon → Settings → MCP / custom
+servers → Add, with the command and args that `.\voiceos-bridge\mcp-server\register.ps1`
+prints. Thirty seconds. Until it is done, `run-demo.ps1 -Voice` will tell you so rather
+than waiting three minutes for a call that cannot come.
+
+**A — two of your findings are now stale on Windows, and one may be stale on your Mac.**
+1. **Finding 4 ("Gmail is not connected to VoiceOS at all") no longer holds here** —
+   `connectedIntegrations` is `gmail`. It does **not** change the Gmail decision: we chose
+   MCP because the mailbox has to be *seeded deterministically* and VoiceOS's own Gmail
+   integration cannot do that. The decision stands on its original reasoning, not on
+   Gmail being unreachable. Worth knowing before someone re-opens it at 5pm.
+2. **The config schema is nested now** — `muteWhenDictating` and `agentVoiceEnabled` live
+   under `settings`, `onboardingCompleted` under `onboarding`. **Your `voiceos-setup.sh`
+   already reads them that way, so you are fine** — I checked before flagging it. But the
+   Findings section higher up in this file still describes them as top-level, so anyone
+   grepping the config by hand will look in the wrong place.
+3. **New key nobody has seen: `codingAgentDangerouslyBypassPermissions` (currently
+   `False`).** We have all been saying "no confirm bypass exists". A key with that name
+   says one exists for at least one path. It is not obviously ours — it reads like it is
+   for VoiceOS's coding-agent feature, not for custom MCP tools — but it is the first
+   evidence in either direction, and it is worth five minutes from whoever tests
+   confirmations first. **Do not flip it blind on the demo machine**; find out what it
+   governs first.
+
+**Still missing on my box, and it cannot come through git:** `credentials.json` and
+`token.json` for the `google` backend. Both are gitignored on purpose and must stay that
+way — **credentials are not a thing the repo can "have".** `CREW_BACKEND=fake` needs
+neither and does real archiving and real booking with real numbers, so nothing an audience
+sees depends on them. VoiceOS having Gmail connected is a *different* link from ours and
+does not substitute for these.
 
 ### Then: one task each, in priority order
 
