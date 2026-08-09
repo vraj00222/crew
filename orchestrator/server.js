@@ -376,7 +376,9 @@ const micTo = (device) => new Promise((resolve) => {
 // nothing; guessing costs the demo.
 const LISTEN_MS = Number(process.env.LISTEN_MS || 120_000);
 /// How long you have to be quiet before we decide you have finished the thought.
-const SETTLE_MS = Number(process.env.SETTLE_MS || 2500);
+/// How long to wait, AFTER you stop, for VoiceOS to write down what you said.
+/// It transcribes on close, so this is the gap between "press" and "text exists".
+const WRITE_GRACE_MS = Number(process.env.WRITE_GRACE_MS || 12_000);
 
 const sqlite = (sql) => new Promise((resolve) => {
   const p = spawn('sqlite3', ['-readonly', VOICEOS_DB, sql], { stdio: ['ignore', 'pipe', 'ignore'] });
@@ -439,9 +441,29 @@ async function stopAndRun() {
   const { from, task, greeter } = listening;
   listening = null;
 
-  const rows = await sqlite(
-    `SELECT transcript FROM voice_sessions WHERE rowid > ${from} AND transcript IS NOT NULL `
-    + "AND trim(transcript) <> '' ORDER BY rowid ASC;");
+  // Wait for VoiceOS to finish writing before deciding you said nothing.
+  //
+  // The second press closes its ear, and only THEN does it transcribe and store
+  // the row — so reading immediately reads an empty table and reports "heard
+  // nothing" about speech that lands a second or two later. That is exactly what
+  // happened on a live run: "Hey, find all the events from the calendar" was in
+  // the database at 21:46:10, after we had already given up on it.
+  //
+  // Poll until something arrives, or WRITE_GRACE_MS passes with nothing.
+  const query = `SELECT transcript FROM voice_sessions WHERE rowid > ${from} AND transcript IS NOT NULL `
+    + "AND trim(transcript) <> '' ORDER BY rowid ASC;";
+  let rows = await sqlite(query);
+  const waitUntil = Date.now() + WRITE_GRACE_MS;
+  while (!rows && Date.now() < waitUntil) {
+    await new Promise((r) => setTimeout(r, 300));
+    rows = await sqlite(query);
+  }
+  // Something landed — give any remaining segments of the same sentence a beat
+  // to be written too, then take them all.
+  if (rows) {
+    await new Promise((r) => setTimeout(r, 1200));
+    rows = await sqlite(query);
+  }
 
   // Everything you said, in order, minus the crew's own voice coming back
   // through the microphone and minus fragments too short to be an instruction.
@@ -467,6 +489,10 @@ async function stopAndRun() {
   }
 
   console.log(`[wake] heard: "${heard}"`);
+  // Say it back. Between the second press and the first agent line there is a
+  // gap while agents spawn, and silence there reads as "it did not hear me" —
+  // which is precisely the doubt this whole flow exists to remove.
+  say(task, greeter, 'working', 'On it.');
   // Hand the microphone to the crew — in `voice` mode the agents drive VoiceOS
   // by speaking to BlackHole, and one VoiceOS cannot listen to both.
   if (MODE === 'voice') await micTo('BlackHole 2ch');
