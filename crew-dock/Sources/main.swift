@@ -333,8 +333,22 @@ if AXIsProcessTrusted() {
     let minimumHold: TimeInterval = 0.8
     NSEvent.addGlobalMonitorForEvents(matching: .flagsChanged) { e in
         let mods = e.modifierFlags.intersection(.deviceIndependentFlagsMask)
-        let held = mods.contains(.control) && mods.contains(.option)
-            && !mods.contains(.command) && !mods.contains(.shift)
+        // `fn` OR control+option, because they mean different things to VoiceOS
+        // and only one of them leaves the job to us:
+        //
+        //   fn             -> mode 0, plain dictation. VoiceOS writes down what
+        //                     you said and does NOTHING about it. The crew acts.
+        //   control+option -> mode 3, AGENT mode. VoiceOS does the job itself,
+        //                     which is what made it produce a Note in its own UI
+        //                     while the crew was still introducing itself.
+        //
+        // VoiceOS re-adds its own mode-3 binding on every relaunch, so that
+        // collision cannot be removed from its config — but `fn` avoids it
+        // entirely. We cannot SYNTHESIZE fn; detecting one is a different thing
+        // and works fine. Both are accepted so neither habit is wrong.
+        let held = mods.contains(.function)
+            || (mods.contains(.control) && mods.contains(.option)
+                && !mods.contains(.command) && !mods.contains(.shift))
 
         // Held modifiers repeat flags events, so only act on a real transition.
         guard held != chordDown else { return }

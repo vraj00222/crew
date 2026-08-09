@@ -76,10 +76,10 @@ cat <<'BANNER'
   ────────────────────────────────────────────────────────────
     ready.
 
-      HOLD  ⌃⌥  ...and keep holding while you talk...  LET GO
+      HOLD  fn   ...keep holding while you talk...   LET GO
 
-    one gesture. the crew arrives as you press, listens while
-    you hold, and goes to work the moment you let go.
+    that is the whole thing. one key, held.
+    (⌃⌥ works too — but VoiceOS acts on that one itself.)
 
     ctrl-C here to stop.
   ────────────────────────────────────────────────────────────

@@ -70,8 +70,14 @@ dictate)
   node -e '
     const fs=require("fs"), p=process.argv[1], mode=Number(process.argv[2]);
     const c=JSON.parse(fs.readFileSync(p,"utf8")), s=c.settings;
-    for (const k of (s.keyboardShortcuts||[]))
-      if ((k.keys||[]).some(x=>/control/.test(x))) k.mode = mode;
+    // REPLACE, do not just re-mode: VoiceOS re-adds its own agent-mode entry on
+    // relaunch, so editing in place left two control+option bindings — one
+    // dictating and one acting — and both fired. Drop every control chord, then
+    // put back exactly one.
+    const keys = (s.keyboardShortcuts||[]).find(k=>(k.keys||[]).some(x=>/control/.test(x)))?.keys
+      || ["control-left","option-left"];
+    s.keyboardShortcuts = (s.keyboardShortcuts||[]).filter(k=>!(k.keys||[]).some(x=>/control/.test(x)));
+    s.keyboardShortcuts.push({ id: "crew-chord", keys, mode });
     s.agentVoiceEnabled=false; s.muteWhenDictating=false;
     fs.writeFileSync(p, JSON.stringify(c,null,2));
   ' "$CFG" "$MODE"
