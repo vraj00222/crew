@@ -306,25 +306,47 @@ var lastWake = Date.distantPast
 let wakeCooldown: TimeInterval = 0.6
 
 if AXIsProcessTrusted() {
-    NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { e in
-        // keyCode 8 == "c". Match on the flags we care about and ignore the rest.
+    // Match VoiceOS's OWN chord — control-left + option-left — rather than
+    // inventing one next to it.
+    //
+    // VoiceOS registers that pair itself (keyboardShortcuts, mode 3), which is
+    // why pressing ⌃⌥C was already making its notch UI react. So instead of
+    // avoiding the collision, be the collision: ONE press opens VoiceOS's ear
+    // and wakes the crew at the same time, and `fn`+`space` — the step no script
+    // could ever do — stops being needed at all.
+    //
+    // Modifiers with no letter, so it arrives as flagsChanged, not keyDown.
+    var chordDown = false
+    NSEvent.addGlobalMonitorForEvents(matching: .flagsChanged) { e in
         let mods = e.modifierFlags.intersection(.deviceIndependentFlagsMask)
-        // keyCode 8 == "c" (the rehearsed run), 37 == "l" (the long one).
-        guard mods.contains(.control), mods.contains(.option), !e.isARepeat,
-              e.keyCode == 8 || e.keyCode == 37 else { return }
+        let held = mods.contains(.control) && mods.contains(.option)
+            && !mods.contains(.command) && !mods.contains(.shift)
+
+        // Fire once per press, on the way down. Held modifiers repeat flags
+        // events, and a run per event is how one press became 23 crews.
+        guard held != chordDown else { return }
+        chordDown = held
+        guard held else { return }
+
         let now = Date()
-        guard now.timeIntervalSince(lastWake) > wakeCooldown else {
-            FileHandle.standardError.write(Data("HOTKEY -- ignored, crew woken \(Int(now.timeIntervalSince(lastWake)))s ago\n".utf8))
-            return
-        }
+        guard now.timeIntervalSince(lastWake) > wakeCooldown else { return }
         lastWake = now
-        // C = wake and ask.  L = run the long one straight through.
-        wakeTheCrew(e.keyCode == 8 ? nil : longPhrase)
+        wakeTheCrew(nil)
     }
-    FileHandle.standardError.write(Data(("hotkey ready — control-option-C: press to summon, speak, press again to send\n").utf8))
+    // ⌃⌥L stays for rehearsal: same task twice, no talking.
+    NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { e in
+        let mods = e.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        guard e.keyCode == 37, mods.contains(.control), mods.contains(.option), !e.isARepeat else { return }
+        let now = Date()
+        guard now.timeIntervalSince(lastWake) > wakeCooldown else { return }
+        lastWake = now
+        wakeTheCrew(longPhrase)
+    }
+    FileHandle.standardError.write(Data(
+        "hotkey ready — hold control+option: summon, speak, press again to send\n".utf8))
 } else {
     FileHandle.standardError.write(Data((
-        "hotkey OFF — no Accessibility permission, so control-option-C/L will do nothing.\n"
+        "hotkey OFF — no Accessibility permission, so control+option will do nothing.\n"
         + "  System Settings -> Privacy & Security -> Accessibility -> add this app or your terminal.\n").utf8))
 }
 

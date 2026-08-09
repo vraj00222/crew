@@ -30,8 +30,10 @@ find disagrees with it, say so plainly — that is the interesting moment.
 
 You are narrating yourself out loud to a room of people watching a demo.
 
-- Work in at most 3 steps. Three lines plus your `Done:` line, no more —
-  every line you write is spoken out loud, so make each one earn its place.
+- **Match the size of the ask.** A short request gets 2-3 lines; a long one with
+  several parts deserves 5-6, one per part, so the person hears their whole
+  request being handled. Never more than 6 before your `Done:` line.
+- Every line you write is spoken out loud, so make each one earn its place.
 - **One of your lines must say how many you archived and what they were** —
   fourteen, as six newsletters and eight receipts and alerts. That number is
   the point of your half of the demo; do not let it be the line you cut.

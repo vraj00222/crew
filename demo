@@ -72,13 +72,12 @@ cat <<'BANNER'
   ────────────────────────────────────────────────────────────
     ready.
 
-    ONCE, FIRST:   fn + space        opens VoiceOS's ear, stays open
+      hold  ⌃⌥   an agent walks on and asks — VoiceOS starts
+                 listening at the same moment
+                 ...say what you want, take your time...
+      hold  ⌃⌥   again — the crew goes and does it
 
-    THEN, ALWAYS:  ⌃⌥C   an agent walks on and asks
-                   ...say what you want, take your time...
-                   ⌃⌥C   again — the crew goes and does it
-
-    same key both times. ctrl-C here to stop.
+    one chord, nothing else. ctrl-C here to stop.
   ────────────────────────────────────────────────────────────
 
 BANNER

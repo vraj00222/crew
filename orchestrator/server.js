@@ -22,7 +22,16 @@ const LINE_MS = Number(process.env.LINE_MS || 4000); // pacing between narration
 // 3 content lines + the "Done:" sign-off, per agent. Bounded on purpose: two
 // agents run in parallel but there is only one voice channel, so the show's
 // length is (total lines x LINE_MS) and nothing else. 3+3+2 = 8 lines, ~35s.
-const MAX_LINES = Number(process.env.MAX_LINES || 3); // per agent, "Done:" always passes
+// Per agent, "Done:" always passes. A short ask gets a tight show; a long one
+// earns more room — asking for four things and getting three lines back reads as
+// the crew ignoring most of what you said. Scaled by how much you actually asked
+// for, and capped so the show cannot run away.
+const MAX_LINES = Number(process.env.MAX_LINES || 3);
+const linesFor = (instructions) => {
+  if (process.env.MAX_LINES) return MAX_LINES;      // explicit wins
+  const words = instructions.trim().split(/\s+/).length;
+  return words >= 18 ? 6 : words >= 10 ? 4 : 3;
+};
 const ALLOWED_TOOLS = process.env.ALLOWED_TOOLS || ''; // e.g. "mcp__voiceos__speak"
 
 // `direct` mode's prompt tells each agent to call crew_gmail_archive(...), but a
@@ -208,7 +217,7 @@ function runRole(task, role) {
       if (signedOff) return;
       for (const l of lines) {
         const final = l.startsWith('Done:');
-        if (spoken >= MAX_LINES && !final) continue; // chatty agent guard
+        if (spoken >= task.maxLines && !final) continue; // chatty agent guard
         queue.push(l);
         spoken++;
         if (final) { signedOff = true; break; }
@@ -475,6 +484,7 @@ function startTask(instructions) {
   const order = [...roles, CLOSER];
   const task = {
     taskId, instructions, status: 'running', roles, order,
+    maxLines: linesFor(instructions),
     agents: Object.fromEntries(order.map((n) => [n, { name: n, state: 'idle', lastMessage: '' }])),
   };
   tasks.set(taskId, task);
