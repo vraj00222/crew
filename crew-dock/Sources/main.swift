@@ -272,13 +272,21 @@ let shortPhrase = ProcessInfo.processInfo.environment["CREW_PHRASE"]
 let longPhrase = ProcessInfo.processInfo.environment["CREW_PHRASE_LONG"]
     ?? "go through my inbox, research what is actually urgent, analyse which threads need a reply, and schedule the meetings"
 
-func wakeTheCrew(_ hotkeyPhrase: String) {
-    guard let url = URL(string: "http://localhost:4001/start-task") else { return }
+/// ⌃⌥C asks the orchestrator to WAKE, not to run a fixed task: the crew arrives,
+/// says "what can I do for you?", listens, and works on whatever you actually
+/// said. Firing a hardcoded sentence was a demo of a script.
+/// ⌃⌥L keeps the direct path for rehearsal, where you want the same run twice.
+func wakeTheCrew(_ hotkeyPhrase: String?) {
+    let path = hotkeyPhrase == nil ? "/wake" : "/start-task"
+    guard let url = URL(string: "http://localhost:4001" + path) else { return }
     var req = URLRequest(url: url)
     req.httpMethod = "POST"
     req.setValue("application/json", forHTTPHeaderField: "content-type")
-    req.httpBody = try? JSONSerialization.data(withJSONObject: ["instructions": hotkeyPhrase])
-    FileHandle.standardError.write(Data("HOTKEY -> waking the crew: \"\(hotkeyPhrase)\"\n".utf8))
+    if let p = hotkeyPhrase {
+        req.httpBody = try? JSONSerialization.data(withJSONObject: ["instructions": p])
+    }
+    FileHandle.standardError.write(Data(
+        "HOTKEY -> \(hotkeyPhrase.map { "running: \"\($0)\"" } ?? "waking the crew — it will ask you")\n".utf8))
     URLSession.shared.dataTask(with: req) { _, resp, err in
         let code = (resp as? HTTPURLResponse)?.statusCode ?? 0
         if code != 200 {
@@ -310,10 +318,11 @@ if AXIsProcessTrusted() {
             return
         }
         lastWake = now
-        wakeTheCrew(e.keyCode == 8 ? shortPhrase : longPhrase)
+        // C = wake and ask.  L = run the long one straight through.
+        wakeTheCrew(e.keyCode == 8 ? nil : longPhrase)
     }
-    FileHandle.standardError.write(Data(("hotkey ready — control-option-C: the rehearsed run"
-        + "  |  control-option-L: the long five-agent one\n").utf8))
+    FileHandle.standardError.write(Data(("hotkey ready — control-option-C: wake the crew and let it ask you"
+        + "  |  control-option-L: run the long one straight through\n").utf8))
 } else {
     FileHandle.standardError.write(Data((
         "hotkey OFF — no Accessibility permission, so control-option-C/L will do nothing.\n"

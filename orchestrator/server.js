@@ -60,12 +60,14 @@ const CREW = {
   // Transcripts are messier than typed text — a speech-to-text pass writes "in
   // box" as two words, and that alone dropped TRIAGE from the demo's own phrase.
   // Match how a transcriber spells things, not how a person types them.
-  triage:     { activity: 'sorting',  match: /in[\s-]?box|e[\s-]?mail|mail/ },
+  triage:     { activity: 'sorting',  match: /in[\s-]?box|e[\s-]?mail|mail|newsletter|unread|junk/ },
   scheduler:  { activity: 'booking',  match: /schedul|calendar|meeting|book/ },
   researcher: { activity: 'research', match: /research|look up|find out|investigate|dig into/ },
   // `needs` is the feedback loop: the analyst waits for the researcher and is
   // handed what it actually found, instead of re-deriving it in parallel.
-  analyst:    { activity: 'analysis', match: /analy|compare|report|numbers|breakdown/, needs: ['researcher'] },
+  // `summar`/`note`/`digest` land here: "summarise my newsletters and make a note"
+  // is analysis, and it is the phrasing people actually reach for.
+  analyst:    { activity: 'analysis', match: /analy|compare|report|numbers|breakdown|summar|digest|note/, needs: ['researcher'] },
   recap:      { activity: 'summary',  match: null }, // always last, never matched
 };
 const CLOSER = 'recap';
@@ -305,6 +307,61 @@ async function runTask(task) {
   }
 }
 
+// --- wake, ask, listen ---
+// VoiceOS writes every transcript to `voice_sessions` in its own SQLite db, so
+// we can read what the person said without VoiceOS needing to know we exist.
+// (`dictations` is empty and legacy in 0.1.21 — that cost us half a day.)
+const VOICEOS_DB = process.env.VOICEOS_DB
+  || `${process.env.HOME}/Library/Application Support/VoiceOS/voiceos.db`;
+const GREETING = process.env.CREW_GREETING || 'Hey. What can I do for you?';
+const LISTEN_MS = Number(process.env.LISTEN_MS || 30_000);
+
+const sqlite = (sql) => new Promise((resolve) => {
+  const p = spawn('sqlite3', ['-readonly', VOICEOS_DB, sql], { stdio: ['ignore', 'pipe', 'ignore'] });
+  let out = '';
+  p.stdout.on('data', (d) => (out += d));
+  p.on('close', () => resolve(out.trim()));
+  p.on('error', () => resolve(''));
+});
+
+let waking = false;
+
+async function wakeAndListen() {
+  if (waking) return;              // one conversation at a time
+  waking = true;
+  const greeter = Object.keys(CREW)[0];
+  const task = { taskId: 'wake', agents: { [greeter]: { name: greeter, state: 'idle', lastMessage: '' } } };
+
+  // The crew arrives and asks. This is the beat the whole demo turns on: the
+  // audience sees them show up *before* anyone has said what the job is.
+  say(task, greeter, 'working', GREETING);
+
+  const before = Number(await sqlite('SELECT COALESCE(MAX(rowid),0) FROM voice_sessions;')) || 0;
+  console.log(`[wake] listening — say what you want (${LISTEN_MS / 1000}s)`);
+
+  const deadline = Date.now() + LISTEN_MS;
+  let heard = '';
+  while (Date.now() < deadline && !heard) {
+    await new Promise((r) => setTimeout(r, 700));
+    const row = await sqlite(
+      `SELECT transcript FROM voice_sessions WHERE rowid > ${before} AND transcript IS NOT NULL `
+      + "AND trim(transcript) <> '' ORDER BY rowid DESC LIMIT 1;");
+    if (row) heard = row.replace(/\s+/g, ' ').trim();
+  }
+
+  waking = false;
+  if (!heard) {
+    // Never leave a character standing there having asked a question. Falling
+    // back to the rehearsed phrase means a failed transcription costs the demo
+    // its opening line, not the demo.
+    console.log('[wake] nothing heard — running the rehearsed task instead');
+    say(task, greeter, 'working', 'Nothing? I will start with the inbox.');
+    return startTask(process.env.CREW_PHRASE || 'clean up my inbox and schedule everything');
+  }
+  console.log(`[wake] heard: "${heard}"`);
+  return startTask(heard);
+}
+
 function startTask(instructions) {
   const taskId = `task_${++seq}`;
   const roles = rolesFor(instructions);
@@ -340,6 +397,17 @@ http.createServer((req, res) => {
       send(res, 200, { taskId: task.taskId, status: 'started' });
     });
     return;
+  }
+
+  // POST /wake — the demo's real opening. The crew arrives, ASKS what you want,
+  // listens, and works on whatever you actually said. The hotkey used to fire a
+  // hardcoded sentence, which is a demo of a script; this is a demo of a crew.
+  //
+  // Answers immediately and does the waiting in the background, because the
+  // dock's key handler must not block for the length of a conversation.
+  if (req.method === 'POST' && url.pathname === '/wake') {
+    wakeAndListen();
+    return send(res, 200, { status: 'listening' });
   }
 
   // Additive to the frozen contract — nothing existing changes shape. This is

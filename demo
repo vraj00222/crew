@@ -1,0 +1,69 @@
+#!/bin/bash
+# The demo. One command, then one key press, repeatedly.
+#
+#   ./demo          set everything up and wait for ⌃⌥C
+#   ./demo stop     put it all away
+#
+# Deliberately NOT run-demo.sh. That script starts a task itself, prints a
+# summary and exits — which is right for testing and wrong for a stage, where
+# the trigger is a key press and you want to do it more than once without
+# retyping anything. This stays up: press ⌃⌥C, watch, press again.
+set -uo pipefail
+cd "$(dirname "$0")"
+
+[ "${1:-}" = stop ] && { ./run-demo.sh stop; exit 0; }
+
+# Voices, devices and pacing all come from run-demo.sh so there is exactly one
+# place that decides them.
+export CREW_AUDIO_DEVICE="${CREW_AUDIO_DEVICE:-MacBook Pro Speakers}"
+export CREW_VOICE_TRIAGE="${CREW_VOICE_TRIAGE:-Moira}"
+export CREW_VOICE_SCHEDULER="${CREW_VOICE_SCHEDULER:-Daniel}"
+export CREW_VOICE_RECAP="${CREW_VOICE_RECAP:-Karen}"
+if [ -z "${CREW_SAY:-}" ] && ls crew-dock/voices/*.onnx >/dev/null 2>&1; then
+  export CREW_SAY="$PWD/crew-dock/crew-say"
+  export LINE_MS="${LINE_MS:-5500}"
+fi
+
+./run-demo.sh stop >/dev/null 2>&1
+
+# Rebuild if the sources moved. C's guard, because a `git pull` that brings new
+# Swift otherwise leaves you demoing the previous build with no warning.
+DOCK_BIN=crew-dock/Crew.app/Contents/MacOS/Crew
+if [ ! -x "$DOCK_BIN" ] || [ -n "$(find crew-dock/Sources crew-dock/build.sh -newer "$DOCK_BIN" 2>/dev/null)" ]; then
+  printf 'building the dock... '; ./crew-dock/build.sh >/dev/null && echo ok
+fi
+
+"$DOCK_BIN" > /tmp/crew-dock.log 2>&1 &
+sleep 2
+grep -q 'listening on :4002' /tmp/crew-dock.log || {
+  echo "the dock never bound :4002:"; cat /tmp/crew-dock.log; exit 1; }
+
+node orchestrator/server.js > /tmp/crew-orchestrator.log 2>&1 &
+for _ in $(seq 1 20); do curl -sf -o /dev/null localhost:4001/status/x && break; sleep 0.3; done
+
+# The one thing that silently stops the key press working, said up front rather
+# than discovered by pressing it and getting nothing.
+if grep -q 'hotkey OFF' /tmp/crew-dock.log; then
+  echo
+  echo "  ⚠️  ⌃⌥C WILL DO NOTHING — the dock has no Accessibility permission."
+  echo "     System Settings → Privacy & Security → Accessibility → add Terminal (or Crew)."
+  echo "     Then run ./demo again."
+fi
+
+cat <<'BANNER'
+
+  ────────────────────────────────────────────────────────────
+    ready. nothing has been asked for yet.
+
+      ⌃⌥C   the crew cleans the inbox and books the meetings
+      ⌃⌥L   the long one — five agents, and they hand off
+
+    press it as many times as you like. ctrl-C here to stop.
+  ────────────────────────────────────────────────────────────
+
+BANNER
+
+# Follow the narration for as long as you keep pressing. `stop` on the way out
+# whichever way we leave, so the next run never fights a leftover port.
+trap './run-demo.sh stop >/dev/null 2>&1; echo; echo "stopped."; exit 0' INT TERM
+tail -f /tmp/crew-orchestrator.log | grep --line-buffered -Ev '^orchestrator on|waking up'
