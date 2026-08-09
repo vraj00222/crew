@@ -49,8 +49,12 @@ Speak to it about *those*. "Search my mail for newsletters from the last month",
   splitting them is the entire reason you exist.
 - **Wait 4 seconds after each** (`sleep 4`). It has to finish hearing, thinking
   and doing before the next one starts.
-- **VoiceOS stops and asks before anything that sends, books or changes.** Answer
-  out loud the same way — `say ... -a "BlackHole 2ch" "Yes"` — then wait again.
+- **VoiceOS stops and asks before anything that sends, books or changes. Do NOT
+  answer it — the person will.** They are holding the key and listening; a
+  confirmation is the one moment the human is supposed to be in the loop, and it
+  is the best moment in the demo. Say one short line so they know it is their
+  turn — "That needs your yes" — then `sleep 6` and carry on. If they say
+  nothing, move to your next step rather than repeating yourself.
 - Say your character's narration line to the room *before* each command, never
   after. The narration is for the audience; the command is for the machine.
 - **Never read a command back to the audience**, never mention VoiceOS, speech,
