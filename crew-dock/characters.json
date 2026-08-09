@@ -1,26 +1,26 @@
 {
   "_comment": [
     "The crew roster. D owns this file and the art; C owns the loader in Sources/main.swift.",
-    "Adding a crew member is a row here plus a .mov in Assets/ \u2014 no Swift edit.",
+    "Adding a crew member is a row here plus a .mov in Assets/ — no Swift edit.",
     "",
     "characters[]:",
-    "  role     \u2014 must match the `character` field the orchestrator POSTs to :4002.",
-    "  asset    \u2014 Assets/<asset>.mov, transparent HEVC, portrait. No extension here.",
-    "  mirrored \u2014 flip horizontally. Only needed while two roles share one clip.",
+    "  role     — must match the `character` field the orchestrator POSTs to :4002.",
+    "  asset    — Assets/<asset>.mov, transparent HEVC, portrait. No extension here.",
+    "  mirrored — flip horizontally. Only needed while two roles share one clip.",
     "  Order is left-to-right on screen.",
     "",
     "activities{}: playback rate while `working`, keyed on the POST's `activity`",
-    "  rather than on the role \u2014 so two agents doing research move alike and this",
+    "  rather than on the role — so two agents doing research move alike and this",
     "  file never has to learn the roster. 1.0 is the clip's natural speed.",
     "  Omit an activity and it falls back to the plain `working` tempo (1.15).",
     "",
     "If this file is missing or unparseable the dock uses the built-in three and",
     "logs it, so the rehearsed run can never be broken by a bad edit here.",
     "",
-    "D: researcher and analyst have no art yet \u2014 that is your gap. Add a row each",
-    "once the .movs exist. Until then they are spoken but not shown, and the dock",
-    "logs exactly that.",
-    "PLACEHOLDER (A, stopgap): researcher and analyst reuse the two upstream clips so a longer task visibly drops more characters TODAY. D \u2014 these two rows are yours the moment you have art; swap `asset` and drop `mirrored`. Nothing else needs to change."
+    "PLACEHOLDER (A, stopgap): researcher and analyst reuse the two upstream clips so a longer task visibly drops more characters TODAY. D — these two rows are yours the moment you have art; swap `asset` and drop `mirrored`. Nothing else needs to change.",
+    "",
+    "D: recap now has its OWN clip (walk-recap-01) — it is no longer triage flipped.",
+    "researcher and analyst are still on A's placeholders and remain my gap."
   ],
   "characters": [
     {
@@ -45,7 +45,7 @@
     },
     {
       "role": "recap",
-      "asset": "walk-bruce-01",
+      "asset": "walk-recap-01",
       "mirrored": true
     }
   ],
