@@ -89,6 +89,35 @@ struct Roster {
 }
 
 final class DockController {
+    /// Along the TOP, split to the corners rather than strung across the middle:
+    /// the crew was standing in front of the terminal and the editor, which is
+    /// most of what anyone is trying to watch. Half hugs the left edge, half the
+    /// right, and the middle stays clear for the results panel — a five-agent
+    /// run frames the screen instead of covering it. `CREW_BOTTOM=1` puts them
+    /// back above the dock.
+    private static let atBottom = ProcessInfo.processInfo.environment["CREW_BOTTOM"] == "1"
+
+    /// The one place a character's x is decided.
+    ///
+    /// It was two places for a while — `init` laid the crew out in corners and
+    /// `recentre` still used the older centred-row maths — so the first line
+    /// from any character dragged everyone back across the middle, on top of the
+    /// results panel. Both callers go through this now; a layout rule that
+    /// exists twice will disagree with itself the moment one copy is edited.
+    private static func slotX(_ i: Int, of n: Int, in vf: NSRect) -> CGFloat {
+        let w = AgentCharacter.width
+        if atBottom {
+            let spacing = n > 1 ? min(w, (vf.width - w) / CGFloat(n - 1)) : 0
+            let totalWidth = w + spacing * CGFloat(max(0, n - 1))
+            return vf.midX - totalWidth / 2 + CGFloat(i) * spacing
+        }
+        let gap = min(w * 0.72, 210)
+        let leftCount = (n + 1) / 2
+        return i < leftCount
+            ? vf.minX + CGFloat(i) * gap
+            : vf.maxX - w - CGFloat(n - 1 - i) * gap
+    }
+
     private var characters: [String: AgentCharacter] = [:]
     private var panel: ResultsPanel?
     /// Roles that have sent at least one line, i.e. the crew actually on stage.
@@ -114,27 +143,8 @@ final class DockController {
         // Packing to the available width keeps the spacing even at any crew
         // size. Identical to the old maths whenever the crew genuinely fits,
         // so the rehearsed three are placed exactly where they always were.
-        let w = AgentCharacter.width
-        let n = roster.characters.count
-        let spacing = n > 1 ? min(w, (vf.width - w) / CGFloat(n - 1)) : 0
-        let totalWidth = w + spacing * CGFloat(max(0, n - 1))
-        // Along the TOP, and split to the corners rather than strung across the
-        // middle: the crew was standing in front of the terminal and the editor,
-        // which is most of the screen anyone is actually trying to watch. Half
-        // to the left edge, half to the right, and the middle left clear for the
-        // results panel — so a five-agent run frames the screen instead of
-        // covering it. CREW_BOTTOM=1 puts them back above the dock.
-        let atBottom = ProcessInfo.processInfo.environment["CREW_BOTTOM"] == "1"
-        let rowY = atBottom ? vf.minY - 12 : vf.maxY - AgentCharacter.totalHeight + 12
-        let leftCount = (n + 1) / 2
-        func slotX(_ i: Int) -> CGFloat {
-            if atBottom { return vf.midX - totalWidth / 2 + CGFloat(i) * spacing }
-            // Left group hugs the left edge, right group hugs the right.
-            let gap = min(w * 0.72, 210)
-            return i < leftCount
-                ? vf.minX + CGFloat(i) * gap
-                : vf.maxX - w - CGFloat(n - 1 - i) * gap
-        }
+        let rowY = Self.atBottom ? vf.minY - 12 : vf.maxY - AgentCharacter.totalHeight + 12
+        func slotX(_ i: Int) -> CGFloat { Self.slotX(i, of: roster.characters.count, in: vf) }
         for (i, spec) in roster.characters.enumerated() {
             guard let url = Bundle.main.url(forResource: spec.asset, withExtension: "mov")
                 ?? localAssetURL(spec.asset) else {
@@ -169,13 +179,9 @@ final class DockController {
     private func recentre() {
         guard let vf = NSScreen.main?.visibleFrame else { return }
         let order = roster.characters.map(\.role).filter { woken.contains($0) }
-        let w = AgentCharacter.width
-        let n = order.count
-        let spacing = n > 1 ? min(w, (vf.width - w) / CGFloat(n - 1)) : 0
-        let startX = vf.midX - (w + spacing * CGFloat(max(0, n - 1))) / 2
         var placed: [String] = []
         for (i, role) in order.enumerated() {
-            let x = startX + CGFloat(i) * spacing
+            let x = Self.slotX(i, of: order.count, in: vf)
             characters[role]?.place(x: x)
             placed.append("\(role)@\(Int(x))")
         }
