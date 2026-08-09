@@ -1,0 +1,38 @@
+{
+  "_comment": [
+    "The crew roster. D owns this file and the art; C owns the loader in Sources/main.swift.",
+    "Adding a crew member is a row here plus a .mov in Assets/ — no Swift edit.",
+    "",
+    "characters[]:",
+    "  role     — must match the `character` field the orchestrator POSTs to :4002.",
+    "  asset    — Assets/<asset>.mov, transparent HEVC, portrait. No extension here.",
+    "  mirrored — flip horizontally. Only needed while two roles share one clip.",
+    "  Order is left-to-right on screen.",
+    "",
+    "activities{}: playback rate while `working`, keyed on the POST's `activity`",
+    "  rather than on the role — so two agents doing research move alike and this",
+    "  file never has to learn the roster. 1.0 is the clip's natural speed.",
+    "  Omit an activity and it falls back to the plain `working` tempo (1.15).",
+    "",
+    "If this file is missing or unparseable the dock uses the built-in three and",
+    "logs it, so the rehearsed run can never be broken by a bad edit here.",
+    "",
+    "D: researcher and analyst have no art yet — that is your gap. Add a row each",
+    "once the .movs exist. Until then they are spoken but not shown, and the dock",
+    "logs exactly that."
+  ],
+
+  "characters": [
+    { "role": "triage",    "asset": "walk-bruce-01", "mirrored": false },
+    { "role": "scheduler", "asset": "walk-jazz-01",  "mirrored": false },
+    { "role": "recap",     "asset": "walk-bruce-01", "mirrored": true  }
+  ],
+
+  "activities": {
+    "sorting":  { "rate": 1.15 },
+    "booking":  { "rate": 1.15 },
+    "research": { "rate": 0.90 },
+    "analysis": { "rate": 0.80 },
+    "summary":  { "rate": 1.00 }
+  }
+}

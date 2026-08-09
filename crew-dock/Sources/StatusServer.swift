@@ -10,6 +10,12 @@ final class StatusServer {
         let character: String
         let message: String
         let state: String
+        /// What the agent is *doing* rather than who it is (sorting, booking,
+        /// research, analysis…). Added by A so motion can be keyed to the work
+        /// instead of to a name — two agents doing research then move alike and
+        /// the dock never has to learn the roster. Optional: older senders and
+        /// hand-written `curl` calls omit it.
+        let activity: String
     }
 
     private let listener: NWListener
@@ -68,7 +74,8 @@ final class StatusServer {
                    let character = json["character"] as? String {
                     self.onStatus(Status(character: character,
                                          message: json["message"] as? String ?? "",
-                                         state: json["state"] as? String ?? "working"))
+                                         state: json["state"] as? String ?? "working",
+                                         activity: json["activity"] as? String ?? ""))
                 }
                 let payload = Data(#"{"ok":true}"#.utf8)
                 let head = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: \(payload.count)\r\nConnection: close\r\n\r\n"

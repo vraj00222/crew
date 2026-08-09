@@ -29,6 +29,9 @@ swiftc -O -swift-version 5 \
   Sources/*.swift
 
 cp "$ASSETS"/*.mov "$APP/Contents/Resources/"
+# The roster travels with the app. Absent, the dock falls back to the built-in
+# three, so a missing manifest degrades rather than breaking the run.
+[ -f characters.json ] && cp characters.json "$APP/Contents/Resources/"
 
 cat > "$APP/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>

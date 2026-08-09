@@ -66,13 +66,44 @@ final class AgentCharacter {
         }
     }
 
-    func apply(message: String, state: String) {
+    /// How long a `working` character may go without a new line before it starts
+    /// visibly thinking. Lines land on a ~2.2s beat, so 10s is comfortably past
+    /// "the next one is coming" and well short of the orchestrator's 180s kill.
+    private static let thinkingAfter: TimeInterval = 10
+    /// Slower than `idle` — a character mulling something over, not walking off.
+    private static let thinkingRate: Float = 0.40
+
+    private var currentMessage = ""
+    private var currentState = "idle"
+    private var lastLineAt = Date()
+    private var thinking = false
+    private var ellipsisTick = 0
+    /// Set from `characters.json` via the POST's `activity`, when there is one.
+    private var activityRate: Float?
+
+    /// The single place tempo is decided, so thinking, state and activity can
+    /// never disagree about how fast the character should be walking.
+    private func desiredRate() -> Float {
+        if thinking { return Self.thinkingRate }
+        if currentState == "working", let r = activityRate { return r }
+        return Self.rate(for: currentState)
+    }
+
+    func apply(message: String, state: String, activityRate: Float? = nil) {
+        self.activityRate = activityRate
         let waking = window.alphaValue == 0
         if waking {
             NSAnimationContext.runAnimationGroup { ctx in
                 ctx.duration = 0.45
                 window.animator().alphaValue = 1
             }
+        }
+        currentMessage = message
+        currentState = state
+        lastLineAt = Date()
+        if thinking {
+            thinking = false
+            FileHandle.standardError.write(Data("THINK <- \(role) resumed\n".utf8))
         }
         bubble.set(text: message, done: state == "done")
 
@@ -84,11 +115,44 @@ final class AgentCharacter {
         // play() first: setting `rate` alone is ignored while the item is still
         // getting ready, which is exactly the case on the very first line.
         player.play()
-        player.rate = Self.rate(for: state)
+        player.rate = desiredRate()
 
         // A real line just arrived: bob, so the character reads as *saying* it
         // rather than as a walking sprite that happens to have a caption.
         if !message.isEmpty && message != "waking up" { bob() }
+    }
+
+    /// Called ~4x/second by the dock. Turns "nothing has arrived for a while"
+    /// into something the audience can read.
+    ///
+    /// A stuck agent and a healthy one looked identical: both walked briskly
+    /// under a caption that had stopped changing. On stage that is the worst
+    /// possible ambiguity — the audience cannot tell a crash from a pause, so
+    /// they assume the crash. A character that slows down and trails an ellipsis
+    /// reads as *thinking*, which is both honest and survivable. It says nothing
+    /// new, because the dock genuinely knows nothing new.
+    func tick(_ now: Date) {
+        // Only `working` can stall. `done` is finished and `idle` has not been
+        // handed anything yet — neither is waiting on a line that isn't coming.
+        guard currentState == "working", window.alphaValue > 0 else { return }
+
+        if now.timeIntervalSince(lastLineAt) >= Self.thinkingAfter {
+            if !thinking {
+                thinking = true
+                ellipsisTick = 0
+                FileHandle.standardError.write(Data(
+                    "THINK -> \(role) — no line for \(Int(Self.thinkingAfter))s\n".utf8))
+            }
+            ellipsisTick += 1
+            // One dot every ~0.5s, cycling 1→2→3.
+            bubble.setText(currentMessage + " " + String(repeating: ".", count: 1 + (ellipsisTick / 2) % 3))
+        }
+
+        // Re-assert tempo rather than trusting it to persist: `rate` is a
+        // property of the player, and an AVPlayerLooper swaps the item under it
+        // on every loop. Cheap, and it keeps the state legible for a whole run.
+        let want = desiredRate()
+        if player.rate != want { player.rate = want }
     }
 
     /// One small hop, on the layer so it costs nothing and can't fight AppKit.
@@ -139,6 +203,13 @@ final class BubbleView: NSView {
             ctx.duration = 0.25
             animator().alphaValue = text.isEmpty ? 0 : 1
         }
+    }
+
+    /// Text only, no fade. The ellipsis updates twice a second and re-running
+    /// the fade-in that often makes the bubble shimmer.
+    func setText(_ text: String) {
+        label.stringValue = text
+        needsDisplay = true
     }
 
     override func draw(_ dirtyRect: NSRect) {
