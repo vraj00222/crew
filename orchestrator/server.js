@@ -247,7 +247,18 @@ function narrate(evt, role) {
 
 // Read prompts fresh every run — edit them without restarting the server.
 function buildPrompt(role, instructions, task) {
-  const execution = readFileSync(join(__dirname, 'prompts', `execution-${MODE}.md`), 'utf8').trim();
+  // In `voice` mode only ONE agent talks to VoiceOS — the closer. Everyone else
+  // narrates as usual, in parallel, at full speed.
+  //
+  // Two reasons, both learned the hard way. There is one microphone, so five
+  // agents speaking commands collided and VoiceOS acted on neither. And a person
+  // has to HOLD Agent Mode the whole time an agent might speak — over a
+  // five-agent run that is three and a half minutes of holding a chord while
+  // VoiceOS listens to the room and picks up whatever it hears. One agent doing
+  // the driving turns that into about forty seconds, at a moment you can see
+  // coming.
+  const mode = (MODE === 'voice' && role !== CLOSER) ? 'narrate' : MODE;
+  const execution = readFileSync(join(__dirname, 'prompts', `execution-${mode}.md`), 'utf8').trim();
   // The closer used to have the old three-agent crew written into its prompt,
   // so once the roster became dynamic it cheerfully reported an inbox nobody
   // had touched. It gets told who actually ran, and what each of them said.
@@ -331,7 +342,8 @@ function runRole(task, role) {
     // rung precisely because the agents cannot touch anything — and voice drives
     // VoiceOS by speaking, so it needs Bash rather than the crew tools.
     if (MODE === 'direct') args.push('--mcp-config', mcpConfig(task, role), '--allowedTools', ALLOWED_TOOLS || CREW_TOOLS);
-    else if (MODE === 'voice') args.push('--allowedTools', ALLOWED_TOOLS || 'Bash');
+    // Only the closer gets a shell in voice mode — it is the only one speaking.
+    else if (MODE === 'voice' && role === CLOSER) args.push('--allowedTools', ALLOWED_TOOLS || 'Bash');
     else if (ALLOWED_TOOLS) args.push('--allowedTools', ALLOWED_TOOLS);
     // `detached` makes the agent its own process-group leader so the timeout can
     // kill the whole tree. An agent spawns tool subprocesses, and SIGKILLing only
@@ -430,18 +442,6 @@ const cannedFor = (task, role) =>
 // crew: the analyst does not re-derive what the researcher already found, it
 // reads it and argues with it.
 async function runTask(task) {
-  // In `voice` mode agents drive VoiceOS by SPEAKING, and there is one
-  // microphone. Running them in parallel means two characters talking into it at
-  // once, which VoiceOS hears as one garbled sentence and acts on neither. A
-  // captured run had five agents issuing twelve commands with overlaps and
-  // duplicates. One at a time is slower and it is the only thing that works.
-  if (MODE === 'voice') {
-    for (const r of task.roles) await runRole(task, r);
-    await runRole(task, CLOSER);
-    task.status = 'done';
-    return;
-  }
-
   const done = new Set();
   let waves = 0;
   let pending = task.roles.filter((r) => r !== CLOSER);
@@ -458,6 +458,13 @@ async function runTask(task) {
     pending = pending.filter((r) => !done.has(r));
   }
 
+  // Tell the person when to hold, at the moment it matters, rather than making
+  // them hold a chord for the whole run while VoiceOS listens to the room.
+  if (MODE === 'voice') {
+    console.log('\n  ⚡ HOLD control+shift NOW — the crew is about to speak to VoiceOS\n');
+    say(task, CLOSER, 'working', 'Hold control shift now.');
+    await new Promise((r) => setTimeout(r, 3500));
+  }
   await runRole(task, CLOSER); // always speaks alone, and always last
   task.status = 'done';
   // Give the microphone back, so the next ⌘⌥C can hear a person again.
