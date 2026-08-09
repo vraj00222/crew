@@ -15,9 +15,12 @@ final class AgentCharacter {
     static let charHeight: CGFloat = 170
     static let bubbleHeight: CGFloat = 86
 
-    /// Where this character lives once it has arrived. `enter()` animates to it
-    /// from the top of the screen, so the resting place has to outlive the frame.
-    private let restingOrigin: NSPoint
+    /// Where this character lives once it has arrived, and the anchor its roam
+    /// wanders around. `enter()` animates to it from the top of the screen, so
+    /// the resting place has to outlive the frame. Settable because the crew is
+    /// centred on however many members actually woke, not on however many the
+    /// manifest lists — see `place(x:)`.
+    private var restingOrigin: NSPoint
     /// Kept because walking flips the layer and must know the resting orientation.
     private let mirrored: Bool
     /// Staggered per slot so the crew arrives one after another, not in a rank.
@@ -182,6 +185,32 @@ final class AgentCharacter {
     /// crew rather than a rank.
     ///
     /// Position is animated on the window itself: these are borderless
+    /// Moves this character's stand-and-roam anchor.
+    ///
+    /// The manifest lists five roles but a run uses whichever subset the
+    /// sentence asked for, so a fixed slot per manifest row leaves holes: the
+    /// rehearsed three sat at slots 0, 1 and 4 of five — two bunched left with
+    /// their bubbles overlapping and the recap stranded across the screen. The
+    /// dock re-centres on the crew that actually woke instead.
+    ///
+    /// Before the entrance this only sets where it will walk to. After it, the
+    /// character slides over — the orchestrator wakes every participant inside
+    /// the first second, so in practice this happens before the show starts,
+    /// and if a later member does join the others making room reads as crew.
+    func place(x: CGFloat) {
+        guard abs(restingOrigin.x - x) > 0.5 else { return }
+        restingOrigin.x = x
+        guard window.alphaValue > 0 else { return }   // not on stage yet
+        let target = NSRect(origin: NSPoint(x: x, y: restingOrigin.y), size: window.frame.size)
+        NSAnimationContext.runAnimationGroup({ ctx in
+            ctx.duration = 0.35
+            ctx.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            window.animator().setFrame(target, display: true)
+        }, completionHandler: { [weak self] in
+            self?.window.setFrame(target, display: true)
+        })
+    }
+
     /// click-through windows, so there is no layout to fight.
     private func enter() {
         let size = window.frame.size

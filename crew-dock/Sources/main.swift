@@ -90,13 +90,32 @@ struct Roster {
 
 final class DockController {
     private var characters: [String: AgentCharacter] = [:]
+    /// Roles that have sent at least one line, i.e. the crew actually on stage.
+    private var woken: [String] = []
     private let roster = Roster.load()
 
     init() {
         guard let screen = NSScreen.main else { return }
         let vf = screen.visibleFrame
-        // Spread them along the bottom, just above the dock.
-        let totalWidth = AgentCharacter.width * CGFloat(roster.characters.count)
+        // Spread them along the bottom, just above the dock — and fit the crew
+        // to the screen rather than assuming it fits.
+        //
+        // At one window-width apart, five characters need 1500pt. This Air has
+        // 1470pt of usable width, so the last window was asked to sit partly
+        // offscreen; macOS clamps a window onscreen instead, which silently
+        // parks the last two almost on top of each other with their bubbles
+        // overlapping. It looks like a layout that was never designed rather
+        // than one that ran out of room, and it only appears on screens narrower
+        // than the author's — the crew grew from three to five today, so this
+        // was reachable the moment a longer sentence spawned a bigger crew.
+        //
+        // Packing to the available width keeps the spacing even at any crew
+        // size. Identical to the old maths whenever the crew genuinely fits,
+        // so the rehearsed three are placed exactly where they always were.
+        let w = AgentCharacter.width
+        let n = roster.characters.count
+        let spacing = n > 1 ? min(w, (vf.width - w) / CGFloat(n - 1)) : 0
+        let totalWidth = w + spacing * CGFloat(max(0, n - 1))
         let startX = vf.midX - totalWidth / 2
         for (i, spec) in roster.characters.enumerated() {
             guard let url = Bundle.main.url(forResource: spec.asset, withExtension: "mov")
@@ -108,7 +127,7 @@ final class DockController {
                 continue
             }
             characters[spec.role] = AgentCharacter(role: spec.role, videoURL: url,
-                                         originX: startX + CGFloat(i) * AgentCharacter.width,
+                                         originX: startX + CGFloat(i) * spacing,
                                          originY: vf.minY - 12,
                                          mirrored: spec.mirrored,
                                          // staggered entrance: a crew, not a rank
@@ -120,6 +139,34 @@ final class DockController {
     private func localAssetURL(_ name: String) -> URL? {
         let p = FileManager.default.currentDirectoryPath + "/Assets/\(name).mov"
         return FileManager.default.fileExists(atPath: p) ? URL(fileURLWithPath: p) : nil
+    }
+
+    /// Spreads the crew that actually woke evenly across the screen, in
+    /// manifest order so left-to-right identity stays stable between runs.
+    ///
+    /// Laying out by manifest index instead left holes: with five roles listed
+    /// and the rehearsed three running, they landed on slots 0, 1 and 4 — two
+    /// crowded together with overlapping bubbles and one marooned. What is on
+    /// screen should be spaced by what is on screen.
+    private func recentre() {
+        guard let vf = NSScreen.main?.visibleFrame else { return }
+        let order = roster.characters.map(\.role).filter { woken.contains($0) }
+        let w = AgentCharacter.width
+        let n = order.count
+        let spacing = n > 1 ? min(w, (vf.width - w) / CGFloat(n - 1)) : 0
+        let startX = vf.midX - (w + spacing * CGFloat(max(0, n - 1))) / 2
+        var placed: [String] = []
+        for (i, role) in order.enumerated() {
+            let x = startX + CGFloat(i) * spacing
+            characters[role]?.place(x: x)
+            placed.append("\(role)@\(Int(x))")
+        }
+        // Where the crew actually stands, from the code that decides it. Every
+        // layout bug on this project so far has been invisible in a log and
+        // obvious on screen; this is the one number that connects the two.
+        let stage = "STAGE screen \(Int(vf.width))x\(Int(vf.height)) @\(Int(vf.minX)),\(Int(vf.minY))"
+            + " | \(placed.joined(separator: " "))\n"
+        FileHandle.standardError.write(Data(stage.utf8))
     }
 
     /// One timer for every character rather than one each: the dock has to stay
@@ -178,6 +225,11 @@ final class DockController {
             return
         }
         if s.state == "done" { lastToFinish = s.character }
+        // First sight of this role: it joins the line-up and the crew re-centres.
+        if !woken.contains(s.character) {
+            woken.append(s.character)
+            recentre()
+        }
         c.apply(message: s.message, state: s.state, activityRate: roster.activityRate[s.activity])
     }
 }
