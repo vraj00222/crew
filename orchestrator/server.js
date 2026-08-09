@@ -63,7 +63,9 @@ const CREW = {
   triage:     { activity: 'sorting',  match: /in[\s-]?box|e[\s-]?mail|mail/ },
   scheduler:  { activity: 'booking',  match: /schedul|calendar|meeting|book/ },
   researcher: { activity: 'research', match: /research|look up|find out|investigate|dig into/ },
-  analyst:    { activity: 'analysis', match: /analy|compare|report|numbers|breakdown/ },
+  // `needs` is the feedback loop: the analyst waits for the researcher and is
+  // handed what it actually found, instead of re-deriving it in parallel.
+  analyst:    { activity: 'analysis', match: /analy|compare|report|numbers|breakdown/, needs: ['researcher'] },
   recap:      { activity: 'summary',  match: null }, // always last, never matched
 };
 const CLOSER = 'recap';
@@ -141,9 +143,13 @@ function buildPrompt(role, instructions, task) {
   // The closer used to have the old three-agent crew written into its prompt,
   // so once the roster became dynamic it cheerfully reported an inbox nobody
   // had touched. It gets told who actually ran, and what each of them said.
+  // Only agents that have actually finished — an agent still mid-run has a
+  // half-finished line, and handing that on reads as the crew quoting a
+  // sentence nobody has said yet.
   const crew = task.roles
+    .filter((r) => r !== role && task.agents[r].state === 'done' && task.agents[r].lastMessage)
     .map((r) => `- ${r.toUpperCase()} (${CREW[r]?.activity}) said: "${task.agents[r].lastMessage}"`)
-    .join('\n');
+    .join('\n') || '(nobody has reported yet — you are first)';
   return readFileSync(join(__dirname, 'prompts', `${role}.md`), 'utf8')
     .replace('{{EXECUTION}}', execution)
     .replace('{{CREW}}', crew)
@@ -240,8 +246,31 @@ const CANNED = {
   recap: ['Pulling together what the crew did.', 'Done: inbox cleared, two meetings booked.'],
 };
 
+// Agents that depend on another agent's findings wait for them, and are handed
+// what that agent actually said. Everything else still runs in parallel, so the
+// rehearsed run is untouched: triage and scheduler need nothing and start
+// together exactly as before.
+//
+// This is the difference between three agents working near each other and a
+// crew: the analyst does not re-derive what the researcher already found, it
+// reads it and argues with it.
 async function runTask(task) {
-  await Promise.all(task.roles.map((r) => runRole(task, r)));
+  const done = new Set();
+  let waves = 0;
+  let pending = task.roles.filter((r) => r !== CLOSER);
+
+  while (pending.length) {
+    const ready = pending.filter((r) => (CREW[r].needs || []).every((n) => done.has(n) || !task.roles.includes(n)));
+    // A cycle, or a need on a role that is not in this crew, would otherwise
+    // hang forever. Run everything left rather than stall the show.
+    const wave = ready.length ? ready : pending;
+    if (!ready.length) console.log(`[crew] unmet dependency in [${pending}] — running anyway`);
+    if (++waves > 1) console.log(`[crew] wave ${waves}: ${wave.join(', ')} (has ${[...done].join(', ')})`);
+    await Promise.all(wave.map((r) => runRole(task, r)));
+    wave.forEach((r) => done.add(r));
+    pending = pending.filter((r) => !done.has(r));
+  }
+
   await runRole(task, CLOSER); // always speaks alone, and always last
   task.status = 'done';
   // The whole point of direct mode is that the mailbox really changed. If no
