@@ -1102,6 +1102,39 @@ looking at the wrong thing.** It is worth assuming the instrument is wrong befor
    late), rate, or level. It needs a couple of clean runs to characterise before we rely
    on the spoken path on stage. **Rungs 1-3 do not depend on it.**
 
+## A — the crew sounds like people now, using open source and no subscription
+
+**`crew-dock/crew-say`** — a drop-in replacement for `say`, identical flags, backed by
+**Piper** (MIT, on-device neural TTS). No account, no subscription, no network at run
+time, no per-word cost. The macOS voices we had are the 2005-era *compact* builds, which
+is exactly why the crew sounded like a screen reader.
+
+```bash
+./crew-dock/voices.sh piper-install      # ~63MB per voice, one time
+./run-demo.sh fake                        # picks it up automatically
+```
+
+Cast: **triage = alba (Scottish, dry)**, **scheduler = northern english male (brisk)**,
+**recap = amy (warm)**. Three accents, three actual humans rather than one synth with
+three pitches.
+
+**It cannot make the dock silent.** `crew-say` falls back to `/usr/bin/say` on its own if
+Piper, `uvx`, `sox` or a model file is missing — and the models are gitignored, so a fresh
+clone gets the old voices and a working demo rather than an error. The only thing this
+change can affect is how the dock *sounds*.
+
+**Cost, measured:** a Piper line is ~1.1s to synthesise on top of speaking it — 5.1s
+total against `say`'s ~3.8s. Same rule as before applies (pacing must be >= how long a
+line really takes), so `run-demo.sh` raises `LINE_MS` to 5500 when the models are present.
+Full run re-verified: **10 lines, 0 dropped**. The show runs ~15s longer and sounds
+completely different.
+
+**C —** one line in your file: `speak()` takes its binary from `CREW_SAY` now, defaulting
+to `/usr/bin/say`. Nothing else changed, and unset behaves exactly as today.
+
+**D —** if you want the characters to *look* as different as they now sound, alba /
+northern male / amy is the casting the art should match.
+
 ## Decisions log
 
 - _Sat night — orchestrator is one file (`orchestrator/server.js`), Node stdlib only, not the 4-file TypeScript layout in the folder plan — A — no build step, no `npm install`, no deps to break at 5pm; the whole thing is ~170 lines and restarts instantly. The frozen bit is the HTTP contract, and that's unchanged._

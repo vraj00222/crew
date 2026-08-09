@@ -23,6 +23,24 @@ SCHEDULER_LINE="Two o'clock is open. David Chen, that's yours."
 RECAP_LINE="That's the lot. Your morning is yours again."
 
 case "${1:-}" in
+piper-install)
+  # Piper (MIT) — neural TTS that runs on this machine. No account, no
+  # subscription, no network once the models are here. ~63MB per voice, not
+  # committed. Everything still works without them; you just get the 2005 voices.
+  command -v uvx >/dev/null || { echo "needs uv: brew install uv"; exit 1; }
+  command -v play >/dev/null || { echo "needs sox: brew install sox"; exit 1; }
+  mkdir -p "$(dirname "$0")/voices"
+  for V in en_GB-alba-medium en_GB-northern_english_male-medium en_US-amy-medium; do
+    if [ -f "$(dirname "$0")/voices/$V.onnx" ]; then echo "  have  $V"; continue; fi
+    echo "  fetching $V (~63MB)..."
+    uvx --from piper-tts python -m piper.download_voices "$V" \
+      --data-dir "$(dirname "$0")/voices" 2>&1 | tail -1
+  done
+  echo
+  echo "Try it:  CREW_SAY=./crew-dock/crew-say ./run-demo.sh fake"
+  echo "Or set it permanently — run-demo.sh picks it up automatically once the models exist."
+  ;;
+
 audition)
   # Candidates that are installed by default on every Mac, so this runs anywhere.
   for v in Moira Tessa Samantha Fiona Karen Serena; do

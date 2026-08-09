@@ -24,6 +24,18 @@ export CREW_VOICE_TRIAGE="${CREW_VOICE_TRIAGE:-Moira}"        # en_IE — dry
 export CREW_VOICE_SCHEDULER="${CREW_VOICE_SCHEDULER:-Daniel}" # en_GB — brisk
 export CREW_VOICE_RECAP="${CREW_VOICE_RECAP:-Karen}"          # en_AU — warm
 
+# If the Piper models are here, speak through them: on-device neural TTS (MIT),
+# no account and no network, and it is the difference between a crew and a
+# screen reader. `crew-say` falls back to `say` on its own, so this can only
+# change how the dock sounds. `./crew-dock/voices.sh piper-install` fetches them.
+# A Piper line costs ~1.1s to synthesise on top of speaking it, so pacing has to
+# grow to match or the dock starts dropping lines again — same rule as before,
+# LINE_MS >= how long a line actually takes.
+if [ -z "${CREW_SAY:-}" ] && ls crew-dock/voices/*.onnx >/dev/null 2>&1; then
+  export CREW_SAY="$PWD/crew-dock/crew-say"
+  export LINE_MS="${LINE_MS:-5500}"
+fi
+
 stop() {
   pkill -f "Crew.app/Contents/MacOS/Crew" 2>/dev/null
   pkill -f "orchestrator/server.js" 2>/dev/null

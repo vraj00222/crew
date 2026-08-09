@@ -185,10 +185,20 @@ final class Narrator {
         }
     }
 
+    /// The binary that actually speaks. `CREW_SAY` can point at `crew-dock/crew-say`,
+    /// a drop-in that takes the identical flags and speaks through Piper (MIT,
+    /// on-device neural TTS) instead — the built-in voices are the 2005 compact
+    /// builds and sound like a screen reader. The wrapper falls back to `say`
+    /// itself if Piper or its models are missing, so this can only change how the
+    /// dock sounds, never whether it speaks.
+    private static let sayBinary =
+        ProcessInfo.processInfo.environment["CREW_SAY"].flatMap { $0.isEmpty ? nil : $0 }
+        ?? "/usr/bin/say"
+
     /// Returns once the audio has finished playing.
     private func speak(_ utterance: (text: String, voice: String, final: Bool)) {
         let proc = Process()
-        proc.executableURL = URL(fileURLWithPath: "/usr/bin/say")
+        proc.executableURL = URL(fileURLWithPath: Self.sayBinary)
         var args = ["-v", utterance.voice, "-r", String(rate)]
         if let device { args += ["-a", device] }
         // `--` so a message starting with "-" is never read as a flag.

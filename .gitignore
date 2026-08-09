@@ -25,3 +25,6 @@ voiceos-bridge/demo-seed/token.json
 
 # fake-backend mailbox state, regenerated from fixtures.json
 voiceos-bridge/mcp-server/.crew-mailbox.json
+
+# Piper voice models — ~63MB each, fetched by ./crew-dock/voices.sh piper-install
+crew-dock/voices/*.onnx

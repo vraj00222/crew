@@ -1,0 +1,84 @@
+#!/bin/bash
+# A drop-in replacement for `say` that sounds like a person.
+#
+#   crew-say -v <voice> -r <rate> -a <device-id> -- <text>
+#
+# Same flags as `say`, on purpose: the dock already calls `say` that way, so
+# swapping this in is one path change and no logic change.
+#
+# Backend is Piper (MIT, github.com/OHF-Voice/piper1-gpl) — neural TTS that runs
+# entirely on this machine. No account, no subscription, no network at run time,
+# no per-word cost. The macOS voices we started with are the 2005-era compact
+# builds and sound like a screen reader; Piper sounds like somebody talking.
+#
+# It falls back to `say` whenever Piper is unavailable, so the dock can never go
+# silent because of this file. That is the whole reason it is a wrapper and not
+# a rewrite: on stage, a robotic voice beats no voice.
+#
+#   CREW_TTS=say     force the fallback (fastest, always works)
+#   CREW_TTS=piper   force Piper (fails loudly instead of falling back)
+set -uo pipefail
+cd "$(dirname "$0")"
+
+VOICE="" RATE="" DEVICE="" TEXT=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -v) VOICE="$2"; shift 2 ;;
+    -r) RATE="$2"; shift 2 ;;
+    -a) DEVICE="$2"; shift 2 ;;
+    --) shift; TEXT="$*"; break ;;
+    *)  TEXT="$*"; break ;;
+  esac
+done
+[ -n "$TEXT" ] || exit 0
+
+say_fallback() {
+  set -- ; [ -n "$VOICE" ] && set -- "$@" -v "$VOICE"
+  [ -n "$RATE" ]   && set -- "$@" -r "$RATE"
+  [ -n "$DEVICE" ] && set -- "$@" -a "$DEVICE"
+  exec /usr/bin/say "$@" -- "$TEXT"
+}
+
+MODE="${CREW_TTS:-auto}"
+[ "$MODE" = say ] && say_fallback
+
+# Voice per character. The dock passes the macOS voice name it was configured
+# with, so map from that rather than inventing a third naming scheme.
+#   Moira  (triage)    -> alba, Scottish, dry
+#   Daniel (scheduler) -> northern english male, brisk
+#   Karen  (recap)     -> amy, warm
+case "$VOICE" in
+  Moira|triage)     MODEL="en_GB-alba-medium" ;;
+  Daniel|scheduler) MODEL="en_GB-northern_english_male-medium" ;;
+  Karen|recap)      MODEL="en_US-amy-medium" ;;
+  *)                MODEL="${CREW_PIPER_MODEL:-en_US-amy-medium}" ;;
+esac
+
+VOICES_DIR="${CREW_PIPER_VOICES:-$PWD/voices}"
+# Model files are ~63MB each and are NOT committed. `./voices.sh piper-install`
+# fetches them. Missing model is the normal state on a fresh clone, so it must
+# degrade rather than fail.
+if [ ! -f "$VOICES_DIR/$MODEL.onnx" ] || ! command -v uvx >/dev/null; then
+  [ "$MODE" = piper ] && { echo "crew-say: no $MODEL.onnx in $VOICES_DIR" >&2; exit 1; }
+  say_fallback
+fi
+
+# `say -r` is words-per-minute; Piper's length-scale is seconds-per-unit, so it
+# runs the other way — a higher rate has to mean a SHORTER length scale.
+# 1.0 at 175wpm is Piper's natural pace, which matches `say`'s default.
+LEN=$(awk -v r="${RATE:-175}" 'BEGIN{ s=175/r; if(s<0.6)s=0.6; if(s>1.6)s=1.6; printf "%.2f", s }')
+
+WAV="/tmp/crew-say-$$.wav"
+trap 'rm -f "$WAV"' EXIT
+printf '%s\n' "$TEXT" | uvx --quiet --from piper-tts piper \
+    -m "$MODEL" --data-dir "$VOICES_DIR" --length-scale "$LEN" \
+    -f "$WAV" >/dev/null 2>&1 || say_fallback
+[ -s "$WAV" ] || say_fallback
+
+# `say -a` takes a numeric device id; sox wants the device NAME, so translate
+# back. Keeping the dock's interface identical is worth this small ugliness.
+if [ -n "$DEVICE" ]; then
+  NAME=$(say -a '?' 2>/dev/null | awk -v id="$DEVICE" '$1==id { $1=""; sub(/^ +/,""); print; exit }')
+  [ -n "$NAME" ] && export AUDIODEV="$NAME"
+fi
+play -q "$WAV" 2>/dev/null || afplay "$WAV" 2>/dev/null || say_fallback
