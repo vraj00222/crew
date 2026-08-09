@@ -98,7 +98,7 @@ Switch anytime with `/effort` or `/model`. If usage gets tight, add `--fallback-
 | Person | Workstream | Status | Blocked on |
 |---|---|---|---|
 | A | orchestrator + dock + audio rig | **CHECKPOINT READY — everyone run `./checkpoint.sh`, see the Checkpoint section at the bottom.** Orchestrator done, 3 modes (`narrate`/`live`/`voice`) selected by a flag not a file edit. Audio split decided + measured. 10/10 lines spoken, 0 dropped. Three accents + written personalities. Characters no longer freeze. `docs/demo-script.md` written. Full chain with real agents: ~45s, PASS | VoiceOS Pro trial not active — still the only thing left on A's side |
-| B | voiceos-bridge (mcp-server + demo-seed + Gmail/Calendar tools) | **all 8 tools built and tested. `voiceos-bridge/verify.ps1` runs every B-side check in one command — 4 suites green. Gmail decision made; A unblocked. VoiceOS installed on Windows and inspected — see the tool-naming finding, it changes A's prompts.** | VoiceOS Pro trial (same paywall as A, now confirmed on a 2nd machine) + a demo Google account & OAuth creds |
+| B | voiceos-bridge (mcp-server + demo-seed + Gmail/Calendar tools) | **CHECKPOINT PASS on Windows (12 ok / 0 failed).** All 8 tools built and tested; `verify.ps1` now runs **5 suites, all green**. **`crew_task_status` closes the loop: no taskId needed, and it answers in a spoken sentence instead of a JSON dump** — see below. Tool `annotations` declared on all 8 tools, honestly. Gmail decision made; A unblocked. VoiceOS installed on Windows and inspected — see the tool-naming finding. **A: one bug for you in `CANNED`, below — off the rehearsed path, not a blocker.** | VoiceOS Pro trial (same paywall as A, now confirmed on a 2nd machine) + a demo Google account & OAuth creds |
 | C | crew-dock (took option 2) | **the dock talks, and the handover is proven.** `Narrator.swift` speaks every `/agent-status` line via `say`, per-character voices, never two at once. Re-verified this morning from a **throwaway clone of current `main`** — clone → speaking app in 13s. **A's audio split + new voices then re-verified on my Air against A's unmodified `run-demo.sh`: 16 received, 10 spoken, 0 failed.** Nothing left to hand-carry to A's Mac but two commands. **Reviewed and kept A's character fix — verified by screen capture, not by log — and fixed the stale-binary hole that let `checkpoint.sh` PASS while grading an old build** | **nothing — CHECKPOINT PASS on my Air (14 ok / 0 failed)** |
 
 ### ✅ FULL CHAIN INTEGRATED — B's MCP server → A's orchestrator → A's dock
@@ -209,7 +209,7 @@ config, prints the exact command/args, and self-tests the server before you regi
 ### B — what shipped this morning
 
 **`voiceos-bridge/demo-seed/` — done, dry-run verified.** `uv run seed.py --dry-run` builds
-all 18 RFC822 messages and 7 calendar events, asserts the counts, and needs **no
+all 18 RFC822 messages and 8 calendar events, asserts the counts, and needs **no
 credentials and no network** — so it's testable now and testable on any machine.
 
 The fixture is matched to `prompts/execution.md` **exactly**: same 6 newsletters (Verge,
@@ -944,6 +944,88 @@ research or analysis, so none of this is on the rehearsed path.
 into its prompt, so with a research crew it cheerfully reported an inbox nobody had
 touched. It is now handed the actual roster and each member's real `Done:` line
 (`{{CREW}}` in `recap.md`), and reports only what ran.
+
+### B — the loop stays alive now: `crew_task_status` answers out loud, with no taskId
+
+**A: this is your "make the loop continuous" task, done.** Two things stopped it being a
+loop, and neither was the contract — `/status/:taskId` is untouched.
+
+**1. Nobody says "task underscore one" out loud.** `taskId` was required, so the only
+question a human would actually ask — *"what's the crew doing?"* — had nothing to put in
+it. It is **optional** now: the bridge remembers the task it started, and if VoiceOS
+respawns the server between the two questions it reads the last started task back out of
+`crew-bridge.log`. Asked with nothing running, it says so in a sentence rather than
+erroring, because that is a normal conversational turn.
+
+**2. VoiceOS reads a tool's reply back verbatim, and the old reply was a struct:**
+
+```
+Task task_1 is running.              ->  "task underscore one is running,
+triage (working): Archiving six…          triage open paren working close paren colon…"
+```
+
+`mcp-server/status-speech.js` is that translation and nothing else — no I/O, so every
+branch is testable with `node test-status-speech.js` on any machine. A whole run, from
+your real orchestrator, asked with **no taskId**:
+
+```
+Triage and Scheduler are both waking up. Recap hasn't started yet.
+Triage is archiving six newsletters and Scheduler is booking two PM with David Chen. Recap hasn't started yet.
+Scheduler is booking two PM with David Chen. Triage is already finished and Recap hasn't started yet.
+The crew is finished. Inbox cleared, two meetings booked.
+```
+
+**Three things testing changed my mind about:**
+
+- **Your double-post is load-bearing here, and I had it wrong first.** You POST the final
+  `Done:` line twice — once `working`, then `done`. Caught against your real orchestrator,
+  not the stub: in that window the crew said *"Recap reports inbox cleared, two meetings
+  booked"* — present tense about an agent that had gone home. The **text** wins over the
+  state there, because `push()` stops queueing after the first `Done:`, so that prefix is
+  terminal by construction. (C: this is the opposite of your advice, and both are right —
+  you key animation off `state`, I key tense off the line.)
+- **"Only `done` means finished"** is now enforced rather than assumed: the split is on
+  whether an agent has *said* anything, not on the spelling of its state, so a state we
+  have never seen is reported as still running and never as the end of the run.
+- **Your closer is positional, not named.** `order` is `[...roles, CLOSER]`, so I read the
+  last agent rather than matching `'recap'` — rename the closer or add members in front of
+  it and this side needs no edit.
+
+**Your new roster cost the bridge nothing, and I checked rather than assuming.**
+`research the Q3 rollout and analyse the numbers` through the real orchestrator:
+*"Researcher is reading what the thread actually says and Analyst is lining the numbers up
+side by side. Recap hasn't started yet."* No name table, no edit. One wording bug your
+analyst found for me: `One of these is not like the others.` is not a gerund, so
+`"<Name> is …"` doesn't fit it — that path reads `Analyst reports: …` now.
+
+**A — one bug in your `CANNED` table, and it is the one you just fixed one layer up.**
+You fixed the closer's *prompt* so it reports the actual roster. `CANNED.recap` is still
+hardcoded to `'Done: inbox cleared, two meetings booked.'`, so in **`FAKE` mode** a
+research crew signs off by claiming it cleared an inbox nobody touched — reproduced above,
+end to end. **Not a blocker and not on the rehearsed path** (the demo phrase routes to
+triage + scheduler, where the line is true), but `fake` is the panic button, so if we ever
+fall back to it on a non-inbox phrase the closer lies out loud. Your file and your call on
+the wording — a canned line per roster, or a generic closer for anything that isn't the
+demo phrase. Shout if you'd rather I did it.
+
+**What's checkable, and where.** `verify.ps1` is 5 suites now; `stub-orchestrator.js` walks
+a whole scripted run (one phase per `/status` call, waking up → finished) so the loop is
+provable end to end on Windows with no Mac, no Claude and no account. `REQUIRE_DONE=1`
+makes reaching *"the crew is finished"* a hard assertion against the stub — against a real
+orchestrator it can't, because you pace at `LINE_MS`, and the test says so rather than
+failing. I added one line to the B block of `checkpoint.sh` for the speech test (no
+orchestrator needed, so it stays green when `:4001` is down).
+
+**The `readOnlyHint` question — half of it is done, and it did not need the trial.** All 8
+tools now declare MCP `annotations`, exactly as they behave, not as flatteringly as
+possible: `crew_task_status`, `crew_gmail_list_inbox`, `crew_calendar_find_slot` and
+`crew_calendar_list` are `readOnlyHint: true`; `crew_gmail_archive` and `crew_gmail_label`
+are writes with `destructiveHint: false`, because archiving only drops the INBOX label and
+nothing is ever deleted; `crew_calendar_book` adds an event and is explicitly **not**
+idempotent. So if VoiceOS does derive `requiresConfirmation` from annotations, four tools
+go through without a click and we claimed nothing false to get there. **Whether it reads
+them is still the 5-minute check the moment either of us has Pro** — register, `tools/list`,
+see whether the read-only ones stop asking. Table's in `mcp-server/README.md`.
 
 ### Then: one task each, in priority order
 

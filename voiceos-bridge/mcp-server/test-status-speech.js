@@ -87,14 +87,14 @@ check(
 check(
   'a line that is not a gerund does not get mangled into "is David"',
   { status: 'running', agents: agents(['triage', 'working', 'David Chen wants a slot tomorrow.'], ['recap', 'idle', '']) },
-  /Triage reports David Chen wants a slot tomorrow/,
+  /Triage reports: David Chen wants a slot tomorrow/,
   /is david/i
 );
 
 check(
   '"Nothing left in the inbox" is not a verb',
   { status: 'running', agents: agents(['triage', 'working', 'Nothing left in the inbox.'], ['recap', 'idle', '']) },
-  /Triage reports Nothing left in the inbox/,
+  /Triage reports: Nothing left in the inbox/,
   /Triage is nothing/i
 );
 
@@ -112,6 +112,35 @@ check(
   'one agent signs off early, in words only',
   { status: 'running', agents: agents(['triage', 'working', 'Done: inbox down to two real emails.'], ['scheduler', 'working', 'Booking two PM with David Chen.'], ['recap', 'idle', '']) },
   /^Scheduler is booking two PM with David Chen\. Triage is already finished and Recap hasn't started yet\.$/
+);
+
+// A's roster is a table now and grows by a row (researcher, analyst, …). The
+// bridge should need no edit for a member it has never heard of.
+check(
+  'a crew member this file has never heard of',
+  { status: 'running', agents: agents(['researcher', 'working', 'Reading what the thread actually says.'], ['analyst', 'working', 'Lining the numbers up side by side.'], ['recap', 'idle', '']) },
+  /^Researcher is reading what the thread actually says and Analyst is lining the numbers up side by side\. Recap hasn't started yet\.$/
+);
+
+// A's analyst really says this, and it is not a gerund — "Analyst is one of
+// these is not like the others" is the failure it protects against.
+check(
+  "A's analyst line, which no \"<Name> is …\" frame fits",
+  { status: 'running', agents: agents(['analyst', 'working', 'One of these is not like the others.'], ['recap', 'idle', '']) },
+  /^Analyst reports: One of these is not like the others\. Recap hasn't started yet\.$/
+);
+
+check(
+  'four working at once still reads as a list',
+  { status: 'running', agents: agents(['triage', 'working', 'Scanning the inbox.'], ['scheduler', 'working', 'Finding open slots tomorrow.'], ['researcher', 'working', 'Reading the rollout notes.'], ['recap', 'idle', '']) },
+  /^Triage is scanning the inbox, Scheduler is finding open slots tomorrow, and Researcher is reading the rollout notes\. Recap hasn't started yet\.$/
+);
+
+// The closer is whoever A put last, not whoever is called 'recap'.
+check(
+  'the closer is positional, not named',
+  { status: 'done', agents: agents(['researcher', 'done', 'Done: three facts worth knowing.'], ['wrapup', 'done', 'Done: here is what we found.']) },
+  /^The crew is finished\. Here is what we found\.$/
 );
 
 check('no agents at all', { status: 'running', agents: [] }, /just started/);

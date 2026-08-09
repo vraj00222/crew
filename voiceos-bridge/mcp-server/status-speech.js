@@ -17,9 +17,14 @@
 // VoiceOS and no network:  node test-status-speech.js
 'use strict';
 
-// The three roles are characters on screen, so they get proper names. That also
-// keeps the grammar trivial: no "the scheduler" / "triage" article mismatch.
-const NAMES = { triage: 'Triage', scheduler: 'Scheduler', recap: 'Recap' };
+// The roles are characters on screen, so they get proper names. That also keeps
+// the grammar trivial: no "the scheduler" / "triage" article mismatch.
+//
+// A's roster is a table now (triage, scheduler, researcher, analyst, recap) and
+// grows by a row. Nothing here needs to know the names — an unlisted one is just
+// capitalised, so "researcher" reads as "Researcher is reading the thread" with
+// no change on this side. The map only exists for names that need special casing.
+const NAMES = { recap: 'Recap' };
 const label = (n) => NAMES[n] || (n ? String(n)[0].toUpperCase() + String(n).slice(1) : 'An agent');
 
 // "Done: inbox down to two real emails." -> "inbox down to two real emails"
@@ -53,7 +58,12 @@ function clause(agent) {
   const name = label(agent.name);
   const msg = plain(agent.lastMessage);
   if (!msg) return `${name} is just starting`;
-  return isGerund(msg) ? `${name} is ${lower1(msg)}` : `${name} reports ${msg}`;
+  if (isGerund(msg)) return `${name} is ${lower1(msg)}`;
+  // Not a gerund, so "<Name> is …" won't fit and the capital has to stay: A's
+  // analyst really says "One of these is not like the others", and lowercasing
+  // blindly to make it fit would also turn "David Chen wants a slot" into
+  // "david". The colon is a pause when spoken and correct when read.
+  return `${name} reports: ${msg}`;
 }
 
 // A posts an agent's final "Done:" line TWICE — once as working, then again as
@@ -64,11 +74,15 @@ function clause(agent) {
 // stops queueing after the first "Done:", so that prefix is terminal by construction.
 const signedOff = (a) => a.state === 'done' || /^Done:/i.test(String(a?.lastMessage || '').trim());
 
-// Recap's entire job is to close the loop, so its sign-off IS the summary of the
-// run. Only fall back to reciting everyone's last line if it never got one out.
+// The closer's entire job is to sum up the run, so its sign-off IS the summary.
+// It is whoever A put last — `order` is `[...roles, CLOSER]` and /status maps over
+// it, so the closer is the last element by construction. Reading position rather
+// than the name 'recap' means renaming the closer, or adding members in front of
+// it, costs this file nothing. Fall back to reciting everyone's last line only if
+// the closer never got one out.
 function closing(agents) {
-  const recap = agents.find((a) => a.name === 'recap' && plain(a.lastMessage));
-  if (recap) return sentence(plain(recap.lastMessage));
+  const closer = agents[agents.length - 1];
+  if (closer && plain(closer.lastMessage)) return sentence(plain(closer.lastMessage));
   const all = agents.map((a) => plain(a.lastMessage)).filter(Boolean);
   return all.length ? all.map(sentence).join(' ') : 'Nothing to report.';
 }
