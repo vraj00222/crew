@@ -323,6 +323,18 @@ const cannedFor = (task, role) =>
 // crew: the analyst does not re-derive what the researcher already found, it
 // reads it and argues with it.
 async function runTask(task) {
+  // In `voice` mode agents drive VoiceOS by SPEAKING, and there is one
+  // microphone. Running them in parallel means two characters talking into it at
+  // once, which VoiceOS hears as one garbled sentence and acts on neither. A
+  // captured run had five agents issuing twelve commands with overlaps and
+  // duplicates. One at a time is slower and it is the only thing that works.
+  if (MODE === 'voice') {
+    for (const r of task.roles) await runRole(task, r);
+    await runRole(task, CLOSER);
+    task.status = 'done';
+    return;
+  }
+
   const done = new Set();
   let waves = 0;
   let pending = task.roles.filter((r) => r !== CLOSER);
