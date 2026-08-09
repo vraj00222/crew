@@ -80,6 +80,32 @@ an archive would silently undo itself between two agent steps.
 `google` talks raw REST over `fetch` — still no `npm install` — and reuses the exact
 `token.json` that `demo-seed/seed.py` writes, so authorising once covers both.
 
+## Register with the agents (`direct` mode)
+
+In `direct` mode the agents call these tools themselves, which means each headless
+`claude -p` session needs **its own** MCP connection to this server. Claude Code does not
+find it by magic — without `--mcp-config` there is no crew tool in the session at all, and
+`execution-direct.md` tells the agent to narrate and carry on, so **a run with no tools
+looks exactly like a healthy one.**
+
+```bash
+node mcp-config.js            # the --mcp-config JSON, absolute paths
+node mcp-config.js --tools    # the --allowedTools list
+node test-direct-contract.js  # every tool the prompt names is really served
+```
+
+It prints a JSON *string* rather than shipping a `.mcp.json` because the server path inside
+the config resolves against the spawning process's cwd, so a committed relative path is
+correct from exactly one directory.
+
+**Three naming schemes, all different, all live in this repo:**
+
+| | example | who uses it |
+|---|---|---|
+| the tool | `crew_gmail_archive` | the tool definition, and `execution-direct.md` |
+| Claude Code | `mcp__crew__crew_gmail_archive` | `--allowedTools` |
+| VoiceOS | `custom_mcp_crew_crew_gmail_archive` | VoiceOS's own logs |
+
 ## Register with VoiceOS
 
 ```

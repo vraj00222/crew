@@ -50,10 +50,11 @@ try {
     # won't inside one test, so only the stub run demands it.
     $stdio = if ($Real) { "node test-stdio.js" } else { "set REQUIRE_DONE=1 && node test-stdio.js" }
     Run "3. MCP transport + status loop"  $stdio                           $mcp | Out-Null
-    Run "4. Demo flow vs mailbox"         "node test-demo-flow.js"         $mcp | Out-Null
-    Run "5. demo-seed fixtures"           "uv run seed.py --dry-run"       $seed | Out-Null
+    Run "4. Direct-mode tool contract"    "node test-direct-contract.js"    $mcp | Out-Null
+    Run "5. Demo flow vs mailbox"         "node test-demo-flow.js"         $mcp | Out-Null
+    Run "6. demo-seed fixtures"           "uv run seed.py --dry-run"       $seed | Out-Null
     if ($Google) {
-        Run "6. Demo flow vs REAL Google" "set CREW_BACKEND=google && node test-demo-flow.js" $mcp | Out-Null
+        Run "7. Demo flow vs REAL Google" "set CREW_BACKEND=google && node test-demo-flow.js" $mcp | Out-Null
     }
 } finally {
     if ($started -and -not $started.HasExited) {

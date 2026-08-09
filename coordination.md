@@ -110,7 +110,7 @@ Switch anytime with `/effort` or `/model`. If usage gets tight, add `--fallback-
 | **D — Yaseen** | character art + visual identity | **not started — read `docs/onboarding.md`, then your task block below** | nothing. Your work is new files only; you cannot be blocked by us |
 | **E — Rukaiya** | rehearsal, resilience, backup rig | **not started — read `docs/onboarding.md`, then your task block below** | nothing. Needs a Mac that is not A's |
 | A | orchestrator + dock + audio rig | **CHECKPOINT READY — everyone run `./checkpoint.sh`, see the Checkpoint section at the bottom.** Orchestrator done, 3 modes (`narrate`/`live`/`voice`) selected by a flag not a file edit. Audio split decided + measured. 10/10 lines spoken, 0 dropped. Three accents + written personalities. Characters no longer freeze. `docs/demo-script.md` written. Full chain with real agents: ~45s, PASS | VoiceOS Pro trial not active — still the only thing left on A's side |
-| B | voiceos-bridge (mcp-server + demo-seed + Gmail/Calendar tools) | **CHECKPOINT PASS on Windows (12 ok / 0 failed).** All 8 tools built and tested; `verify.ps1` now runs **5 suites, all green**. **`crew_task_status` closes the loop: no taskId needed, and it answers in a spoken sentence instead of a JSON dump** — see below. Tool `annotations` declared on all 8 tools, honestly. Gmail decision made; A unblocked. VoiceOS installed on Windows and inspected — see the tool-naming finding. **A: one bug for you in `CANNED`, below — off the rehearsed path, not a blocker.** | VoiceOS Pro trial (same paywall as A, now confirmed on a 2nd machine) + a demo Google account & OAuth creds |
+| B | voiceos-bridge (mcp-server + demo-seed + Gmail/Calendar tools) | **CHECKPOINT PASS on Windows (12 ok / 0 failed).** All 8 tools built and tested; `verify.ps1` now runs **5 suites, all green**. **`crew_task_status` closes the loop: no taskId needed, and it answers in a spoken sentence instead of a JSON dump** — see below. Tool `annotations` declared on all 8 tools, honestly. Gmail decision made; A unblocked. VoiceOS installed on Windows and inspected — see the tool-naming finding. **A: two things for you in Blockers — `direct` mode has no MCP wiring, so rung 3 narrates without touching anything, and `checkpoint.sh`'s claude check is a false green. Plus one bug in `CANNED`, off the rehearsed path.** | VoiceOS Pro trial (same paywall as A, now confirmed on a 2nd machine) + a demo Google account & OAuth creds |
 | C | crew-dock (took option 2) | **the dock talks, and the handover is proven.** `Narrator.swift` speaks every `/agent-status` line via `say`, per-character voices, never two at once. Re-verified this morning from a **throwaway clone of current `main`** — clone → speaking app in 13s. **A's audio split + new voices then re-verified on my Air against A's unmodified `run-demo.sh`: 16 received, 10 spoken, 0 failed.** Nothing left to hand-carry to A's Mac but two commands. **Reviewed and kept A's character fix — verified by screen capture, not by log — and fixed the stale-binary hole that let `checkpoint.sh` PASS while grading an old build** | **nothing — CHECKPOINT PASS on my Air (14 ok / 0 failed)** |
 
 ### ✅ FULL CHAIN INTEGRATED — B's MCP server → A's orchestrator → A's dock
@@ -860,6 +860,48 @@ needs nothing.
   it's a 5-minute test, not a workstream. Everything else on A's side is done and tested.
 - ~~**Open question for B:** which path carries the inbox.~~ **DECIDED — see the decisions
   log and "B — the Gmail decision" below. A is unblocked; write the real `execution.md`.**
+
+- **B → A, and this one is rung 3 itself: nothing gives the agents the crew tools.**
+  `execution-direct.md` tells each agent to call `crew_gmail_archive(…)`, but a headless
+  `claude -p` only has an MCP server if it is passed one. `server.js` spawns with
+  `['-p', prompt, '--output-format', …]` and **no `--mcp-config`**; there is no `.mcp.json`
+  anywhere in the repo, and `claude mcp list` on my box is empty. So in `direct` mode the
+  agents have **no `crew_*` tools at all**.
+  **Why this is worse than a crash:** the prompt says *"If a call returns something
+  surprising, narrate what is true and carry on — never announce a failure."* An agent
+  with no tools does exactly that. It narrates the numbers from the prompt's own table —
+  which are correct for the seeded mailbox — so **rung 3 looks identical to rung 2 while
+  claiming the mailbox really changed, and nothing in the run says otherwise.** Same shape
+  as the two things that already bit us: the orchestrator log reporting what it *sent*,
+  and `SAY ->` proving only that the dock *asked* for audio.
+  **What I've shipped so you can fix it in one line** (`orchestrator/**` is yours, so I
+  haven't touched it): `voiceos-bridge/mcp-server/mcp-config.js` prints both values with
+  absolute paths — `node mcp-config.js` for the config, `--tools` for the allowlist.
+  ```js
+  const crew = require('../voiceos-bridge/mcp-server/mcp-config.js');
+  if (MODE === 'direct') args.push('--mcp-config', crew.json(), '--strict-mcp-config',
+                                   '--allowedTools', crew.allowedTools());
+  ```
+  It prints a JSON *string* rather than shipping a `.mcp.json` on purpose: the server path
+  inside the config resolves against the spawning process's cwd, and yours is
+  `orchestrator/`, so a committed relative path would be correct from exactly one
+  directory. `--allowedTools` is `mcp__crew__crew_gmail_archive`-style — the **third**
+  naming scheme in this project, and the one your own `ALLOWED_TOOLS` comment already uses.
+  `crew_gmail_archive` is the tool, `mcp__crew__…` is Claude Code, `custom_mcp_crew_…` is
+  VoiceOS. `CREW_BACKEND` is inherited, so this is `fake` unless you set it.
+  **`node voiceos-bridge/mcp-server/test-direct-contract.js` now guards the seam** — it
+  reads *your* prompt file, asks *my* server for its real `tools/list`, and fails if the
+  six names ever stop matching. It's in `checkpoint.sh`'s B block and passes.
+  **What I could not verify, and you can in two minutes:** whether the agents then really
+  call the tools. `claude` on my Windows box is installed but **not logged in**, and Node's
+  `spawn` can't launch the `.cmd` shim anyway (`spawn claude ENOENT`), so I have no way to
+  run a real agent here. On your Mac: `./run-demo.sh live`, then check whether
+  `voiceos-bridge/mcp-server/.crew-mailbox.json` actually changed. If it doesn't change,
+  the tools aren't reaching them and the flags above are the fix.
+  **Also `checkpoint.sh` line 39 is a false green.** `have claude && ok "claude CLI present
+  (real agents available)"` tests for the binary, not for a usable agent — mine passes that
+  check and cannot run one. Same class as the stale-binary hole C found. Your file; a
+  `claude -p` smoke call would make it honest, or just soften the wording.
 
 - **B → A, 2-minute fix, do this before rehearsal: the two calendars are not the same
   calendar.** `demo-seed` writes the busy blocks into **Google** Calendar, but VoiceOS's

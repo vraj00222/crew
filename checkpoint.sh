@@ -77,6 +77,12 @@ node voiceos-bridge/mcp-server/test-stdio.js >/tmp/crew-chk-mcp.log 2>&1 \
 node voiceos-bridge/mcp-server/test-status-speech.js >/tmp/crew-chk-speech.log 2>&1 \
   && ok "status replies are sentences, not JSON" \
   || bad "status speech — see /tmp/crew-chk-speech.log"
+# The A<->B seam in `direct` mode: every tool execution-direct.md tells an agent
+# to call must really exist on B's server. A missing one narrates a number it
+# never measured, which looks like a perfect run.
+node voiceos-bridge/mcp-server/test-direct-contract.js >/tmp/crew-chk-direct.log 2>&1 \
+  && ok "direct-mode prompt and MCP tools agree" \
+  || bad "direct-mode tool contract — see /tmp/crew-chk-direct.log"
 kill $CHK_ORCH 2>/dev/null; wait $CHK_ORCH 2>/dev/null
 node voiceos-bridge/mcp-server/test-demo-flow.js >/tmp/crew-chk-flow.log 2>&1 \
   && ok "gmail/calendar tools — every spoken number true of the mailbox" \
