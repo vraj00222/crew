@@ -32,6 +32,9 @@ const TOOLS = [
   'crew_calendar_find_slot',
   'crew_calendar_book',
   'crew_calendar_list',
+  'crew_send_sms',
+  'crew_place_call',
+  'crew_ask_user',
 ];
 
 const config = () => ({

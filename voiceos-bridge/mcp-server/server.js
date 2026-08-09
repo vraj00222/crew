@@ -256,16 +256,157 @@ const WORK_TOOLS = [
     },
     annotations: { title: "Read the day's calendar", readOnlyHint: true, idempotentHint: true, openWorldHint: true },
   },
+  // --- a1mobile: a real text and a real phone call, not simulations ---
+  // The API only reaches numbers a human has OTP-verified (consent), so the
+  // blast radius is the demo phone and nothing else. The OTP flow itself is
+  // deliberately NOT a tool — it is a one-time human step, node a1mobile.js.
+  {
+    name: 'crew_send_sms',
+    description:
+      'Send a real SMS text message to the user\'s phone. Use only when the user ' +
+      'asked to be texted — "text me", "send me a message", "SMS me the summary". ' +
+      'Omit "to" to reach the user\'s own verified phone.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        body: { type: 'string', description: 'The text message, e.g. "Inbox cleared, two meetings booked."' },
+        to: { type: 'string', description: 'E.164 number, e.g. +14155551234. Omit for the user\'s phone.' },
+      },
+      required: ['body'],
+    },
+    annotations: {
+      title: 'Text the user\'s phone',
+      readOnlyHint: false,
+      destructiveHint: false, // sends a message; changes and deletes nothing
+      idempotentHint: false, // saying it twice sends two texts
+      openWorldHint: true,
+    },
+  },
+  {
+    name: 'crew_place_call',
+    description:
+      'Place a real phone call to the user: their phone rings, a voice speaks the ' +
+      'message aloud, then hangs up. Use only when the user asked to be called — ' +
+      '"call me", "ring me when it\'s done". Omit "to" to reach the user\'s own ' +
+      'verified phone.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        message: { type: 'string', description: 'What the call says out loud, one or two spoken sentences.' },
+        to: { type: 'string', description: 'E.164 number, e.g. +14155551234. Omit for the user\'s phone.' },
+      },
+      required: ['message'],
+    },
+    annotations: {
+      title: 'Call the user\'s phone',
+      readOnlyHint: false,
+      destructiveHint: false, // rings a phone; changes and deletes nothing
+      idempotentHint: false, // calling twice rings twice
+      openWorldHint: true,
+    },
+  },
+  {
+    name: 'crew_ask_user',
+    description:
+      'You are stuck and need the user\'s decision to continue: call their phone, ' +
+      'state the problem, and get their spoken answer back as text. The call asks ' +
+      'the question, beeps, and listens; this tool waits (up to ~2 minutes) and ' +
+      'returns what they said. Use it for a genuine blocker with a real choice in ' +
+      'it — never for status updates (that is crew_send_sms / crew_place_call) and ' +
+      'never twice in a row for the same question.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        question: {
+          type: 'string',
+          description:
+            'The blocker plus the question, as one or two spoken sentences. ' +
+            'e.g. "Two meetings both want two PM tomorrow. Which one wins, David or Priya?"',
+        },
+        to: { type: 'string', description: 'E.164 number, e.g. +14155551234. Omit for the user\'s phone.' },
+      },
+      required: ['question'],
+    },
+    annotations: {
+      title: 'Phone the user a question and wait for the answer',
+      readOnlyHint: false,
+      destructiveHint: false, // rings a phone; changes and deletes nothing
+      idempotentHint: false, // asking twice rings twice
+      openWorldHint: true,
+    },
+  },
 ];
 
-// tool name -> backend call. Kept as data so both backends stay interchangeable.
+// Lazy like the mailbox backend, and for the same reason: a machine with no
+// team key must still serve every other tool. Only sms/call can fail there.
+let _a1 = null;
+const a1 = () => (_a1 ??= require('./a1mobile.js'));
+
+// An outbound call runs the pointed webhook on ANSWER, so the message must be
+// queued on voice-webhook.js before the dial, not after. Queue failure is a
+// hard error: a call that answers and speaks the wrong message reads as broken
+// on stage in a way a clean "start the voice server" sentence never does.
+const VOICE_URL = `http://localhost:${process.env.CREW_VOICE_PORT || 4003}`;
+// How long crew_ask_user waits for the person to pick up, talk, and the
+// transcript to land. The orchestrator's per-agent timeout must be longer than
+// this or the agent gets killed mid-conversation (AGENT_TIMEOUT_MS, 180s).
+const ASK_WAIT_MS = Number(process.env.CREW_ASK_WAIT_MS || 120_000);
+
+async function queueOnVoiceServer(path, body) {
+  try {
+    const r = await fetch(`${VOICE_URL}${path}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(3000),
+    });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  } catch {
+    throw new Error(
+      `the call-script server is not answering on ${VOICE_URL} — start it with: node voice-webhook.js`
+    );
+  }
+}
+
+async function callWithMessage(args) {
+  const message = args?.message;
+  if (typeof message !== 'string' || !message.trim()) throw new Error('crew_place_call needs a non-empty "message"');
+  await queueOnVoiceServer('/say', { message });
+  return a1().placeCall({ to: args?.to });
+}
+
+// The stuck-agent loop: ring the user, ask, park until they have spoken and
+// whisper has written it down, hand the words back to the agent. "No answer"
+// comes back as a normal result, not an error — being stuck is the state the
+// agent was already in, and it should carry on with its best judgment, said
+// out loud, rather than crash the show.
+async function askUser(args) {
+  const question = args?.question;
+  if (typeof question !== 'string' || !question.trim()) throw new Error('crew_ask_user needs a non-empty "question"');
+  await queueOnVoiceServer('/ask', { question });
+  const placed = await a1().placeCall({ to: args?.to });
+  if (placed.dry) return placed;
+  const r = await fetch(`${VOICE_URL}/answer?timeout=${ASK_WAIT_MS}`, {
+    signal: AbortSignal.timeout(ASK_WAIT_MS + 10_000),
+  });
+  const { text } = await r.json();
+  return { ...placed, answered: !!text, text: text || null };
+}
+
+// tool name -> its call. Each entry loads its own dependency, so a broken
+// google token stops mailbox tools only and a missing team key stops phone
+// tools only — never each other.
 const WORK_DISPATCH = {
-  crew_gmail_list_inbox: (b, a) => b.listInbox(a),
-  crew_gmail_archive: (b, a) => b.archive(a),
-  crew_gmail_label: (b, a) => b.label(a),
-  crew_calendar_find_slot: (b, a) => b.findSlot(a),
-  crew_calendar_book: (b, a) => b.book(a),
-  crew_calendar_list: (b, a) => b.listEvents(a),
+  crew_gmail_list_inbox: (a) => backend().listInbox(a),
+  crew_gmail_archive: (a) => backend().archive(a),
+  crew_gmail_label: (a) => backend().label(a),
+  crew_calendar_find_slot: (a) => backend().findSlot(a),
+  crew_calendar_book: (a) => backend().book(a),
+  crew_calendar_list: (a) => backend().listEvents(a),
+  // Outward-facing on purpose, and real — see the tool descriptions above.
+  crew_send_sms: (a) => a1().sendSms({ to: a?.to, body: a?.body }),
+  crew_place_call: (a) => callWithMessage(a),
+  crew_ask_user: (a) => askUser(a),
 };
 
 const text = (s, isError = false, structuredContent) => ({
@@ -319,6 +460,16 @@ function workReply(name, result) {
       return result?.reason || 'That meeting could not be booked.';
     case 'crew_calendar_list':
       return `${thereAre(result?.events?.length ?? 0, 'event')} on ${result?.day || 'that day'}.`;
+    case 'crew_send_sms':
+      if (result?.dry) return 'Rehearsal mode — the text was written but not really sent.';
+      return 'The text is sent — it should be on the phone now.';
+    case 'crew_place_call':
+      if (result?.dry) return 'Rehearsal mode — the call was staged but the phone will not ring.';
+      return 'Calling now — the phone should start ringing in a moment.';
+    case 'crew_ask_user':
+      if (result?.dry) return 'Rehearsal mode — the question was staged but the phone will not ring.';
+      if (result?.answered) return `The user said: "${result.text}"`;
+      return 'The user did not answer, or said nothing. Decide with your best judgment and say which way you went.';
     default:
       return 'Done.';
   }
@@ -419,15 +570,17 @@ async function callTool(name, args) {
     audit(name, { args });
     log(`${name} <- ${JSON.stringify(args || {})}`);
     try {
-      const result = await work(backend(), args || {});
+      const result = await work(args || {});
       audit(`${name}_ok`, { result });
       return text(workReply(name, result), false, result);
     } catch (e) {
       // Backend failures are readable sentences, not stack traces — VoiceOS may
-      // read this out loud, and it should say which half broke.
+      // read this out loud, and it should say which half broke. Phone tools do
+      // not go through the mailbox backend, so blaming it would misdirect.
       audit(`${name}_error`, { error: String(e?.message || e) });
       log(`${name} failed: ${e?.message || e}`);
-      return text(`${name} failed (${BACKEND_NAME} backend): ${e?.message || e}`, true);
+      const where = /^crew_(send_|place_|ask_)/.test(name) ? 'a1mobile' : `${BACKEND_NAME} backend`;
+      return text(`${name} failed (${where}): ${e?.message || e}`, true);
     }
   }
 
