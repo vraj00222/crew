@@ -10,9 +10,19 @@ This file is the single source of truth for the day. Commit it to the repo root 
 
 ## Devices (this matters — see note below)
 
-- **A** — Claude Max, **Mac** — **confirmed demo machine**
-- **B** — **Windows**, OpenAI Plus + Claude Pro
-- **C** — Mac, Claude Pro — builds here, brings the build over to A's Mac for integration
+**New here? Read [`docs/onboarding.md`](docs/onboarding.md) first — 5 minutes, and it
+gets you from `git clone` to a running demo in about sixty seconds.** This file is the
+live state of the day; that one is the process, the file-ownership map (how we avoid
+conflicts), and the merge ritual.
+
+- **A — Vraj** — Claude Max, **Mac** — **confirmed demo machine**
+- **B — Sameer** — Windows
+- **C — Abhishek** — Mac
+- **D — Yaseen** — character art + visual identity *(new)*
+- **E — Rukiya** — rehearsal, resilience, backup rig *(new)*
+
+Subscriptions: A Claude Max; B OpenAI Plus + Claude Pro; C Claude Pro.
+D and E — put yours in your row so we know what you can run.
 
 **Why this matters:** the mic-loopback trick (BlackHole, `say`, switching the system audio input) is macOS-only tooling. B can't run that spike locally. But most of B's work — the MCP server, the demo-seed scripts, and testing the human→VoiceOS→orchestrator hop with VoiceOS-for-Windows and B's own voice — has zero Mac dependency. Only the inner loop (agent speaks → VoiceOS hears it) needs a Mac, and now that we know which one, no need to set it up twice.
 
@@ -97,6 +107,8 @@ Switch anytime with `/effort` or `/model`. If usage gets tight, add `--fallback-
 
 | Person | Workstream | Status | Blocked on |
 |---|---|---|---|
+| **D — Yaseen** | character art + visual identity | **not started — read `docs/onboarding.md`, then your task block below** | nothing. Your work is new files only; you cannot be blocked by us |
+| **E — Rukiya** | rehearsal, resilience, backup rig | **not started — read `docs/onboarding.md`, then your task block below** | nothing. Needs a Mac that is not A's |
 | A | orchestrator + dock + audio rig | **CHECKPOINT READY — everyone run `./checkpoint.sh`, see the Checkpoint section at the bottom.** Orchestrator done, 3 modes (`narrate`/`live`/`voice`) selected by a flag not a file edit. Audio split decided + measured. 10/10 lines spoken, 0 dropped. Three accents + written personalities. Characters no longer freeze. `docs/demo-script.md` written. Full chain with real agents: ~45s, PASS | VoiceOS Pro trial not active — still the only thing left on A's side |
 | B | voiceos-bridge (mcp-server + demo-seed + Gmail/Calendar tools) | **CHECKPOINT PASS on Windows (12 ok / 0 failed).** All 8 tools built and tested; `verify.ps1` now runs **5 suites, all green**. **`crew_task_status` closes the loop: no taskId needed, and it answers in a spoken sentence instead of a JSON dump** — see below. Tool `annotations` declared on all 8 tools, honestly. Gmail decision made; A unblocked. VoiceOS installed on Windows and inspected — see the tool-naming finding. **A: one bug for you in `CANNED`, below — off the rehearsed path, not a blocker.** | VoiceOS Pro trial (same paywall as A, now confirmed on a 2nd machine) + a demo Google account & OAuth creds |
 | C | crew-dock (took option 2) | **the dock talks, and the handover is proven.** `Narrator.swift` speaks every `/agent-status` line via `say`, per-character voices, never two at once. Re-verified this morning from a **throwaway clone of current `main`** — clone → speaking app in 13s. **A's audio split + new voices then re-verified on my Air against A's unmodified `run-demo.sh`: 16 received, 10 spoken, 0 failed.** Nothing left to hand-carry to A's Mac but two commands. **Reviewed and kept A's character fix — verified by screen capture, not by log — and fixed the stale-binary hole that let `checkpoint.sh` PASS while grading an old build** | **nothing — CHECKPOINT PASS on my Air (14 ok / 0 failed)** |
@@ -1026,6 +1038,94 @@ idempotent. So if VoiceOS does derive `requiresConfirmation` from annotations, f
 go through without a click and we claimed nothing false to get there. **Whether it reads
 them is still the 5-minute check the moment either of us has Pro** — register, `tools/list`,
 see whether the read-only ones stop asking. Table's in `mcp-server/README.md`.
+
+---
+
+# D — Yaseen: the crew only has two costumes
+
+**Start:** `git clone` → `./run-demo.sh fake`. You will see three characters. Two of them
+are the *same clip* — recap is triage mirrored, because upstream lil-agents ships exactly
+two `.mov` files and we have five roles. That is your problem to solve.
+
+**Why it matters:** A just made the crew a table that grows by one row —
+`researcher` and `analyst` already exist and already talk. They have no face at all right
+now: an unknown character is *spoken* by the fallback voice while nothing appears on
+screen. The system outgrew its art.
+
+**Your deliverable — new files only, so you cannot collide with anyone:**
+
+1. **`crew-dock/Assets/`** — art for at least `researcher` and `analyst`, ideally a
+   distinct one per role. Transparent-background HEVC `.mov`, portrait, looping walk
+   cycle, matching the two that are there (1080×1920). Upstream is MIT — matching its
+   style is fine, and so is commissioning/generating something better. **Do not commit
+   anything you don't have the rights to.**
+2. **`crew-dock/characters.json`** — the manifest, so adding a character never means
+   editing Swift again:
+
+```json
+{
+  "triage":     { "clip": "walk-bruce-01", "tint": null,   "scale": 1.0, "mirrored": false },
+  "researcher": { "clip": "walk-reader-01","tint": "#7FB5FF","scale": 0.95,"mirrored": false },
+  "analyst":    { "clip": "walk-jazz-01",  "tint": "#FFC46B","scale": 1.0, "mirrored": true }
+}
+```
+
+3. **A per-activity motion note** (a paragraph in this file, not code): what should
+   `research` look like versus `booking` versus `analysis`? A activity on every status
+   POST already — `sorting`/`booking`/`research`/`analysis`/`summary` — so the dock can
+   drive motion from it without knowing any character's name.
+
+**Constraints that are not negotiable:** no Xcode (the demo Mac has Command Line Tools
+only), no new dependencies, assets stay under ~20MB total, and `crew-dock/build.sh` must
+still work from a clean clone. Art is fetched at build time today, not committed — talk to
+C before changing that.
+
+**Test it yourself, no one else needed:**
+```bash
+./crew-dock/build.sh && ./crew-dock/Crew.app/Contents/MacOS/Crew &
+curl -X POST localhost:4002/agent-status -H 'content-type: application/json' \
+  -d '{"character":"researcher","message":"Reading the thread.","state":"working","activity":"research"}'
+```
+
+**C (Abhishek) owns `crew-dock/Sources/**` and wires the manifest up.** Agree the JSON
+shape with them before you fill it in — that five-minute conversation is cheaper than
+either of you guessing. Ship the art first; it is the part nobody else can do.
+
+---
+
+# E — Rukiya: everything runs on exactly one laptop
+
+**Start:** `git clone` → `./run-demo.sh fake` → `./checkpoint.sh`. Paste your checkpoint
+output into the chat — you are the fourth machine this has ever run on, and each new one
+has found something.
+
+**Why it matters:** the demo runs on A's Mac. If it dies, is left at home, or its
+audio config drifts, we have no demo and no plan. Nobody owns that risk, and everyone
+else is deep in their own component. It is the largest unowned risk in the project.
+
+**Three deliverables, in this order:**
+
+1. **A second machine that can run the whole show.** Clean clone → `./run-demo.sh fake`
+   → `./checkpoint.sh` on a Mac that is not A's. Write down every step that was not in
+   `docs/onboarding.md` — missing tool, permission prompt, anything. If it works
+   first try, say so; that is a real result and we currently only assume it.
+2. **Run the break-glass table in `docs/demo-script.md` and check it is true.** Every row
+   is a claim nobody has actually tested: kill the dock mid-run, kill the orchestrator,
+   pull the network, let an agent hang past 180s. Does what is written actually happen?
+   Where it doesn't, fix the doc — it is the thing someone will read while panicking.
+3. **`docs/runbook.md` — the one page for stage.** Pre-flight checklist, the trigger
+   phrase, what to say over each beat, break-glass, teardown. `demo-script.md` is the
+   detail; this is the version you can hold while standing up. **Plus a screen recording
+   of a clean `./run-demo.sh fake` run** — if the room's wifi or Claude is having a bad
+   evening, a recorded good run is still a demo.
+
+**You own `docs/**`, so nothing you write conflicts with anyone's code.**
+
+Two things you'll want early: `spike.sh off` after any audio work or the Mac has no
+microphone, and `/tmp/crew-dock.log` is what the audience actually got — the orchestrator
+log only proves what was *sent*.
+
+---
 
 ### Then: one task each, in priority order
 
