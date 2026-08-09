@@ -93,7 +93,71 @@ fi
 # stdout is the MCP channel, so the selftest reports on stderr.
 node "$SERVER" --selftest 2>&1 | grep -E "protocol|PASS|FAIL" | sed 's/^/  /'
 
-bold "Register it (there is no CLI — this part is by hand)"
+bold "Node that VoiceOS can actually launch"
+# VoiceOS is a GUI app: launched from Finder it never sources a shell profile,
+# so its PATH is the bare /usr/bin:/bin. `command: node` therefore works only if
+# node lives somewhere that PATH covers. With nvm — the common case — it does
+# not, and the failure is `MCP error -32000: Connection closed`, which reads
+# like a broken server rather than a missing interpreter.
+NODE_BIN=""
+for c in /usr/local/bin/node /opt/homebrew/bin/node /usr/bin/node; do
+  [ -x "$c" ] && { NODE_BIN="$c"; break; }
+done
+if [ -n "$NODE_BIN" ]; then
+  ok "$NODE_BIN (on the default PATH, so plain \`node\` would work too)"
+else
+  NODE_BIN="$(command -v node 2>/dev/null || true)"
+  if [ -n "$NODE_BIN" ]; then
+    warn "node is only at $NODE_BIN — not on a GUI app's PATH."
+    warn "Registering that absolute path. If you switch node versions, re-run this."
+  else
+    bad "no node at all — the bridge cannot run"
+  fi
+fi
+
+if [ "${1:-}" = "--apply" ]; then
+  bold "Registering (writing config.json)"
+  if [ -z "$NODE_BIN" ] || [ ! -f "$SERVER" ] || [ ! -f "$CONFIG" ]; then
+    bad "need node, server.js and an existing config.json — nothing written"
+    exit 1
+  fi
+  # electron-store rewrites the whole file on its own schedule, so an edit made
+  # underneath a running app is simply lost. Quit first, always.
+  if pgrep -x VoiceOS >/dev/null; then
+    warn "VoiceOS is running — quitting it so the edit sticks"
+    osascript -e 'tell application "VoiceOS" to quit' >/dev/null 2>&1
+    for _ in $(seq 1 20); do pgrep -x VoiceOS >/dev/null || break; sleep 0.5; done
+    pgrep -x VoiceOS >/dev/null && { bad "VoiceOS would not quit — refusing to edit underneath it"; exit 1; }
+  fi
+  BACKUP="$CONFIG.bak-$(date +%Y%m%d-%H%M%S)"
+  cp -p "$CONFIG" "$BACKUP" && chmod 600 "$BACKUP"
+  ok "backup: $(basename "$BACKUP")"
+  # Entry shape is B's, established on Windows in register.ps1 — same app, same
+  # store, so the same schema. Written with python rather than jq: no extra
+  # dependency, and it round-trips every key we are not touching.
+  python3 - "$CONFIG" "$NODE_BIN" "$SERVER" <<'PY'
+import json, sys, uuid
+cfg_path, node_bin, server = sys.argv[1], sys.argv[2], sys.argv[3]
+cfg = json.load(open(cfg_path))
+servers = cfg.get("customMcpServers")
+servers = servers if isinstance(servers, list) else []
+entry = next((s for s in servers if isinstance(s, dict) and s.get("name") == "crew"), None)
+action = "updated" if entry else "added"
+if entry is None:
+    entry = {"id": str(uuid.uuid4()), "name": "crew"}
+    servers.append(entry)
+entry.update({"transport": "stdio", "command": node_bin,
+              "args": [server], "enabled": True})
+cfg["customMcpServers"] = servers
+json.dump(cfg, open(cfg_path, "w"), indent=2)
+print(f"  \033[32mok\033[0m    crew {action}: {node_bin} {server}")
+PY
+  ok "relaunch VoiceOS, then check Settings shows crew with run_crew_task + crew_task_status"
+  echo "  (restore with: cp \"$BACKUP\" \"$CONFIG\")"
+  exit 0
+fi
+
+bold "Register it  —  ./register.sh --apply  does this for you"
 cat <<EOF
   VoiceOS window -> Settings -> MCP / custom servers -> Add, then:
 
