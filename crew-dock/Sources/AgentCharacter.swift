@@ -198,8 +198,21 @@ final class AgentCharacter {
     /// the first second, so in practice this happens before the show starts,
     /// and if a later member does join the others making room reads as crew.
     func place(x: CGFloat) {
-        guard abs(restingOrigin.x - x) > 0.5 else { return }
+        let dx = x - restingOrigin.x
+        guard abs(dx) > 0.5 else { return }
         restingOrigin.x = x
+
+        // A walk in flight owns the window origin — `walkTick` rewrites it four
+        // times a second from its own from/to pair, so it simply overwrites the
+        // animation below. Carrying the walk over by the same delta moves the
+        // character now, still mid-stride, instead of letting it finish the old
+        // walk and only drift into its new lane on the next one. That drift was
+        // visible: five characters spent a few seconds bunched in overlapping
+        // pairs before spreading out, and every member wakes in the first
+        // second, so those seconds are the entrance the audience watches.
+        walkFromX += dx
+        walkToX += dx
+
         guard window.alphaValue > 0 else { return }   // not on stage yet
         let target = NSRect(origin: NSPoint(x: x, y: restingOrigin.y), size: window.frame.size)
         NSAnimationContext.runAnimationGroup({ ctx in
