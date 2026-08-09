@@ -202,15 +202,23 @@
 
   "_calendar_readme": [
     "Existing commitments, so the scheduler has to actually find a gap rather than",
-    "dropping events into an empty week. Two gaps are deliberate:",
-    "  - tomorrow 14:00-15:00 is FREE  -> David Chen's Q3 sync ('Booking two PM with David Chen')",
-    "  - day-after 10:00-10:30 is FREE -> Priya's 30-minute contract review",
-    "Fill either one and the demo's best line stops being true."
+    "dropping events into an empty week. The gaps are load-bearing:",
+    "",
+    "  - tomorrow 13:00-14:00 is BUSY (vendor call). This block exists for one reason:",
+    "    David Chen's email says 'anytime after 1pm', so without it the first free",
+    "    afternoon slot is 1pm and the scheduler correctly books 1pm — while the",
+    "    character says 'Booking two PM with David Chen'. Caught by test-demo-flow.js.",
+    "  - tomorrow 14:00-15:00 is FREE  -> David Chen's Q3 sync. THE demo line.",
+    "  - day-after 09:30-10:00 is FREE -> Priya's 30 minutes (09:00 is standup, so",
+    "    09:30 is the first gap; she asked for mornings).",
+    "",
+    "Fill any of these and the demo's best line stops being true."
   ],
 
   "calendar": [
     { "id": "cal-standup-1", "summary": "Eng standup",            "days_ahead": 1, "start": "09:00", "end": "09:15" },
     { "id": "cal-design",    "summary": "Design review — onboarding", "days_ahead": 1, "start": "11:00", "end": "12:00" },
+    { "id": "cal-vendor",    "summary": "Vendor call — Acme",     "days_ahead": 1, "start": "13:00", "end": "14:00" },
     { "id": "cal-1on1",      "summary": "1:1 with Marcus",        "days_ahead": 1, "start": "15:30", "end": "16:00" },
     { "id": "cal-standup-2", "summary": "Eng standup",            "days_ahead": 2, "start": "09:00", "end": "09:15" },
     { "id": "cal-allhands",  "summary": "All hands",              "days_ahead": 2, "start": "13:00", "end": "14:00" },

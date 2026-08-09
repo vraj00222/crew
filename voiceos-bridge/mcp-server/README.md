@@ -8,6 +8,8 @@ Requires Node 18+ (uses global `fetch`). Verified on Node 24, Windows 11.
 
 ## Tools exposed
 
+**Trigger** — how a spoken phrase starts the swarm:
+
 | tool | args | does |
 |---|---|---|
 | `run_crew_task` | `instructions: string` | `POST :4001/start-task` → wakes the swarm |
@@ -16,6 +18,39 @@ Requires Node 18+ (uses global `fetch`). Verified on Node 24, Windows 11.
 `run_crew_task` passes the transcript through **verbatim** — no normalising. A's router is
 keyword-based (`inbox|email|mail` → triage, `schedul|calendar|meeting|book` → scheduler) and
 falls back to spawning both, so a garbled transcript still puts characters on stage.
+
+**Work** — how the agents actually change the mailbox (names frozen in `coordination.md`):
+
+| tool | args | does |
+|---|---|---|
+| `crew_gmail_list_inbox` | `query?`, `limit?` | what's in the inbox |
+| `crew_gmail_archive` | `query?` \| `ids?` | drops the INBOX label — nothing is deleted |
+| `crew_gmail_label` | `label`, `query?` \| `ids?` | applies a label, creating it if new |
+| `crew_calendar_find_slot` | `durationMin?`, `dayOffset?`, `afterISO?` | first free gap |
+| `crew_calendar_book` | `summary`, `startISO`, `durationMin?`, `attendee?` | books it |
+| `crew_calendar_list` | `dayOffset?` | a day's events |
+
+Queries are **plain English** (`"newsletters"`, `"meeting requests"`), not Gmail search
+syntax — the agents speak, they don't compose queries. A real Gmail query still passes
+through if one shows up.
+
+`crew_calendar_book` never sets `attendees`, so **Google never emails a real person**. The
+requester goes in the description instead.
+
+## Two backends, one interface
+
+```
+CREW_BACKEND=fake     # default — in-memory, seeded from demo-seed/fixtures.json
+CREW_BACKEND=google   # the real demo account, via demo-seed's token.json
+```
+
+`fake` needs no account, no credentials and no network, so the inbox half of the demo works
+on any machine — it's a genuine panic button, not just a test fixture. State persists to
+`.crew-mailbox.json` because VoiceOS respawns the server between calls; in memory alone,
+an archive would silently undo itself between two agent steps.
+
+`google` talks raw REST over `fetch` — still no `npm install` — and reuses the exact
+`token.json` that `demo-seed/seed.py` writes, so authorising once covers both.
 
 ## Register with VoiceOS
 
@@ -40,7 +75,16 @@ On A's Mac the path is wherever the repo is cloned; the server itself is platfor
 ```bash
 node server.js --selftest   # protocol only, no transport, no orchestrator needed
 node test-stdio.js          # real subprocess + pipes (this is the honest one)
+node test-demo-flow.js      # the whole demo, asserted against the mailbox
+CREW_BACKEND=google node test-demo-flow.js   # same, against the real account
 ```
+
+`test-demo-flow.js` is the one that matters most. It runs the actual demo through the tools
+and asserts that **the numbers the characters say out loud are true of the mailbox**: six
+newsletters archived, 2pm booked and genuinely free beforehand, exactly two emails left. It
+has already caught two bugs that would have shown on stage — a newsletter matcher that also
+caught Calendly's "your *weekly* availability" (7, not 6), and a 1pm gap that made the
+scheduler book 1pm while the character said two.
 
 `--selftest` calls the handler in-process, so it **cannot** catch line-buffering or
 stdout-pollution bugs. `test-stdio.js` spawns the server for real and deliberately sends

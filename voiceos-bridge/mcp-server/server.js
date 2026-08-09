@@ -19,6 +19,12 @@
 const { appendFileSync } = require('node:fs');
 const { join } = require('node:path');
 
+// Which mailbox the crew_gmail_*/crew_calendar_* tools act on.
+//   fake   — in-memory, seeded from demo-seed/fixtures.json. No account needed.
+//   google — the real demo account, via demo-seed's token.json.
+// Defaults to fake: an unconfigured machine gets a working demo, not a stack trace.
+const BACKEND_NAME = process.env.CREW_BACKEND === 'google' ? 'google' : 'fake';
+
 const ORCH_URL = (process.env.ORCH_URL || 'http://localhost:4001').replace(/\/+$/, '');
 const LOG_PATH = process.env.CREW_LOG || join(__dirname, 'crew-bridge.log');
 const TIMEOUT_MS = Number(process.env.TIMEOUT_MS || 8000);
@@ -84,6 +90,108 @@ const TOOLS = [
     },
   },
 ];
+
+// --- the work tools: names frozen in COORDINATION.md, A writes prompts against them ---
+// Loaded lazily so a missing/broken google token can't stop the server from starting —
+// run_crew_task must keep working even if the mailbox half is misconfigured.
+let _backend = null;
+function backend() {
+  if (!_backend) {
+    _backend = require(BACKEND_NAME === 'google' ? './backend-google.js' : './backend-fake.js');
+    log(`mailbox backend: ${_backend.name}`);
+  }
+  return _backend;
+}
+
+const WORK_TOOLS = [
+  {
+    name: 'crew_gmail_list_inbox',
+    description:
+      'List what is currently in the inbox. Optional plain-English query such as ' +
+      '"newsletters", "meeting requests", or a sender name — no Gmail search syntax needed.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'e.g. "newsletters". Omit for everything.' },
+        limit: { type: 'number', description: 'Max messages to return. Default 25.' },
+      },
+    },
+  },
+  {
+    name: 'crew_gmail_archive',
+    description:
+      'Archive messages out of the inbox. Give a plain-English query like "newsletters", ' +
+      'or explicit message ids. Archiving only removes the INBOX label — nothing is deleted.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'e.g. "newsletters"' },
+        ids: { type: 'array', items: { type: 'string' }, description: 'Explicit ids, instead of a query.' },
+      },
+    },
+  },
+  {
+    name: 'crew_gmail_label',
+    description: 'Apply a label to messages matching a query or id list. Creates the label if new.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        label: { type: 'string', description: 'Label to apply, e.g. "Needs reply".' },
+        query: { type: 'string' },
+        ids: { type: 'array', items: { type: 'string' } },
+      },
+      required: ['label'],
+    },
+  },
+  {
+    name: 'crew_calendar_find_slot',
+    description:
+      'Find the first free slot of a given length on a given day. Returns ISO start/end. ' +
+      'Use this before booking — never guess whether a time is free.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        durationMin: { type: 'number', description: 'Length in minutes. Default 60.' },
+        dayOffset: { type: 'number', description: '0 = today, 1 = tomorrow (default).' },
+        afterISO: { type: 'string', description: 'Only consider slots at or after this ISO time.' },
+      },
+    },
+  },
+  {
+    name: 'crew_calendar_book',
+    description:
+      'Book an event. Use a start time returned by crew_calendar_find_slot. ' +
+      'No invitation email is sent to anyone.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        summary: { type: 'string', description: 'Event title, e.g. "Q3 rollout sync".' },
+        startISO: { type: 'string', description: 'ISO start time.' },
+        durationMin: { type: 'number', description: 'Default 60.' },
+        attendee: { type: 'string', description: 'Who it is with, e.g. "David Chen".' },
+      },
+      required: ['summary', 'startISO'],
+    },
+  },
+  {
+    name: 'crew_calendar_list',
+    description: "List a day's events. dayOffset 0 = today, 1 = tomorrow (default).",
+    inputSchema: {
+      type: 'object',
+      properties: { dayOffset: { type: 'number' } },
+    },
+  },
+];
+
+// tool name -> backend call. Kept as data so both backends stay interchangeable.
+const WORK_DISPATCH = {
+  crew_gmail_list_inbox: (b, a) => b.listInbox(a),
+  crew_gmail_archive: (b, a) => b.archive(a),
+  crew_gmail_label: (b, a) => b.label(a),
+  crew_calendar_find_slot: (b, a) => b.findSlot(a),
+  crew_calendar_book: (b, a) => b.book(a),
+  crew_calendar_list: (b, a) => b.listEvents(a),
+};
 
 const text = (s, isError = false) => ({ content: [{ type: 'text', text: s }], isError });
 
@@ -170,6 +278,23 @@ async function callTool(name, args) {
     }
   }
 
+  const work = WORK_DISPATCH[name];
+  if (work) {
+    audit(name, { args });
+    log(`${name} <- ${JSON.stringify(args || {})}`);
+    try {
+      const result = await work(backend(), args || {});
+      audit(`${name}_ok`, { result });
+      return text(JSON.stringify(result, null, 2));
+    } catch (e) {
+      // Backend failures are readable sentences, not stack traces — VoiceOS may
+      // read this out loud, and it should say which half broke.
+      audit(`${name}_error`, { error: String(e?.message || e) });
+      log(`${name} failed: ${e?.message || e}`);
+      return text(`${name} failed (${BACKEND_NAME} backend): ${e?.message || e}`, true);
+    }
+  }
+
   return text(`Unknown tool: ${name}`, true);
 }
 
@@ -205,7 +330,7 @@ async function handle(msg) {
       return ok(id, {});
 
     case 'tools/list':
-      return ok(id, { tools: TOOLS });
+      return ok(id, { tools: [...TOOLS, ...WORK_TOOLS] });
 
     case 'tools/call': {
       const { name, arguments: args } = params || {};

@@ -17,3 +17,6 @@ crew-dock/Crew.app/
 # demo-seed credentials — OAuth client secret + cached user token. NEVER commit.
 voiceos-bridge/demo-seed/credentials.json
 voiceos-bridge/demo-seed/token.json
+
+# fake-backend mailbox state, regenerated from fixtures.json
+voiceos-bridge/mcp-server/.crew-mailbox.json
