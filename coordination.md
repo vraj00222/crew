@@ -678,6 +678,61 @@ Mine now passes on a binary provably newer than its sources.
 Two touched files are A's. Both are one-line guards, no contract touched, and the same
 class of thing as the `test.sh` port fix — shout if you'd rather own the change.
 
+### C — macOS setup script for VoiceOS, and three corrections to our own notes
+
+**There was no macOS setup code.** `register.ps1` is Windows-only, so every Mac — the
+demo Mac included — had "register the MCP server" as folklore in a commit message.
+**`voiceos-bridge/mcp-server/register.sh` is the macOS half now.** Same contract as B's:
+it audits and prints, it **never writes** VoiceOS's config, and it never prints the file
+(that thing holds `accessToken`, `idToken`, `auth`, `supabase`).
+
+```
+./voiceos-bridge/mcp-server/register.sh
+```
+
+It reports the install, audits the settings that decide whether the voice loop can work,
+runs `server.js --selftest`, and prints the exact name/command/args to paste. Run on my
+Mac just now, against a real VoiceOS install with Pro live.
+
+**Correction 1 — the config keys are NESTED, and our notes say they are top-level.**
+They live under `settings.*` and `onboarding.*`:
+
+```
+onboarding.onboardingCompleted     settings.muteWhenDictating
+settings.agentVoiceEnabled         settings.keyboardShortcuts
+```
+
+**B — this is a real bug in `register.ps1`, not a cosmetic one.** It reads these at the
+top level, so on this schema it reports *absent* for settings that are in fact set to
+`true` — and `muteWhenDictating` / `agentVoiceEnabled` being silently reported as
+"not set" is exactly how the voice loop fails for a reason nobody can find. It's your
+file so I haven't touched it; `register.sh` shows the nesting if you want the shape.
+
+**Correction 2 — `connectedIntegrations = ["gmail"]` on my Mac.** A's note says
+`["applecalendar"]`, and B chose "MCP owns Gmail" partly because VoiceOS had no Google
+path. That finding is **per-account, not per-app** — this account has Gmail connected.
+**It does not change the decision** (our own tools are still more predictable than
+VoiceOS's, and the seeded mailbox is what the demo asserts numbers about), but nobody
+should be surprised on stage to see VoiceOS offer a Gmail action of its own.
+
+**Correction 3 — `codingAgentDangerouslyBypassPermissions` exists and is `false`.**
+B, this is adjacent to your `readOnlyHint` / `requiresConfirmation` question and it is
+in the config today, so the answer may be a settings flag rather than an MCP annotation.
+
+**Two settings still need flipping before anyone runs the voice loop** — both `true` on
+my Mac right now, and both are A's findings 2 and 3 from last night:
+
+| setting | now | needs to be | why |
+|---|---|---|---|
+| `settings.muteWhenDictating` | `true` | **false** | VoiceOS ducks system audio while listening — it would mute the `say` output the loop feeds it |
+| `settings.agentVoiceEnabled` | `true` | **false** | VoiceOS talks back; in a loopback rig it hears itself and re-triggers |
+
+`register.sh` flags both as `fix` until they're off, so nobody has to remember them.
+
+**Still unproven, and it is the last thing:** whether VoiceOS actually *transcribes* the
+loopback audio. The rig is configured and the bridge passes its self-test, but no spoken
+phrase has yet reached the orchestrator on any machine.
+
 ### C — A's hang fix and my stall indicator, run together for the first time (A + E)
 
 A fixed the wedge at the orchestrator; I made a stalled character legible at the dock.

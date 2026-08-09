@@ -108,15 +108,41 @@ correct from exactly one directory.
 
 ## Register with VoiceOS
 
+**Run the script for your platform — it audits the settings that decide whether the
+voice loop can work, self-tests the server, and prints the exact values to paste.**
+
 ```
-voiceos add mcp
+./register.sh          # macOS   (C)
+.\register.ps1         # Windows (B)
 ```
 
-- **command:** `node`
-- **args:** `["C:\\Users\\nagar\\Downloads\\CrewOS\\voiceos-bridge\\mcp-server\\server.js"]`
+Both **only read** VoiceOS's config. Neither writes it, and neither prints it — it holds
+live auth tokens (`accessToken`, `idToken`, `auth`, `supabase`). Never paste that file
+into chat, the repo, or the group thread.
 
-Use an **absolute path** — VoiceOS's working directory is not this folder.
-On A's Mac the path is wherever the repo is cloned; the server itself is platform-agnostic.
+**There is no `voiceos add mcp` CLI on either platform.** B checked on Windows and C
+checked on macOS; registration is in-app on both:
+
+```
+VoiceOS window -> Settings -> MCP / custom servers -> Add
+
+  name    : crew
+  command : node
+  args    : <absolute path to>/voiceos-bridge/mcp-server/server.js
+```
+
+Use an **absolute path** — VoiceOS's working directory is not this folder, and a relative
+one fails silently. The server itself is platform-agnostic.
+
+**Don't hand-edit `config.json` to add the entry.** It's an electron-store: the app
+rewrites the whole file on its own schedule and the entry disappears. Quit VoiceOS first
+if you edit it at all.
+
+The settings live **nested**, not at the top level — `settings.muteWhenDictating`,
+`settings.agentVoiceEnabled`, `settings.keyboardShortcuts`, `onboarding.onboardingCompleted`.
+Both of the first two must be **off** before the loop can work: VoiceOS ducks system audio
+while listening (so it mutes the audio we feed it), and it talks back (so in a loopback rig
+it hears itself and re-triggers).
 
 ## Test it
 
