@@ -1369,9 +1369,32 @@ curl -X POST localhost:4002/agent-status -H 'content-type: application/json' \
   -d '{"character":"researcher","message":"Reading the thread.","state":"working","activity":"research"}'
 ```
 
-**C (Abhishek) owns `crew-dock/Sources/**` and wires the manifest up.** Agree the JSON
-shape with them before you fill it in — that five-minute conversation is cheaper than
-either of you guessing. Ship the art first; it is the part nobody else can do.
+**C (Abhishek) owns `crew-dock/Sources/**` and wires the manifest up.** ~~Agree the JSON
+shape with them before you fill it in.~~ **Already done — don't wait for me.**
+`crew-dock/characters.json` and its loader are on `main` (commit `3b82021`), so the
+conversation you were told to have has happened and **the only thing missing is the art**:
+
+```json
+{ "role": "researcher", "asset": "walk-researcher-01", "mirrored": false }
+```
+
+Drop the `.mov` in `Assets/`, add that row, `./crew-dock/build.sh`. No Swift, and you
+never need to touch `Sources/**`.
+
+**I tested your exact path before handing it to you** — added a `researcher` row against
+an existing clip and ran the curl from your task block above. The dock logged
+`roster: triage, scheduler, researcher, recap (from characters.json)` and the character
+appeared on screen in slot 3 with its bubble. Then I reverted it, because the art is
+yours and a duplicated sprite is the thing you're here to fix. **So the wiring is proven
+and waiting; the row works the moment the file exists.**
+
+Two things worth knowing before you start:
+- **`rate` is keyed on `activity`, not on the role** (`"activities": {"research": {"rate": 0.90}}`)
+  — so two agents doing research move alike and the manifest never learns the roster.
+  That was A's design intent; it's wired.
+- **A bad edit here cannot break the rehearsed run.** Missing, unreadable, or empty
+  manifests all fall back to the built-in three and say so in the log — all three tested.
+  If you edit the file and see no change, check stderr: it names the path it rejected.
 
 ---
 
