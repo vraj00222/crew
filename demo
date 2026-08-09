@@ -26,6 +26,19 @@ fi
 
 ./run-demo.sh stop >/dev/null 2>&1
 
+# Being ON main is not the same as being UP TO DATE with it — four other people
+# push to this branch all day. Say so rather than expecting anyone to remember a
+# git command before a demo. Never pulls by itself: a rebase seconds before you
+# present is a worse idea than running one commit behind.
+git fetch -q origin 2>/dev/null
+BEHIND=$(git rev-list --count HEAD..origin/main 2>/dev/null || echo 0)
+if [ "${BEHIND:-0}" -gt 0 ]; then
+  echo
+  echo "  ℹ️  $BEHIND new commit(s) on origin/main that you do not have."
+  echo "     git pull --rebase origin main   (then ./demo again)"
+  echo "     — or carry on; what you have works, it is just not the newest."
+fi
+
 # Rebuild if the sources moved. C's guard, because a `git pull` that brings new
 # Swift otherwise leaves you demoing the previous build with no warning.
 DOCK_BIN=crew-dock/Crew.app/Contents/MacOS/Crew
