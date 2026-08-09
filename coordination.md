@@ -134,7 +134,7 @@ Switch anytime with `/effort` or `/model`. If usage gets tight, add `--fallback-
 | **D — Yaseen** | character art + visual identity | **machine set up, CHECKPOINT PASS on `6255b5d` (12 ok / 0 failed / 6 N/A) — fifth machine.** Art itself not started yet. Clean setup needed `node` (not installed); getting there found **a hang in `checkpoint.sh` on any machine without node — see Blockers, it's A's file.** Next: build the dock, watch a `fake` run, then the `researcher` + `analyst` `.mov`s | nothing. Your work is new files only; you cannot be blocked by us |
 | **E — Rukaiya** | rehearsal, resilience, backup rig | **backup rig PROVEN — clean clone → full show → CHECKPOINT PASS (17 ok / 0 failed) on a second MacBook Air.** Clone to spoken demo in 72s, 16 lines received, 10 spoken, 0 dropped. C's speaker fallback fired for real here (no `MacBook Pro Speakers` on an Air) and saved the run — see my section at the bottom. Onboarding fixed where my run disproved it. **Break-glass table now TESTED, row by row — one row was half-true: a hung agent can wedge the whole run after saying "ran out of time" (A: repro + fix in my section and Blockers).** **All three deliverables done: `docs/runbook.md` written (one page, folds in the voice-only rule + Dictation hedge + tested break-glass), and a clean 10/10 run recorded with audio — 75s, 11MB, on my Desktop, posting to the chat.** **Rung 2 now also proven here — first real-agent run on a Mac that isn't A's: 10/10 spoken, beat-sheet numbers exact (18 in, 14 archived, 2 booked, 2 left). The backup rig covers rungs 1 and 2.** | nothing |
 | A | orchestrator + dock + audio rig | **CHECKPOINT READY — everyone run `./checkpoint.sh`, see the Checkpoint section at the bottom.** Orchestrator done, 3 modes (`narrate`/`live`/`voice`) selected by a flag not a file edit. Audio split decided + measured. 10/10 lines spoken, 0 dropped. Three accents + written personalities. Characters no longer freeze. `docs/demo-script.md` written. Full chain with real agents: ~45s, PASS | VoiceOS Pro trial not active — still the only thing left on A's side |
-| B | voiceos-bridge (mcp-server + demo-seed + Gmail/Calendar tools) | **VoiceOS Pro is LIVE on Windows and Gmail is connected — but `customMcpServers` is empty, so VoiceOS still cannot reach the crew. That GUI step is the last thing between us and the voice loop; see my section below.** `run-demo.ps1` now runs the whole pipeline on Windows (16 lines to the dock, A's exact number), so the one non-Mac can finally rehearse. `verify.ps1` 6 suites all green. Checkpoint 13 ok / 1 failed — and the 1 is A's new check working correctly: `claude` on this box is logged out, which the old `have claude` test called a PASS. All 8 tools built and tested. **`crew_task_status` closes the loop: no taskId needed, and it answers in a spoken sentence instead of a JSON dump** — see below. Tool `annotations` declared on all 8 tools, honestly. Gmail decision made; A unblocked. VoiceOS installed on Windows and inspected — see the tool-naming finding. **A: two things for you in Blockers — `direct` mode has no MCP wiring, so rung 3 narrates without touching anything, and `checkpoint.sh`'s claude check is a false green. Plus one bug in `CANNED`, off the rehearsed path.** | VoiceOS Pro trial (same paywall as A, now confirmed on a 2nd machine) + a demo Google account & OAuth creds |
+| B | voiceos-bridge (mcp-server + demo-seed + Gmail/Calendar tools) | **VoiceOS Pro is LIVE on Windows and Gmail is connected — but `customMcpServers` is empty, so VoiceOS still cannot reach the crew. That GUI step is the last thing between us and the voice loop; see my section below.** `run-demo.ps1` now runs the whole pipeline on Windows (16 lines to the dock, A's exact number), so the one non-Mac can finally rehearse. `verify.ps1` 6 suites all green. Checkpoint 13 ok / 1 failed — and the 1 is A's new check working correctly: `claude` on this box is logged out, which the old `have claude` test called a PASS. All 8 tools built and tested. **`crew_task_status` closes the loop: no taskId needed, and it answers in a spoken sentence instead of a JSON dump** — see below. Tool `annotations` declared on all 8 tools, honestly. Gmail decision made; A unblocked. VoiceOS installed on Windows and inspected — see the tool-naming finding. **A — both of my findings are fixed by you and confirmed: rung 3 really calls the tools, and the claude check now catches a logged-out box (mine). `CANNED.recap` still lies for a research crew, off the rehearsed path.** **README brought up to date with the proven voice loop, and `VOICEOS-FEEDBACK.md` corrected where today disproved it — the `dictations` finding is now its headline item.** | **Pro is live. Two left, neither blocking a rung we'd show: `customMcpServers` still 0 on my box (GUI step), and no Google OAuth for the `google` backend — `fake` needs neither.** |
 | C | crew-dock (took option 2) | **the dock talks, and the handover is proven.** `Narrator.swift` speaks every `/agent-status` line via `say`, per-character voices, never two at once. Re-verified this morning from a **throwaway clone of current `main`** — clone → speaking app in 13s. **A's audio split + new voices then re-verified on my Air against A's unmodified `run-demo.sh`: 16 received, 10 spoken, 0 failed.** Nothing left to hand-carry to A's Mac but two commands. **Stall indication shipped: a `working` agent gone quiet for 10s now slows and trails an ellipsis instead of looking identical to a healthy one. Roster moved to `crew-dock/characters.json` — D, the shape is agreed and working, adding a character is a row plus a .mov.** **Reviewed and kept A's character fix — verified by screen capture, not by log — and fixed the stale-binary hole that let `checkpoint.sh` PASS while grading an old build** | **nothing — CHECKPOINT PASS (17 ok / 0 failed)** |
 
 ### ✅ FULL CHAIN INTEGRATED — B's MCP server → A's orchestrator → A's dock
@@ -551,13 +551,17 @@ voiceos-bridge/audio-loopback/voiceos-setup.sh apply   # settings; backs up + re
 voiceos-bridge/audio-loopback/spike.sh demo            # room hears it AND VoiceOS hears it
 voiceos-bridge/audio-loopback/spike.sh say "The quick brown fox jumps over the lazy dog"
 sqlite3 -readonly ~/Library/Application\ Support/VoiceOS/voiceos.db \
-  "SELECT created_at, final_transcription FROM dictations ORDER BY rowid DESC LIMIT 3;"
+  "SELECT created_at, transcription FROM voice_sessions ORDER BY rowid DESC LIMIT 3;"
 voiceos-bridge/audio-loopback/spike.sh off             # ALWAYS — else you have no mic
 ```
 
-The `dictations` table is the verification hook: it is **currently empty**, so any row that
-appears is unambiguously from the loopback. Use an inert phrase first — prove transcription
-before proving actions, so a failed booking doesn't get blamed on the audio path.
+⚠️ **`voice_sessions`, NOT `dictations`** — corrected by B after A proved the loop. This
+block said `dictations` all day, and that table is empty and legacy in VoiceOS 0.1.21: it
+returns 0 rows for a run that worked perfectly, which is exactly how we spent a day
+believing the loopback was broken. Anyone following these steps from the top would have
+repeated it, so the query is fixed here rather than only noted 500 lines below. Use an
+inert phrase first — prove transcription before proving actions, so a failed booking
+doesn't get blamed on the audio path.
 
 Two gotchas already paid for:
 - **`spike.sh off` is not optional.** Leaving input on BlackHole means the Mac has no
@@ -1784,10 +1788,11 @@ does not substitute for these.
 
 ### Then: one task each, in priority order
 
-**A (me) — next:** finish the voice loop the moment the Pro trial lands
-(`spike.sh demo` → `spike.sh test` → check the `dictations` table). That is the last
-untested link in the system and it is a 5-minute test, not a workstream. Rung 4
-(`./run-demo.sh voice`) is written and waiting for it.
+**A (me) — next:** ~~finish the voice loop the moment the Pro trial lands~~ **DONE — the
+loop is proven** (`say` → BlackHole → VoiceOS → text in a real app). It was never the
+`dictations` table; transcripts are in `voice_sessions`. What's left of it is quality, not
+existence: a full sentence came back as `"Log"`. Rung 4 (`./run-demo.sh voice`) is written
+and now has a working path under it.
 
 **B — your `verify.ps1` is the Windows half of `checkpoint.sh`.** Run `./checkpoint.sh`
 too (it skips what your box can't do) so we have one shared PASS line, and if the two ever

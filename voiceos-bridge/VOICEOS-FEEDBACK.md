@@ -5,10 +5,15 @@ comes from installing VoiceOS on **two machines — macOS and Windows 11** — r
 its shipped config and bundle, and building an MCP server against it. Findings are
 what we observed, with what we did about it. Nothing here is a guess about intent.
 
-**Short version of the most useful three:** the Windows install ships no CLI but
-the docs say it does; custom MCP tools are silently renamed, which breaks any
-prompt that hardcodes a tool name; and confirmation-on-every-action is the single
-biggest limit on autonomous agent use — with a concrete suggestion for it below.
+**Short version of the four most useful:** the `dictations` table is dead in 0.1.21 and
+cost us a day of chasing a bug that wasn't there; custom MCP tools are silently renamed,
+which breaks any prompt that hardcodes a tool name; no programmatic trigger works, not
+just `fn`; and confirmation-on-every-action is the biggest limit on autonomous agent use
+— with a concrete, free suggestion for it below.
+
+For what it's worth: **the loopback path works.** VoiceOS transcribed audio that reached
+it only through a virtual audio device, into a real app. Once we were looking at the
+right table, the product did what it says on the box.
 
 ---
 
@@ -92,10 +97,10 @@ A middle tier would be even better than a binary: confirm destructive things, al
 reversible writes, never confirm reads. Archiving mail is reversible; deleting it
 isn't; and today they're treated identically.
 
-**What we could not test, and would like to:** whether VoiceOS currently reads those
-annotations at all. That check needs a live Pro session and `tools/list`. If it
-already does, say so in the docs — it's a strong reason to build on VoiceOS rather
-than around it.
+**What we still could not test:** whether VoiceOS currently reads those annotations at
+all. We have Pro now, but the check needs a custom server registered and `tools/list`
+compared with confirmations on and off, and we ran out of day. If it already derives
+them, say so in the docs — it's a strong reason to build on VoiceOS rather than around it.
 
 **Genuinely good discovery in the same area:** confirmations appear to be answerable
 **by voice** — the bundle has `emitVoiceConfirmation`, `classifyAgentConfirmationIntent`,
@@ -129,9 +134,17 @@ rebindable to a normal chord (there's already a `control-left + option-left` cho
 registered), and that works, but it took reading `keyboardShortcuts` in the config to
 find out.
 
-**Suggestion:** one line in the docs — "the `fn` trigger cannot be invoked
-programmatically; rebind to a chord if you need to script it." Anyone building a
-hands-free or automated flow hits this.
+**We then tested the obvious workaround, and it does not work.** We rebound hands-free to
+`control-left + option-left + h` and posted that chord with AppleScript. The chord posts
+correctly and **VoiceOS never starts a session from it** — it appears to watch keys with a
+low-level event tap that synthetic keystrokes don't feed. So rebinding is not an escape
+hatch: *no* programmatic trigger works, not just `fn`.
+
+**Suggestion:** this is the single biggest limit on building anything automated on
+VoiceOS, and it is currently something you can only discover by trying. Either say so in
+the docs — "the trigger is intentionally human-only" — or expose a local trigger endpoint
+or CLI verb for developers. We designed around one human press, which is fine for our
+demo, but it does rule out a whole category of unattended product.
 
 ## 6. The config schema moved, and anything scripted against the old shape breaks silently
 
@@ -172,9 +185,14 @@ people most likely to keep using and recommending the product.
   are dispatched elsewhere, but from outside it reads as "Gmail is connected and yet
   there is no email action", which is confusing when you're deciding what to build
   natively vs. via MCP. A one-line label on that section would fix it.
-- The `dictations` table in `voiceos.db` is an excellent debugging hook — being able
-  to confirm exactly what was transcribed settles "did it mishear me?" instantly.
-  Mention it in developer docs; we found it by looking.
+- **`voiceos.db` has a `dictations` table that is empty and legacy in 0.1.21 — real
+  transcripts land in `voice_sessions`.** This cost us most of a day. We built our
+  verification around `dictations`, and it returned 0 rows for a run that had actually
+  succeeded, so we concluded the loopback was broken and went looking for an audio
+  problem that did not exist. **Dropping the dead table, or leaving a comment row in it,
+  would stop the next person doing the same thing.** Being able to confirm what was
+  transcribed is genuinely the best debugging hook you have — it settles "did it mishear
+  me?" instantly — which is exactly why the empty one next to it is so costly.
 - Onboarding shows a step number with no total (we saw step 15, then 16 of
   `onboardingStepVersion` 24). A count would tell a user whether they're nearly done.
 

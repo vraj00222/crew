@@ -40,7 +40,26 @@ it canned. Swap in three real headless agents reasoning about a real inbox:
 
 ```bash
 ./run-demo.sh          # needs the `claude` CLI, ~45s
+./run-demo.sh live     # the mailbox really changes
+./run-demo.sh voice    # you speak; VoiceOS drives the crew
 ./run-demo.sh stop     # kill everything
+```
+
+To see the *product* rather than the machinery — the crew answered out loud, mid-run,
+the way VoiceOS drives it:
+
+```bash
+FAKE=1 node orchestrator/server.js &
+node voiceos-bridge/mcp-server/demo-conversation.js
+```
+
+```
+  you  >  "Clean up my inbox and schedule everything"
+  crew >  The crew is on it. Task task_1 started — the agents are waking up on the dock now.
+  you  >  "What's the crew doing?"
+  crew >  Triage is archiving six newsletters and Scheduler is finding open slots tomorrow. Recap hasn't started yet.
+  you  >  "Are they done yet?"
+  crew >  The crew is finished. Inbox cleared, two meetings booked.
 ```
 
 The dock is Swift/AppKit, so `run-demo.sh` is macOS-only. **On Windows, run the same
@@ -85,7 +104,7 @@ flowchart LR
     V -.->|"how's it going?"| B
 ```
 
-Two contracts, frozen on day one so three people could build against them in parallel
+Two contracts, frozen on day one so three of us could build against them in parallel
 without waiting on each other:
 
 | | owner | called by | |
@@ -143,6 +162,15 @@ processes to know about each other. Separating them by output device needs nothi
 and it's measured, not assumed: narration on the speakers reads `0.000000` on the
 virtual mic, commands read `0.804261`.
 
+**The demo became a loop instead of a one-shot, which changed what the tools return.**
+The first version was fire-and-forget: say the sentence, watch it run, done. But the
+thing that makes a crew feel like a crew is being able to ask *"what are they doing?"*
+halfway through and get an answer. That meant `taskId` had to become optional — nobody
+says "task underscore one" out loud — and it meant tool replies had to stop being JSON,
+because VoiceOS reads them back **verbatim**. `triage (working): Archiving six…` spoken
+aloud is *"triage open paren working close paren colon"*. Now it answers
+*"Triage is archiving six newsletters and Scheduler is booking two PM with David Chen."*
+
 **Pacing came from a measurement after two guesses were wrong.** The model emits all
 its narration in one burst, so lines have to be paced or a character jumps straight to
 "Done:". 1400ms was a guess; two of ten lines were dropped. 2200ms was a better guess;
@@ -155,21 +183,38 @@ rate, and the fix was to stop guessing at it.
 ## Execution: what actually works
 
 Everything below is verified by running it, not by reading the code. `./checkpoint.sh`
-is one command all three machines run to prove they're looking at the same system.
+is one command all five machines run to prove they're looking at the same system, and it
+has passed on all five.
 
 | | state |
 |---|---|
-| orchestrator, all 3 execution modes selectable | **PASS** — but see `direct` below |
+| orchestrator, all 3 execution modes | **PASS** |
 | full chain, real headless agents | **PASS — ~45s end to end** |
 | dock receives | **16/16 lines, correct order** |
 | dock speaks | **10/10 lines, 0 dropped** |
 | MCP protocol (initialize, tools/list, tools/call) | **PASS**, over real stdio pipes |
 | Gmail/calendar tools | **PASS — every number a character says is true of the mailbox** |
+| `direct` mode really calls the tools | **PASS — tool calls counted, not assumed** |
 | the follow-up loop ("what's the crew doing?") | **PASS**, spoken sentence, no taskId needed |
 | demo-seed | **PASS — 18 emails, 8 events, counts asserted** |
 | audio loopback into the virtual mic | **PASS — peak 0.80, measured** |
 | audio split (narration vs commands) | **PASS — 0.00 vs 0.80, measured** |
-| VoiceOS transcribing the audio | **blocked — Pro trial not active** |
+| VoiceOS transcribing loopback audio | **PASS — but see the caveat below** |
+| the same pipeline on Windows | **PASS — 16 lines, the Mac's exact number** |
+| a second Mac, clean clone → spoken demo | **PASS — 72s, 10/10 spoken** |
+
+**Every hop in the system is individually proven.** The last one to fall was VoiceOS
+itself: it transcribed audio it never heard through a microphone —
+`18:58:19 | TextEdit | crew-dictation.txt | "Log" | 2.4s`. BlackHole has no microphone,
+so that audio can only have arrived through the digital loopback. `say` → BlackHole →
+VoiceOS → text in a real app works.
+
+**And the reason we spent a day thinking it didn't** is the most transferable thing in
+this repo: every check verified against the `dictations` table, which in VoiceOS 0.1.21
+is empty and legacy — 0 rows, always. Transcripts land in `voice_sessions`. The first
+successful run reported *"0 dictations, the trigger was never pressed"* when it had in
+fact worked. That's the fourth time on this project a check reported the wrong answer
+while looking at the wrong thing. **Assume the instrument before the code.**
 
 ### The bugs that testing found, which is the actual work
 
@@ -200,17 +245,17 @@ Every one of these would have hit on stage, and every one of them looked fine in
 
 ### Known-broken, on purpose or not
 
-- **`direct` mode gives the agents no tools.** The prompt tells each agent to call
-  `crew_gmail_archive(…)`, but a headless `claude -p` only has an MCP server if it is
-  passed one, and nothing passes it. The failure is quiet by design: the prompt says
-  *"narrate what is true and carry on"*, so an agent with no tools recites the numbers
-  from its own prompt — correct for the seeded mailbox — and the run looks perfect while
-  touching nothing. Config and a contract test are committed; the one-line wiring is
-  tracked in `coordination.md`.
-- **The voice loop's last link is untested.** Audio provably reaches the virtual
-  microphone; whether VoiceOS *transcribes* it is unverified, because the app is behind
-  a paywall on both machines that have it installed. Everything around it is scripted
-  and dry-run verified — it's a five-minute test, not a workstream.
+- **Transcription quality over the loopback is poor.** The path works, but a full spoken
+  sentence came back as `"Log"` over 2.4 seconds. Timing, rate or level — unresolved, and
+  it needs a couple of clean runs before anyone leans on the spoken path in front of a
+  room. Rungs 1–3 don't depend on it.
+- **The trigger needs a human press, and that is now a finding rather than an
+  assumption.** `fn` can't be synthesized on macOS. Rebinding hands-free to a normal
+  chord and posting it with AppleScript doesn't work either — the chord posts fine and
+  VoiceOS never starts a session, so it's almost certainly watching keys with a low-level
+  event tap that synthetic keystrokes don't feed. **Rebinding is not the way out.** The
+  demo is designed around one human press of hands-free mode, which is the "human speaks
+  once" beat anyway.
 - **The `google` backend needs a demo account and OAuth credentials** that don't exist
   yet. The `fake` backend needs nothing and does real archiving and real booking with
   real numbers, so the inbox half of the demo works on any machine regardless.
@@ -239,7 +284,7 @@ docs/
   onboarding.md         start here — clone to a running demo, and who owns which files
   demo-script.md        the exact rehearsed run, beat by beat
 coordination.md       the day's log — decisions, findings, blockers
-checkpoint.sh         one command that proves three machines agree
+checkpoint.sh         one command that proves all five machines agree
 run-demo.sh           the whole show, one command
 ```
 
@@ -284,9 +329,14 @@ commands to test your own side, and the gotchas that have already cost time.
 
 ## Status
 
-Hackathon project, demoing Sunday 6pm at Frontier Tower SF. It is built for **one
-rehearsed run**, and it is honest about that: things are hardcoded where hardcoding
-makes them reliable. There are four fallback rungs, each a complete show, and dropping
-one is a different word on the command line rather than an edit under pressure.
+Built at **Hack with VoiceOS**, Frontier Tower SF, 9 Aug 2026 — demoing 6pm the same day.
+It is built for **one rehearsed run**, and it is honest about that: things are hardcoded
+where hardcoding makes them reliable. There are four fallback rungs, each a complete
+show, and dropping one is a different word on the command line rather than an edit under
+pressure.
+
+All five of us are on VoiceOS Pro and building against it directly. Every hop is proven,
+the checkpoint passes on all five machines, and a clean run is recorded in case the room
+is worse than the code. What's left is rehearsal, not construction.
 
 The name is provisional. The demo is not.
