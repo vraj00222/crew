@@ -6,6 +6,11 @@ node_modules/
 # VoiceOS config holds live auth tokens — never commit it, even if copied here.
 config.json
 
+# A filled-in .env. The template (.env.example) is committed; the real one never is.
+.env
+.env.*
+!.env.example
+
 # crew-dock build output + fetched upstream art (18MB, belongs to lil-agents)
 crew-dock/Assets/
 crew-dock/Crew.app/

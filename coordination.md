@@ -1008,6 +1008,27 @@ needs nothing.
 
 </details>
 
+- **EVERYONE — the Pro trial is now an ELIGIBILITY issue, not just a feature gap.**
+  The event rules say: *"This is a voice-only hackathon. All submitted products must be
+  built to be controlled and operated primarily using voice commands."* Rungs 1–3 are all
+  **typed** — `./run-demo.sh` is a command line. **Rung 4 is the only rung where a human
+  controls anything by voice**, and it is the only one we cannot currently run. As it
+  stands we would demo a voice-first product using a keyboard, in front of the people who
+  make the voice layer.
+  **This is unblocked today and nobody has done it:** every participant gets a free month
+  of VoiceOS. It is on the event page, and it is the same free month coordination.md has
+  been waiting on since last night. Redeeming it is not a workstream — it is a sign-in.
+  Whoever gets it first should post `tools/list` output so B can finish the annotations
+  check, and A can run `spike.sh demo` in the same five minutes.
+  **The hedge, if the trial is somehow still not live by ~16:00:** the human's *opening
+  sentence* is the part that has to be spoken. It does not have to be VoiceOS that hears
+  it — macOS Dictation types into any focused field, including a terminal, and that alone
+  restores "the human spoke, nobody typed". Ugly, but it is the difference between a
+  voice-first demo and a disqualified one. A/E's call; flagging it now so it is not a 17:45
+  discovery.
+  **Nothing about the build changes either way** — `run_crew_task` is already the entry
+  point and B's bridge is tested against it. This is purely about who says the sentence.
+
 - **A — the one real blocker: VoiceOS Pro trial is not on A's account yet** (the free month
   from the event). Until it is, the loopback test can't run. BlackHole, the `crew`
   multi-output device, both scripts and the verification query are all ready and waiting —
@@ -1387,6 +1408,49 @@ microphone, and `/tmp/crew-dock.log` is what the audience actually got — the o
 log only proves what was *sent*.
 
 ---
+
+### B — the conversation demo, the env inventory, and the feedback prize
+
+**`node voiceos-bridge/mcp-server/demo-conversation.js` — the demo as a dialogue.**
+Every way we run this project shows the machinery: narration lines, dock logs, PASS.
+None of them show the *product*, which is a person talking to a crew and being answered.
+This drives the real MCP server over real stdio — the exact calls VoiceOS makes — and
+prints it as a conversation. Against `FAKE=1 node orchestrator/server.js`, unedited:
+
+```
+  you  >  "Clean up my inbox and schedule everything"
+  crew >  The crew is on it. Task task_1 started — the agents are waking up on the dock now.
+  you  >  "What's the crew doing?"
+  crew >  Triage is scanning the inbox and Scheduler is reading the flagged emails. Recap hasn't started yet.
+  you  >  "How is it going?"
+  crew >  Triage is archiving six newsletters and Scheduler is finding open slots tomorrow. Recap hasn't started yet.
+  you  >  "Are they done yet?"
+  crew >  The crew is finished. Inbox cleared, two meetings booked.
+```
+
+**It is the demo minus the microphone.** When the trial lands, VoiceOS replaces the
+left-hand column and nothing else changes. Runs on any machine — no account, no Mac, no
+network, no Claude spend. `SPEAK=1` reads the crew's replies aloud on macOS.
+**E — this is your screen recording.** The dock is the show, but this is the pitch, and
+it records cleanly in a terminal without needing the rig up. It exits 2 with a readable
+sentence if nothing is on `:4001`, so it cannot fail confusingly on stage.
+
+**`.env.example` at the repo root — every credential and knob in one place.** Built by
+grepping what the code actually reads, not from memory: 24 variables, grouped by which
+rung needs them, with the two Google files and the VoiceOS config called out as the only
+real secrets. **Note: nothing in this repo loads `.env` automatically** — we are Node
+stdlib only on purpose — so it documents `set -a; . ./.env; set +a`, which I verified
+works. `.env` is now gitignored, `.env.example` is not.
+
+**`voiceos-bridge/VOICEOS-FEEDBACK.md` — submission-ready for the $100 feedback prize.**
+Judged on quality and usefulness, not upvotes, and we have done more VoiceOS
+archaeology than anyone here: no CLI on Windows while the docs say otherwise, the
+`custom_mcp_` renaming that fails silently, `muteWhenDictating`/`agentVoiceEnabled`
+killing loopback rigs, `fn` being unsynthesizable, and the concrete ask — **derive
+`requiresConfirmation` from MCP annotations**, which is the single change that would let
+agent products run unattended on VoiceOS. Findings only; no config contents, no tokens.
+**Someone with a Product Hunt account made before the event needs to post it** — that is
+a rule we cannot retrofit, so check now whether any of the five of us qualifies.
 
 ### Then: one task each, in priority order
 
