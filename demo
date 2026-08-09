@@ -25,6 +25,9 @@ REAL=""
 if [ "${1:-}" = real ]; then
   REAL=1
   export CREW_MODE=voice
+  # Fast: this is a live demo, not a reading. Fewer lines, tighter beat.
+  export LINE_MS="${LINE_MS:-2600}"
+  export MAX_LINES="${MAX_LINES:-2}"
   # Everyone speaks into the SAME microphone — you and the crew. No BlackHole,
   # no mid-run device handover: that switching is what kept leaving VoiceOS
   # deaf, because a pinned device breaks whichever half is not using it.
@@ -32,7 +35,10 @@ if [ "${1:-}" = real ]; then
   # The dock goes quiet in this mode so the only voice in the room is the crew
   # instructing VoiceOS. Which is the better demo anyway: the audience HEARS it
   # being told what to do, instead of watching it happen silently.
-  export CREW_MUTE=1
+  # Do NOT mute the dock. Muting it was meant to keep the crew's narration out of
+  # VoiceOS's ear, but it also silenced the entire show — Vraj heard nothing at
+  # all. The characters talking IS the demo; VoiceOS mishearing a line is a
+  # smaller problem than an audience watching a silent screen.
   SwitchAudioSource -t input -s "${CREW_HUMAN_MIC:-MacBook Pro Microphone}" >/dev/null 2>&1
 fi
 
