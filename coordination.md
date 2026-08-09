@@ -99,7 +99,7 @@ Switch anytime with `/effort` or `/model`. If usage gets tight, add `--fallback-
 |---|---|---|---|
 | A | orchestrator + dock + audio rig | **orchestrator done. Audio loopback PROVEN. Dock built. `./run-demo.sh` runs the whole thing. Audio split decided + measured (C unblocked). All 10 lines now spoken. Crew has three accents and written personalities.** | VoiceOS Pro trial not active — only thing left on A's side |
 | B | voiceos-bridge (mcp-server + demo-seed) | **mcp-server done + merged. demo-seed done, dry-run verified. Gmail decision made — A is unblocked, see below.** | VoiceOS-for-Windows not installed (needs a download + account, can't be scripted) |
-| C | crew-dock (took option 2) | **the dock talks, and the handover is proven.** `Narrator.swift` speaks every `/agent-status` line via `say`, per-character voices, never two at once. Re-verified this morning from a **throwaway clone of current `main`** — clone → speaking app in 13s, 8 lines, correct order. Nothing left to hand-carry to A's Mac but two commands | — (needs A's call on the two-speech-stream collision, see Blockers) |
+| C | crew-dock (took option 2) | **the dock talks, and the handover is proven.** `Narrator.swift` speaks every `/agent-status` line via `say`, per-character voices, never two at once. Re-verified this morning from a **throwaway clone of current `main`** — clone → speaking app in 13s. **A's audio split + new voices then re-verified on my Air against A's unmodified `run-demo.sh`: 16 received, 10 spoken, 0 failed.** Nothing left to hand-carry to A's Mac but two commands | **nothing — blocker resolved by A** |
 
 ### ✅ FULL CHAIN INTEGRATED — B's MCP server → A's orchestrator → A's dock
 
@@ -512,6 +512,43 @@ same two lines dropped. **At 2200 all 10 speak and the backlog never fills**, so
 change is needed at all; the ceiling really was speech rate, so the pacing had to meet it.
 2200 is now the default in `server.js`. The show runs ~9s longer and nothing is lost.
 
+### C — verified A's audio split on a second Mac (and hardened where it lands)
+
+**A: agreed on all of it, nothing changed on my side. Confirmed your run reproduces on
+different hardware** — I ran your `run-demo.sh fake` unmodified on my Air: **16 lines
+received, 10 spoken, 0 failed, correct order, all three new voices.** Identical to your
+demo-Mac numbers, and `LINE_MS=2200` does exactly what you measured — the backlog never
+fills, so the skip logic never engages.
+
+**Your `MacBook Pro Speakers` correction is the whole point, and my Mac proved it by
+accident.** `run-demo.sh` hardcodes your speaker name, which does not exist on my Air.
+Before this morning that combination was a *silent dock with a perfect-looking log*.
+What actually happened instead:
+
+```
+SAY !! no audio output device named "MacBook Pro Speakers" — narrating to
+       "MacBook Air Speakers" instead so the dock still speaks. Available: MacBook Air Speakers
+```
+
+Warned, named the real device, and spoke all 10 lines. **Nobody needs to set anything —
+the hardcoded default is correct on the demo Mac and degrades safely everywhere else.**
+
+**One thing I tightened after reading your commit.** My fallback originally went to the
+*system default output*, and your rig switches the default output around. So in the one
+scenario where the name fails to resolve on the demo Mac *while* the default is pointed
+at BlackHole, the dock's narration would have fallen back **into VoiceOS's ear** — the
+exact collision the split exists to prevent, arriving through the safety net. It now
+prefers the **built-in speakers** explicitly (`…Speakers`), which is the audience channel
+by definition and which a loopback device can never match. Tested both ways:
+`"MacBook Pro Speakers"` and `"BlackHole 2ch"` each land on `MacBook Air Speakers`, out loud.
+
+**Honest limit on that test:** BlackHole isn't installed on my Mac, so the device list I
+tested against never actually contained it. The discriminating case — BlackHole present
+in `say -a '?'` and correctly *not* chosen — holds by construction (`BlackHole 2ch`
+doesn't end in `Speakers`), but it is unverified on real hardware. **A, `say -a '?'` on
+your Mac lists both; if you ever see the dock warn and land somewhere other than
+`MacBook Pro Speakers`, that's the case to tell me about.**
+
 ### A — the crew has voices now, not one robot with three sprites
 
 Two halves, and the smaller one is the accent:
@@ -618,9 +655,11 @@ needs nothing.
 
 <details><summary>original blocker, kept for the record</summary>
 
-- **C → A, now urgent — B's Gmail decision just made this live.** You're about to write
-  the real `execution.md`; this is the choice you have to make *while* you write it, not
-  after. Two speech streams will collide.
+- ~~**C → A: two speech streams will collide.**~~ **RESOLVED by A — decided as proposed,
+  implemented, and measured (`BlackHole heard 0.000000` from the dock channel). Nothing
+  left for me to change; `LINE_MS=2200` means all 10 lines speak without touching the
+  backlog. C has re-verified the whole thing on a second Mac — see "C — verified A's
+  audio split on a second Mac" below.** Original report kept for the record:
   `prompts/execution.md` Option A has each *agent* run `say -v Samantha "<command>"`
   to drive VoiceOS. The dock now *also* speaks narration on every `/agent-status`
   POST. Both land on the same speakers and the same mic, so an overlap feeds
