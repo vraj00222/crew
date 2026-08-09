@@ -134,11 +134,12 @@ screen. Send me the raw transcript; don't try to normalize it first.
 
 ## Tonight's spike result (A runs it, on A's own Mac — the confirmed demo machine. B joins remotely to help write/debug the script. C can try the same spike independently on their own Mac as a quick parallel sanity check — not required, but a second confirmation is useful if A hits a snag.)
 
-- BlackHole + `say` + VoiceOS mic: **untested** — needs `brew install` (A must be at the keyboard, it asks for a password). Script is written and ready: `voiceos-bridge/audio-loopback/spike.sh install`
+- BlackHole + `say` + VoiceOS mic: **BLOCKED, not failed — VoiceOS Pro trial not active on A's account yet.** All the plumbing around it is installed, scripted and dry-run verified; the moment the trial lands this is a ~5 minute test. See "How to finish the spike" below.
+- BlackHole itself: **installed and working.** `blackhole-2ch` + `switchaudio-osx` in, multi-output device **`crew`** (BlackHole + MacBook Pro Speakers, drift correction on the speakers) built and switchable from the CLI. Verified routing on/off cleanly.
 - VoiceOS trigger key rebindable away from physical Fn: **YES — confirmed**
-- VoiceOS auto-confirm / trust setting for agent actions: **no such setting exists in the config** — see below
+- VoiceOS auto-confirm / trust setting for agent actions: no on/off switch in the config, **but confirmations can be answered by voice** — see finding 6, this is better news than a trust setting
 - B's Windows test: does VoiceOS-for-Windows correctly call `run_crew_task` from a normal spoken command? untested
-- **Decision:** pending the audio test — but see the four findings below, two of them are blockers for the voice loop
+- **Decision:** still pending the audio test. Nothing found so far rules the voice loop out; two settings that would have silently broken it are now known and scripted.
 
 ### What A found in VoiceOS's own config tonight
 
@@ -175,10 +176,48 @@ live auth tokens.** Findings only, below.
 5. Onboarding is not finished (`onboardingCompleted: false`, stuck at step 15). Worth
    completing tonight in case it gates Agent Mode.
 
-On the auto-confirm question: there is no confirm-bypass key in the config. The
-`nativeActionToggles` are per-action-type on/off switches, not a trust setting. So assume
-**a human click is still required for anything that sends or books**, unless the app's UI
-shows otherwise. Plan the demo so the click is either unnecessary or part of the story.
+6. **Confirmations look answerable by voice — which may be the whole ballgame.** There's
+   no confirm-bypass setting (`nativeActionToggles` are per-action-type on/off switches,
+   not a trust level). But strings inside the app include `emitVoiceConfirmation`,
+   `classifyAgentConfirmationIntent`, and the log line
+   `[AgentInputService] Reply is unrelated to pending confirmation` — i.e. VoiceOS listens
+   for a **spoken** reply to a pending confirmation and classifies it as approve/deny.
+   If that holds, an agent can approve its own action by saying "yes", and the loop stays
+   autonomous without any trust setting. **This is the single highest-value thing to test
+   the moment the trial is active.** If it works, the human really does speak only once.
+
+7. **Apple Mail is scriptable from VoiceOS.** The bundle contains AppleScript over
+   `applemail` (`repeat with anEmail in inviteeItems`). So the inbox half has a native path
+   after all — via Apple Mail, not Gmail's API. B: worth weighing against the MCP route,
+   since it needs no OAuth.
+
+### How to finish the spike (~5 min once the Pro trial is on A's account)
+
+```bash
+voiceos-bridge/audio-loopback/voiceos-setup.sh apply   # settings; backs up + reverts cleanly
+voiceos-bridge/audio-loopback/spike.sh demo            # room hears it AND VoiceOS hears it
+voiceos-bridge/audio-loopback/spike.sh say "The quick brown fox jumps over the lazy dog"
+sqlite3 -readonly ~/Library/Application\ Support/VoiceOS/voiceos.db \
+  "SELECT created_at, final_transcription FROM dictations ORDER BY rowid DESC LIMIT 3;"
+voiceos-bridge/audio-loopback/spike.sh off             # ALWAYS — else you have no mic
+```
+
+The `dictations` table is the verification hook: it is **currently empty**, so any row that
+appears is unambiguously from the loopback. Use an inert phrase first — prove transcription
+before proving actions, so a failed booking doesn't get blamed on the audio path.
+
+Two gotchas already paid for:
+- **`spike.sh off` is not optional.** Leaving input on BlackHole means the Mac has no
+  working microphone, and it is not obvious why. A's config was restored after testing.
+- **The room can't hear anything right now.** In the `crew` multi-output device, the
+  MacBook Pro Speakers volume slider is near zero while BlackHole's is maxed. VoiceOS will
+  hear the agents perfectly and the audience will hear silence. Raise the speakers slider
+  in Audio MIDI Setup before rehearsal.
+
+Triggering, for the demo design: `fn` **cannot** be synthesized in software, so no script
+can press it. That is fine — hands-free mode (`fn`+`space`) is a single human press that
+leaves VoiceOS listening, which is exactly the "human speaks once" beat we want. Design the
+demo around one hands-free press at the top, not a per-utterance trigger.
 
 ## Decisions log
 
@@ -188,11 +227,14 @@ shows otherwise. Plan the demo so the click is either unnecessary or part of the
 
 ## Blockers
 
-- **A:** `brew install blackhole-2ch switchaudio-osx` needs an interactive password, so the
-  audio spike can't run unattended. Everything else on A's side is done and tested.
-  → `voiceos-bridge/audio-loopback/spike.sh install`, then `on`, then `say "..."`.
-- **Open question for B, needed early:** Gmail has no path through VoiceOS today (see
-  finding 4 above). Decide whether MCP owns Gmail or the inbox half is narrated.
+- **A — the one real blocker: VoiceOS Pro trial is not on A's account yet** (the free month
+  from the event). Until it is, the loopback test can't run. BlackHole, the `crew`
+  multi-output device, both scripts and the verification query are all ready and waiting —
+  it's a 5-minute test, not a workstream. Everything else on A's side is done and tested.
+- **Open question for B, needed early:** Gmail has no path through VoiceOS today (finding
+  4). But Apple Mail is scriptable from inside VoiceOS (finding 7). Pick one: MCP owns
+  Gmail, Apple Mail carries the inbox natively, or the inbox half is narrated over seeded
+  data. This changes what your MCP server needs to expose, so decide before building it.
 
 ## Demo script
 
