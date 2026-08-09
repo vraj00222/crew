@@ -20,6 +20,7 @@
 
 const { spawn } = require('node:child_process');
 const http = require('node:http');
+const { rmSync } = require('node:fs');
 const { join } = require('node:path');
 
 let failed = 0;
@@ -127,10 +128,29 @@ const said = (r) => (r.content || []).map((c) => c.text).join(' ');
   if (r2.structuredContent?.unreachable) ok('and it says the line was down rather than claiming you ignored it');
   else bad('the unreachable case is not distinguished from a genuine no-answer');
 
-  // 4. the fake route must never claim a real send
-  const r3 = await callTool('crew_send_sms', { body: 'inbox cleared' }, { ...baseEnv, CREW_PHONE_FAKE: '1' });
+  // 4. the fake route must never claim a real send.
+  // Cooldown off: crew_send_sms is wrapped in oneReport, whose mark is a FILE
+  // that outlives the process, so a second run of this test inside the normal
+  // 120s window would otherwise get "already sent" and fail on a real feature.
+  const smsEnv = { ...baseEnv, CREW_PHONE_FAKE: '1', CREW_REPORT_COOLDOWN_MS: '0' };
+  const r3 = await callTool('crew_send_sms', { body: 'inbox cleared' }, smsEnv);
   if (/simulated/i.test(said(r3))) ok('a simulated text tells the agent it was simulated');
   else bad(`a simulated text claimed to be real: "${said(r3)}"`);
+
+  // 5. and the duplicate guard still holds on the simulated route — a rehearsal
+  // that texts once and a show that texts twice is the worst way to learn this.
+  // The mark is cleared first: it is a file that outlives the process, so
+  // without this the "first one goes through" half is testing leftover state.
+  rmSync(join(__dirname, '.report-mark'), { force: true });
+  const r4 = await callTool('crew_send_sms', { body: 'inbox cleared' }, { ...baseEnv, CREW_PHONE_FAKE: '1' });
+  const r5 = await callTool('crew_send_sms', { body: 'inbox cleared again' }, { ...baseEnv, CREW_PHONE_FAKE: '1' });
+  if (!r4.structuredContent?.duplicate && /simulated/i.test(said(r4))) ok('the first report of a run goes through');
+  else bad(`the first report was refused: "${said(r4)}"`);
+  if (r5.structuredContent?.duplicate || /already went/i.test(said(r5))) {
+    ok('a second report in the same run is refused, simulated phone included');
+  } else {
+    bad(`the duplicate guard does not cover the simulated route: "${said(r5)}"`);
+  }
 
   sink.server.close();
   console.log(

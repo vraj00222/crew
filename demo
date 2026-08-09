@@ -54,6 +54,9 @@ fi
 # Voices, devices and pacing all come from run-demo.sh so there is exactly one
 # place that decides them.
 export CREW_AUDIO_DEVICE="${CREW_AUDIO_DEVICE:-MacBook Pro Speakers}"
+# The task worth showing: three apps, and the result is checkable in front of
+# whoever is watching — open Notes and Reminders afterwards and it is all there.
+export CREW_PHRASE_LONG="${CREW_PHRASE_LONG:-look at all the events on my calendar this week, work out the theme of them, email me a summary, and set a reminder for each one}"
 export CREW_VOICE_TRIAGE="${CREW_VOICE_TRIAGE:-Moira}"
 export CREW_VOICE_SCHEDULER="${CREW_VOICE_SCHEDULER:-Daniel}"
 export CREW_VOICE_RECAP="${CREW_VOICE_RECAP:-Karen}"

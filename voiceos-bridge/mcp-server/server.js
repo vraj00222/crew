@@ -18,7 +18,7 @@
 // STDOUT IS THE PROTOCOL CHANNEL. Never console.log here — it corrupts the stream
 // and the client silently drops the server. All human output goes to stderr.
 
-const { appendFileSync, readFileSync } = require('node:fs');
+const { appendFileSync, readFileSync, writeFileSync, statSync } = require('node:fs');
 const { join } = require('node:path');
 const { speakStatus } = require('./status-speech.js');
 
@@ -426,6 +426,33 @@ async function queueOnVoiceServer(path, body) {
   }
 }
 
+// One report per run. Several agents get the same "text me" instruction and
+// each obeys it — live run task_1 sent the user two texts, one from the
+// scheduler and one from the analyst. The bridge is the one place every send
+// passes through, so it holds the line: a repeat inside the window comes back
+// as a normal "already sent" result the agent can narrate past, not an error.
+// Asks are exempt — a question is deliberate, and unanswered is its own state.
+//
+// The mark is a FILE, not a variable, and that is load-bearing: in direct mode
+// every agent spawns its own bridge process (mcp-config.js), so memory in one
+// never sees a send from another — which is precisely how the double text
+// happened. The file's mtime is the shared clock.
+const REPORT_COOLDOWN_MS = Number(process.env.CREW_REPORT_COOLDOWN_MS || 120_000);
+const REPORT_MARK = join(__dirname, '.report-mark');
+function oneReport(send) {
+  return async (args) => {
+    try {
+      if (Date.now() - statSync(REPORT_MARK).mtimeMs < REPORT_COOLDOWN_MS) return { duplicate: true };
+    } catch { /* no mark yet — first report */ }
+    const result = await send(args); // a failed send does not claim the slot
+    writeFileSync(REPORT_MARK, new Date().toISOString());
+    return result;
+  };
+}
+
+// Wrapped by oneReport at the dispatch table below, so the simulated route
+// dedupes exactly like the real one — a rehearsal that texts once and a show
+// that texts twice would be the worst possible way to find this out.
 async function sendSms(args) {
   const body = args?.body;
   if (typeof body !== 'string' || !body.trim()) throw new Error('crew_send_sms needs a non-empty "body"');
@@ -506,8 +533,10 @@ const WORK_DISPATCH = {
   crew_calendar_book: (a) => backend().book(a),
   crew_calendar_list: (a) => backend().listEvents(a),
   // Outward-facing on purpose, and real — see the tool descriptions above.
-  crew_send_sms: (a) => sendSms(a),
-  crew_place_call: (a) => callWithMessage(a),
+  // oneReport wraps the FAKE-aware entry points, not the raw client, so the
+  // simulated phone is deduped on the same rule as the real one.
+  crew_send_sms: oneReport((a) => sendSms(a)),
+  crew_place_call: oneReport((a) => callWithMessage(a)),
   crew_ask_user: (a) => askUser(a),
 };
 
@@ -567,10 +596,12 @@ function workReply(name, result) {
     // plainly as they are told to us — an agent that thinks it really texted
     // someone will say so out loud, and that is a lie on stage.
     case 'crew_send_sms':
+      if (result?.duplicate) return 'A report already went to the phone for this job — not sending another. Carry on.';
       if (result?.dry) return 'Rehearsal mode — the text was written but not really sent.';
       if (result?.fake) return 'Simulated — the text was composed but no phone was contacted. Report it as done.';
       return 'The text is sent — it should be on the phone now.';
     case 'crew_place_call':
+      if (result?.duplicate) return 'A report already went to the phone for this job — not calling again. Carry on.';
       if (result?.dry) return 'Rehearsal mode — the call was staged but the phone will not ring.';
       if (result?.fake) return 'Simulated — no phone was contacted. Report it as done.';
       return 'Calling now — the phone should start ringing in a moment.';

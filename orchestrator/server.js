@@ -56,13 +56,16 @@ const BRIDGE = join(__dirname, '..', 'voiceos-bridge', 'mcp-server');
 // actually used. Windows enforces that limit, and this repo has already lost a
 // day to a Windows-only spawn failure that looked like a working demo.
 //
-// So: an explicit list. Anything the bridge reads from env belongs here, or it
-// will not be there when an agent calls it.
+// So: an explicit list, and it is load-bearing. **Anything mcp-server/server.js
+// reads from process.env belongs here, or it will not be there when an agent
+// calls the tool.** Only that file — voice-webhook.js is a separate process
+// started by phone.sh and inherits the shell's environment the normal way.
+//   grep -o 'process\.env\.[A-Z_0-9]*' voiceos-bridge/mcp-server/server.js
 const BRIDGE_ENV = [
   'PATH', 'Path', 'SystemRoot', 'APPDATA', 'HOME', 'USERPROFILE', 'TEMP', 'TMP',
-  'CREW_BACKEND', 'CREW_LOG', 'CREW_STATE', 'CREW_TOKEN', 'ORCH_URL',
+  'CREW_BACKEND', 'CREW_LOG', 'CREW_STATE', 'CREW_TOKEN', 'ORCH_URL', 'TIMEOUT_MS',
   'CREW_PHONE', 'CREW_PHONE_FAKE', 'CREW_FAKE_ANSWER', 'CREW_FAKE_ASK_MS',
-  'CREW_VOICE_PORT', 'CREW_ASK_WAIT_MS', 'CREW_CALL_LOG',
+  'CREW_VOICE_PORT', 'CREW_ASK_WAIT_MS', 'CREW_CALL_LOG', 'CREW_REPORT_COOLDOWN_MS',
   'A1MOBILE_TEAM_KEY', 'A1MOBILE_DRY', 'A1MOBILE_BASE_URL', 'A1MOBILE_TIMEOUT_MS',
   'OPENAI_API_KEY',
 ];
@@ -222,6 +225,15 @@ function narrate(evt, role) {
   if (evt.type !== 'assistant') return [];
   const out = [];
   for (const b of evt.message?.content || []) {
+    // The CLI surfaces API failures as assistant text ("API Error: … flagged
+    // this message … Learn more: https://…"). Live run task_1: triage hit one
+    // and the character's last words became the error and a support URL, read
+    // to the room. Log it, never speak it — the agent either retries or its
+    // real lines stand.
+    if (b.type === 'text' && /^\s*API Error/i.test(b.text)) {
+      console.log(`[api-error] ${role}: ${b.text.slice(0, 200)}`);
+      continue;
+    }
     if (b.type === 'text' && b.text.trim()) out.push(...toLines(b.text));
     // Logged, never narrated. The dock speaks these lines, so a tool name here
     // would have had a character read a function name to the room.
