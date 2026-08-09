@@ -2,6 +2,9 @@
 # The demo. One command, then one key press, repeatedly.
 #
 #   ./demo          set everything up and wait for ⌃⌥C
+#   ./demo real     the agents' voices really drive VoiceOS
+#   ./demo phone    the crew can text you, ring you, and ASK you mid-run
+#   ./demo phone-fake  the same act, simulated — no key, no tunnel, no network
 #   ./demo stop     put it all away
 #
 # Deliberately NOT run-demo.sh. That script starts a task itself, prints a
@@ -40,6 +43,26 @@ if [ "${1:-}" = real ]; then
   # all. The characters talking IS the demo; VoiceOS mishearing a line is a
   # smaller problem than an audience watching a silent screen.
   SwitchAudioSource -t input -s "${CREW_HUMAN_MIC:-MacBook Pro Microphone}" >/dev/null 2>&1
+fi
+
+# `./demo phone` — the run where the crew reaches you off the laptop. direct
+# mode, because the phone tools are crew_* tools and only direct-mode agents
+# hold them. The stack itself (voice server, tunnel, pointing the number) comes
+# up below, in parallel with the dock, so it costs no extra wall time on stage.
+PHONE=""
+if [ "${1:-}" = phone ]; then
+  PHONE=1
+  export CREW_MODE=direct
+fi
+
+# `./demo phone-fake` — the same third act with nothing outside this laptop in
+# the path. The real phone needs five things to be up at once (team key,
+# verified number, voice server, tunnel, transcription); this needs none of
+# them, and the dock performs the calling and the answer identically. It is to
+# the phone what `./run-demo.sh fake` is to the agents, and it is what you reach
+# for when the venue wifi decides the demo is over.
+if [ "${1:-}" = phone-fake ]; then
+  export CREW_MODE=direct CREW_PHONE_FAKE=1
 fi
 
 # Voices, devices and pacing all come from run-demo.sh so there is exactly one
@@ -82,6 +105,16 @@ fi
 "$DOCK_BIN" > /tmp/crew-dock.log 2>&1 &
 node orchestrator/server.js > /tmp/crew-orchestrator.log 2>&1 &
 
+# Alongside the dock, not after it. Standing up a tunnel and pointing the number
+# takes the better part of ten seconds, and that is ten seconds of a presenter
+# watching a blank screen if it is done in sequence. The dock is on screen while
+# this happens; we only join it below, before saying "ready".
+PHONE_PID=""
+if [ -n "$PHONE" ]; then
+  ./voiceos-bridge/mcp-server/phone.sh up > /tmp/crew-phone.log 2>&1 &
+  PHONE_PID=$!
+fi
+
 for _ in $(seq 1 100); do
   grep -q 'listening on :4002' /tmp/crew-dock.log 2>/dev/null \
     && curl -sf -o /dev/null localhost:4001/tasks 2>/dev/null && break
@@ -89,6 +122,21 @@ for _ in $(seq 1 100); do
 done
 grep -q 'listening on :4002' /tmp/crew-dock.log || {
   echo "the dock never bound :4002:"; cat /tmp/crew-dock.log; exit 1; }
+
+# Join the phone stack before claiming to be ready. A failure here is loud but
+# never fatal: every other tool still works, and a demo missing one trick beats
+# no demo. The log is printed rather than summarised because the fix is always
+# in it — a dead tunnel, an unverified number, a missing key.
+if [ -n "$PHONE_PID" ]; then
+  printf '  bringing the phone up... '
+  if wait "$PHONE_PID"; then
+    echo "ready — the crew can reach you on ${CREW_PHONE:-<CREW_PHONE unset>}"
+  else
+    echo "FAILED"
+    sed -n '1,40p' /tmp/crew-phone.log | sed 's/^/     /'
+    echo "     the crew will run without the phone. ./voiceos-bridge/mcp-server/phone.sh check"
+  fi
+fi
 
 # The one thing that silently stops the key press working, said up front rather
 # than discovered by pressing it and getting nothing.
@@ -127,6 +175,27 @@ BANNER
      let go when the last character signs off.
 
 REALBANNER
+[ -n "$PHONE" ] && cat <<'PHONEBANNER'
+  📞 PHONE MODE — the crew can reach you away from the laptop.
+
+     ask for it out loud and they do it:
+       "...and text me when it's done"
+       "...call me with the summary"
+
+     and when they get STUCK, your phone rings. answer it,
+     say what you want in one sentence, hang up. what you said
+     is transcribed and handed straight back to the agent, and
+     the rest of the crew closes the show knowing it.
+
+PHONEBANNER
+[ "${CREW_PHONE_FAKE:-}" = 1 ] && cat <<'FAKEPHONEBANNER'
+  📵 PHONE SIMULATED — no phone will ring, nothing leaves this laptop.
+
+     the characters still say they are calling you, still say what
+     you "said", and the crew still works from that answer. only
+     the ringing is missing, and only you know that.
+
+FAKEPHONEBANNER
 
 # Follow the narration for as long as you keep pressing. `stop` on the way out
 # whichever way we leave, so the next run never fights a leftover port.

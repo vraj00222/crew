@@ -12,7 +12,6 @@ const { join, delimiter } = require('node:path');
 const PORT = 4001;
 const DOCK = process.env.DOCK_URL || 'http://localhost:4002/agent-status';
 const FAKE = process.env.FAKE === '1';
-const TIMEOUT_MS = Number(process.env.AGENT_TIMEOUT_MS || 180_000);
 // Pacing has to be >= how long a line takes to SAY, or the dock's queue grows
 // every line and it starts dropping them. We both estimated ~2s; timed on the
 // demo Mac at rate 200 the real spread is 2.8-4.3s, average ~3.8s. That gap is
@@ -44,17 +43,75 @@ const ALLOWED_TOOLS = process.env.ALLOWED_TOOLS || ''; // e.g. "mcp__voiceos__sp
 // the config resolves against the spawning process's cwd, so a checked-in
 // relative path is right from exactly one directory.
 const BRIDGE = join(__dirname, '..', 'voiceos-bridge', 'mcp-server');
-const MCP_CONFIG = JSON.stringify({
-  mcpServers: { crew: { command: process.execPath, args: [join(BRIDGE, 'server.js')] } },
+// What the bridge needs from our environment, named explicitly.
+//
+// Two traps meet here. Ordinary inheritance is NOT enough: an MCP client
+// commonly spawns its servers with a small safe subset of the parent
+// environment (PATH and little else), so anything not named in the config's own
+// `env` can simply vanish — and it vanishes silently, which for CREW_PHONE_FAKE
+// means a phone that was supposed to be simulated tries to really dial.
+// But `...process.env` is not the answer either: --mcp-config travels as ONE
+// argv string that already carries the whole prompt, and the full environment
+// serialises to 5.7KB of command line per agent against 204 bytes for the names
+// actually used. Windows enforces that limit, and this repo has already lost a
+// day to a Windows-only spawn failure that looked like a working demo.
+//
+// So: an explicit list, and it is load-bearing. **Anything mcp-server/server.js
+// reads from process.env belongs here, or it will not be there when an agent
+// calls the tool.** Only that file — voice-webhook.js is a separate process
+// started by phone.sh and inherits the shell's environment the normal way.
+//   grep -o 'process\.env\.[A-Z_0-9]*' voiceos-bridge/mcp-server/server.js
+const BRIDGE_ENV = [
+  'PATH', 'Path', 'SystemRoot', 'APPDATA', 'HOME', 'USERPROFILE', 'TEMP', 'TMP',
+  'CREW_BACKEND', 'CREW_LOG', 'CREW_STATE', 'CREW_TOKEN', 'ORCH_URL', 'TIMEOUT_MS',
+  'CREW_PHONE', 'CREW_PHONE_FAKE', 'CREW_FAKE_ANSWER', 'CREW_FAKE_ASK_MS',
+  'CREW_VOICE_PORT', 'CREW_ASK_WAIT_MS', 'CREW_CALL_LOG', 'CREW_REPORT_COOLDOWN_MS',
+  'A1MOBILE_TEAM_KEY', 'A1MOBILE_DRY', 'A1MOBILE_BASE_URL', 'A1MOBILE_TIMEOUT_MS',
+  'OPENAI_API_KEY',
+];
+const mcpConfig = (task, role) => JSON.stringify({
+  mcpServers: {
+    crew: {
+      command: process.execPath,
+      args: [join(BRIDGE, 'server.js')],
+      env: {
+        ...Object.fromEntries(
+          BRIDGE_ENV.filter((k) => process.env[k] !== undefined).map((k) => [k, process.env[k]])
+        ),
+        // Which character is holding the phone. Without these three the bridge
+        // has no idea who called it — it is a fresh stdio process with no task
+        // and no role — and the dock would have nothing to show while an agent
+        // sits on a two-minute call.
+        CREW_ROLE: role,
+        CREW_TASK_ID: task.taskId,
+        CREW_ORCH_EVENTS: `http://localhost:${PORT}/agent-event`,
+      },
+    },
+  },
 });
 const CREW_TOOLS = [
   'crew_gmail_list_inbox', 'crew_gmail_archive', 'crew_gmail_label',
   'crew_calendar_find_slot', 'crew_calendar_book', 'crew_calendar_list',
+  'crew_send_sms', 'crew_place_call', 'crew_ask_user', // a1mobile: real texts, real rings
 ].map((t) => `mcp__crew__${t}`).join(',');
 // How the agents actually act: narrate (no tools) | direct (crew_* tools) | voice
 // (speak to VoiceOS). One prompt file each, all three known-good — switching is
 // an env var, not editing a prompt at 5:55pm with the room watching.
 const MODE = process.env.CREW_MODE || 'narrate';
+
+// How long an agent gets before it is killed. This has to know about the phone,
+// because crew_ask_user parks INSIDE a single tool call while the user's phone
+// rings, they listen, they talk, and whisper writes it down — up to
+// CREW_ASK_WAIT_MS of an agent looking hung while it is in fact mid-sentence
+// with a human. At the old flat 180s an agent that asked 70s in was SIGKILLed
+// while the person was still answering: the phone call simply stopped, and the
+// character said "ran out of time" to a room that had just watched the
+// presenter pick up. So in direct mode the floor clears the ask with room for
+// the work either side. Other modes keep the tight 180s, because there is no
+// phone in them and a hung agent should give up fast on stage.
+const ASK_WAIT_MS = Number(process.env.CREW_ASK_WAIT_MS || 120_000);
+const TIMEOUT_MS = Number(process.env.AGENT_TIMEOUT_MS)
+  || (MODE === 'direct' ? ASK_WAIT_MS + 120_000 : 180_000);
 
 // `spawn('claude')` cannot start the CLI on Windows, and it fails per-agent as
 // "Done: could not start (spawn claude ENOENT)" — a whole show of characters
@@ -168,6 +225,15 @@ function narrate(evt, role) {
   if (evt.type !== 'assistant') return [];
   const out = [];
   for (const b of evt.message?.content || []) {
+    // The CLI surfaces API failures as assistant text ("API Error: … flagged
+    // this message … Learn more: https://…"). Live run task_1: triage hit one
+    // and the character's last words became the error and a support URL, read
+    // to the room. Log it, never speak it — the agent either retries or its
+    // real lines stand.
+    if (b.type === 'text' && /^\s*API Error/i.test(b.text)) {
+      console.log(`[api-error] ${role}: ${b.text.slice(0, 200)}`);
+      continue;
+    }
     if (b.type === 'text' && b.text.trim()) out.push(...toLines(b.text));
     // Logged, never narrated. The dock speaks these lines, so a tool name here
     // would have had a character read a function name to the room.
@@ -203,9 +269,19 @@ function buildPrompt(role, instructions, task) {
     .filter((r) => r !== role && task.agents[r].state === 'done' && task.agents[r].lastMessage)
     .map((r) => `- ${r.toUpperCase()} (${CREW[r]?.activity}) said: "${task.agents[r].lastMessage}"`)
     .join('\n') || '(nobody has reported yet — you are first)';
+  // A decision the user made out loud on the phone outranks anything the crew
+  // inferred, and it must not die inside the one agent that happened to ask.
+  // The scheduler asks which meeting wins; the recap has to close the show
+  // knowing which one won, or it reports around the most interesting thing
+  // that happened.
+  const said = task.answers.length
+    ? '\n\nThe user was phoned mid-run and answered out loud. This is a decision, '
+      + 'not a suggestion — work from it and say it back:\n'
+      + task.answers.map((a) => `- ${a.role.toUpperCase()} asked, and the user said: "${a.text}"`).join('\n')
+    : '';
   return readFileSync(join(__dirname, 'prompts', `${role}.md`), 'utf8')
     .replace('{{EXECUTION}}', execution)
-    .replace('{{CREW}}', crew)
+    .replace('{{CREW}}', crew + said)
     .replace('{{INSTRUCTIONS}}', instructions);
 }
 
@@ -220,17 +296,33 @@ function runRole(task, role) {
       const line = queue.shift();
       if (line) { say(task, role, 'working', line); return setTimeout(drain, LINE_MS); }
       draining = false;
-      if (closed) { say(task, role, 'done', task.agents[role].lastMessage); resolve(); }
+      if (closed) { delete task.inject[role]; say(task, role, 'done', task.agents[role].lastMessage); resolve(); }
     };
     // "Done:" is the character's last word on stage. Agents that keep talking
     // after it (meta-commentary, caveats) get cut off — that bit us in testing.
-    const push = (lines) => {
-      if (signedOff) return;
+    // `forced` lines come from the bridge, not the model: "I'm calling you now",
+    // and afterwards what you actually said. They are events the room is
+    // watching happen, so the chatty-agent budget must not silently eat them —
+    // a dock that stays quiet while a phone rings on the table reads as broken.
+    const push = (lines, forced = false) => {
+      // `signedOff` is set when "Done:" is QUEUED, which can be several seconds
+      // before it is spoken — and the model often emits its whole narration in
+      // one event, so it is frequently set while the character still has lines
+      // to say. A forced line dropped there is a phone that really rang with
+      // nothing on stage to show for it, so forced bypasses the gate and slots
+      // in FRONT of the queued sign-off: the event is always heard, and "Done:"
+      // is still the character's last word.
+      if (signedOff && !forced) return;
       for (const l of lines) {
         const final = l.startsWith('Done:');
-        if (spoken >= task.maxLines && !final) continue; // chatty agent guard
-        queue.push(l);
-        spoken++;
+        if (spoken >= task.maxLines && !final && !forced) continue; // chatty agent guard
+        if (forced) {
+          const end = queue.findIndex((q) => q.startsWith('Done:'));
+          if (end === -1) queue.push(l); else queue.splice(end, 0, l);
+        } else {
+          queue.push(l);
+          spoken++;
+        }
         if (final) { signedOff = true; break; }
       }
       if (!draining) drain();
@@ -238,27 +330,24 @@ function runRole(task, role) {
     const finish = () => { closed = true; if (!draining) drain(); };
 
     say(task, role, 'working', 'waking up');
+    // How the bridge gets a line on stage while this agent is blocked inside
+    // crew_ask_user. Registered for exactly as long as the agent is alive, so a
+    // late callback from a dead agent lands nowhere instead of animating a
+    // character that has already signed off.
+    task.inject[role] = (lines) => push(lines, true);
     if (FAKE) { push(cannedFor(task, role)); return finish(); }
 
     const args = ['-p', buildPrompt(role, task.instructions, task), '--output-format', 'stream-json', '--verbose'];
     // Only direct mode calls tools. narrate must stay toolless — it is the safe
     // rung precisely because the agents cannot touch anything — and voice drives
     // VoiceOS by speaking, so it needs Bash rather than the crew tools.
-    if (MODE === 'direct') args.push('--mcp-config', MCP_CONFIG, '--allowedTools', ALLOWED_TOOLS || CREW_TOOLS);
-    // Only the closer gets a shell in voice mode. Omitting --allowedTools does
-    // NOT restrict anything — it hands over the default toolset, Bash included —
-    // so a live run had TRIAGE speaking to VoiceOS when only the closer should.
-    // Non-speakers get a harmless list so the flag is present and Bash is not.
-    else if (MODE === 'voice') {
-      args.push('--allowedTools', role === CLOSER ? (ALLOWED_TOOLS || 'Bash') : 'Read');
-    }
-    // narrate. The SAME trap as voice, and it was still here: `ALLOWED_TOOLS`
-    // defaults to '', so this branch pushed no flag at all — and omitting the
-    // flag is not a restriction, it hands over the default toolset with Bash in
-    // it. That made the claim three lines above ("narrate must stay toolless")
-    // and run-demo.sh's `SAFE` label untrue on the rung people actually run by
-    // default, which is the one we say cannot touch anything. Always pass the
-    // flag; `Read` is the same harmless stand-in voice mode uses.
+    // Their per-agent mcpConfig(task, role) for direct mode, my always-pass-the-flag
+    // rule for the rest. Both matter: omitting --allowedTools is NOT a restriction,
+    // it hands over the default toolset with Bash in it — which made "narrate is
+    // toolless" and run-demo.sh's SAFE label untrue on the rung people run by
+    // default, and let TRIAGE speak to VoiceOS when only the closer should.
+    if (MODE === 'direct') args.push('--mcp-config', mcpConfig(task, role), '--allowedTools', ALLOWED_TOOLS || CREW_TOOLS);
+    else if (MODE === 'voice') args.push('--allowedTools', role === CLOSER ? (ALLOWED_TOOLS || 'Bash') : 'Read');
     else args.push('--allowedTools', ALLOWED_TOOLS || 'Read');
     // `detached` makes the agent its own process-group leader so the timeout can
     // kill the whole tree. An agent spawns tool subprocesses, and SIGKILLing only
@@ -268,7 +357,17 @@ function runRole(task, role) {
     // falls through to killing the child alone. Harmless: it is the same
     // behaviour we had before E's fix, and the `exit` grace still un-wedges it.
     const child = spawn(CLAUDE, args,
-      { cwd: __dirname, stdio: ['ignore', 'pipe', 'pipe'], detached: true });
+      // Also on the agent itself, belt and braces: it costs nothing, and it
+      // covers the case where the client does pass its own environment down.
+      {
+        cwd: __dirname, stdio: ['ignore', 'pipe', 'pipe'], detached: true,
+        env: {
+          ...process.env,
+          CREW_ROLE: role,
+          CREW_TASK_ID: task.taskId,
+          CREW_ORCH_EVENTS: `http://localhost:${PORT}/agent-event`,
+        },
+      });
 
     const killer = setTimeout(() => {
       // Kill the GROUP, not the child. E reproduced the alternative: SIGKILL the
@@ -539,6 +638,13 @@ function startTask(instructions) {
   const task = {
     taskId, instructions, status: 'running', roles, order,
     maxLines: linesFor(instructions),
+    // role -> a way to put a line on stage for an agent that is alive right now.
+    inject: {},
+    // What the user said when an agent phoned them. Kept on the TASK, not in the
+    // agent that asked, because a decision made out loud belongs to the whole
+    // crew: the scheduler asks which meeting wins, and the recap has to close
+    // the show knowing that answer rather than reporting around it.
+    answers: [],
     agents: Object.fromEntries(order.map((n) => [n, { name: n, state: 'idle', lastMessage: '' }])),
   };
   tasks.set(taskId, task);
@@ -579,6 +685,33 @@ http.createServer((req, res) => {
   if (req.method === 'POST' && url.pathname === '/wake') {
     wakeAndListen();
     return send(res, 200, { status: 'listening' });
+  }
+
+  // POST /agent-event — the bridge's way back onto the stage, and the reason
+  // the room is not staring at a frozen dock for two minutes. An agent that
+  // calls you is blocked inside ONE tool call the whole time your phone rings,
+  // you pick up, you talk, and whisper writes it down. Nothing it says reaches
+  // stdout in that window, so without this the characters go silent at exactly
+  // the moment the thing we built is happening in the presenter's hand.
+  //   { taskId, role, kind: "calling"|"answered", message, text? }
+  // `message` is the line to say; `text` is the raw words for the crew to work
+  // from. Additive to the frozen contract — no existing shape changes.
+  if (req.method === 'POST' && url.pathname === '/agent-event') {
+    let body = '';
+    req.on('data', (d) => (body += d));
+    req.on('end', () => {
+      let e = {};
+      try { e = JSON.parse(body); } catch {}
+      const task = tasks.get(e.taskId);
+      const line = typeof e.message === 'string' ? e.message.trim() : '';
+      if (!task || !line) return send(res, 400, { error: 'known taskId and message (string) required' });
+      if (e.kind === 'answered' && e.text) task.answers.push({ role: e.role, text: String(e.text) });
+      // No injector means that agent has already signed off — the line lands
+      // nowhere rather than reanimating a character that is finished.
+      task.inject[e.role]?.([line]);
+      return send(res, 200, { ok: true });
+    });
+    return;
   }
 
   // Additive to the frozen contract — nothing existing changes shape. This is

@@ -1,9 +1,13 @@
 #!/bin/bash
 # The whole demo, one command. This is what gets run on stage.
 #   ./run-demo.sh          real agents, narrated — nothing is touched  <- SAFE
-#   ./run-demo.sh live     real agents calling the crew_* tools; the mailbox changes
+#   ./run-demo.sh live     real agents calling the crew_* tools; the mailbox
+#                          changes, and the crew can text, ring and ASK you —
+#                          the phone stack comes up with it (docs/a1mobile.md)
 #   ./run-demo.sh voice    real agents speaking commands to VoiceOS  <- the real thing
 #   ./run-demo.sh wait     bring everything up and let VOICEOS start the task
+#   ./run-demo.sh phone-fake  real agents, phone SIMULATED — no key, no tunnel,
+#                          no network. The show is identical minus the ringing.
 #   ./run-demo.sh fake     canned narration, no Claude calls  <- PANIC BUTTON
 #   ./run-demo.sh stop     kill everything
 #
@@ -42,6 +46,11 @@ stop() {
   pkill -f "orchestrator/server.js" 2>/dev/null
   pkill -f "node server.js" 2>/dev/null
   pkill -f "fake-dock.js" 2>/dev/null
+  # The phone stack is a separate tree (voice server + tunnel) and would happily
+  # outlive the rest. A leftover tunnel is the nastiest state we have: the
+  # number stays pointed at an address that is about to stop existing, so the
+  # next call rings the phone and then says nothing at all.
+  ./voiceos-bridge/mcp-server/phone.sh down >/dev/null 2>&1
   # Wait for the ports, don't sleep and hope. A listener takes a moment to let
   # go, and starting the next dock inside that window fails the bind — which
   # used to leave an app on screen that could never receive a line.
@@ -68,16 +77,48 @@ WAIT=""
 case "${1:-}" in
   fake)  FAKE="FAKE=1"; LABEL="canned, no Claude" ;;
   live)  export CREW_MODE=direct; LABEL="direct — the mailbox really changes" ;;
+  # The phone's own panic button: real agents, real mailbox tools, but the
+  # calling and asking is simulated in-process. Depends on no key, no tunnel and
+  # no network, so the third act cannot be taken away by the venue's wifi. The
+  # dock performs it identically — only the ringing is missing.
+  phone-fake)
+         export CREW_MODE=direct CREW_PHONE_FAKE=1 CREW_PHONE_STACK=0
+         LABEL="direct — phone SIMULATED, nothing will ring" ;;
   voice) export CREW_MODE=voice;  LABEL="voice — agents speak to VoiceOS" ;;
   wait)  export CREW_MODE=narrate; LABEL="narrate — waiting for VoiceOS to start it"; WAIT=1 ;;
   "")    export CREW_MODE=narrate; LABEL="narrate — real agents, nothing touched" ;;
-  *)     echo "unknown mode '$1' — use: (none) | live | voice | fake | wait | stop"; exit 1 ;;
+  *)     echo "unknown mode '$1' — use: (none) | live | phone-fake | voice | fake | wait | stop"; exit 1 ;;
 esac
 # Fail here, not on stage: a missing prompt file means every agent dies silently.
 [ -n "$FAKE" ] || [ -f "orchestrator/prompts/execution-${CREW_MODE}.md" ] \
   || { echo "no prompt for mode '$CREW_MODE'"; exit 1; }
 
 stop
+
+# The phone comes up with the crew, not as five things you remember separately.
+# Only in direct mode, because that is the only mode whose agents hold the
+# crew_* tools — narrate and voice agents have no way to dial. Only when a team
+# key is actually on this machine, so a box without one still runs the whole
+# demo minus the phone rather than failing at the door.
+#   CREW_PHONE_STACK=0  never bring it up   |   =1  bring it up and fail if it won't
+PHONE_STACK="${CREW_PHONE_STACK:-auto}"
+if [ "$PHONE_STACK" != 0 ] && [ -z "$FAKE" ] && [ "${CREW_MODE:-}" = direct ] \
+   && { [ "$PHONE_STACK" = 1 ] || [ -f ai-mobile-integration.md ] || [ -n "${A1MOBILE_TEAM_KEY:-}" ]; }; then
+  echo "bringing the phone up..."
+  if ./voiceos-bridge/mcp-server/phone.sh up; then
+    echo "the crew can reach you on ${CREW_PHONE:-<CREW_PHONE unset>}"
+  elif [ "$PHONE_STACK" = 1 ]; then
+    echo "phone stack demanded but it would not come up — stopping."; exit 1
+  else
+    # Not fatal on purpose. Every other tool still works, the show still runs,
+    # and the agents narrate on without the phone. Better a demo missing one
+    # trick than no demo.
+    echo "  ! phone stack is down — crew_send_sms/place_call/ask_user will fail."
+    echo "    everything else still runs. ./voiceos-bridge/mcp-server/phone.sh check"
+  fi
+  echo
+fi
+
 # Rebuild when the sources are newer, not only when the binary is missing. The
 # old `-x` guard meant a `git pull` that brought new Swift left you running the
 # previous build with no warning — the dock fix was on disk and not in the app.

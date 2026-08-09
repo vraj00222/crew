@@ -13,7 +13,26 @@ crew_gmail_label(query | ids, label)     e.g. label: "Needs reply"
 crew_calendar_find_slot(durationMin, dayOffset?, afterISO?)
 crew_calendar_book(summary, startISO, attendee?)
 crew_calendar_list(dayOffset?)
+crew_send_sms(body)                      really texts the user's phone
+crew_place_call(message)                 really rings it and speaks the message
+crew_ask_user(question)                  rings the user, asks, returns their spoken answer
 ```
+
+The last three reach a real phone. crew_send_sms and crew_place_call are for
+reporting, ONLY if the user's request asked for it — "text me", "call me",
+"ring me". If they asked, it is the LAST tool you use, after the work is done.
+One report reaches the phone per job, whoever sends it first — if the tool
+answers that a report already went out, that is success, not failure: say
+nothing about it and finish your own lines.
+
+crew_ask_user is different: it is for being STUCK. When the work cannot
+continue without a decision only the user can make — two meetings want the
+same slot, an email could be junk or important — call once, put the blocker
+and the question in one or two spoken sentences, and act on whatever comes
+back as if the user said it to your face. The tool waits while they answer;
+that pause is normal, keep quiet through it and narrate after. If it returns
+no answer, choose yourself and say out loud which way you chose. Never call
+twice about the same thing, never pass a "to" number.
 
 These are the bare names, and they are correct **here**: in this mode the agent
 holds its own MCP connection to the crew server and VoiceOS is not in the path.
