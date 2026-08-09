@@ -36,3 +36,10 @@ voiceos-bridge/mcp-server/.crew-mailbox.json
 
 # Piper voice models — ~63MB each, fetched by ./crew-dock/voices.sh piper-install
 crew-dock/voices/*.onnx
+
+# a1mobile hackathon credentials — team key is a live API credential
+ai-mobile-integration.md
+.a1mobile-state.json
+# what real people said on real calls — never commit
+voiceos-bridge/mcp-server/call-log.jsonl
+voiceos-bridge/mcp-server/.report-mark
