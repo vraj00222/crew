@@ -303,7 +303,7 @@ func wakeTheCrew(_ hotkeyPhrase: String?) {
 /// two dozen agents talking over each other and a Claude bill to match.
 /// `isARepeat` stops the held key; the cooldown stops a nervous double-press.
 var lastWake = Date.distantPast
-let wakeCooldown: TimeInterval = 3
+let wakeCooldown: TimeInterval = 0.6
 
 if AXIsProcessTrusted() {
     NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { e in
@@ -321,8 +321,7 @@ if AXIsProcessTrusted() {
         // C = wake and ask.  L = run the long one straight through.
         wakeTheCrew(e.keyCode == 8 ? nil : longPhrase)
     }
-    FileHandle.standardError.write(Data(("hotkey ready — control-option-C: wake the crew and let it ask you"
-        + "  |  control-option-L: run the long one straight through\n").utf8))
+    FileHandle.standardError.write(Data(("hotkey ready — control-option-C: press to summon, speak, press again to send\n").utf8))
 } else {
     FileHandle.standardError.write(Data((
         "hotkey OFF — no Accessibility permission, so control-option-C/L will do nothing.\n"

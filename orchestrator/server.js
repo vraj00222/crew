@@ -377,15 +377,24 @@ const sqlite = (sql) => new Promise((resolve) => {
   p.on('error', () => resolve(''));
 });
 
-let waking = false;
+// --- the conversation ---
+// One key, pressed twice, and you decide when you have finished talking.
+//
+//   press 1: one agent walks on and asks. It starts listening.
+//   ...you speak, at whatever pace you like...
+//   press 2: it stops listening and the crew goes to work on what you said.
+//
+// This replaces guessing. A fixed window threw away a perfectly transcribed
+// instruction that arrived 63s in; a silence timer has to decide whether a pause
+// means "thinking" or "finished", and it will be wrong in a quiet room. A second
+// press is unambiguous, and it is the same key, so there is nothing to remember.
+let listening = null;   // { from: rowid, task, greeter } while the ear is open
 
 // Every line the crew has spoken. The dock narrates through the speakers and
 // VoiceOS listens on the real microphone, so the crew hears ITSELF: a live run
 // produced `heard: "two o'clock tomorrow is free day"` moments after a character
 // said "Two o'clock tomorrow is free — David Chen, yours." Left alone the demo
 // takes its own narration as the next instruction and talks to itself forever.
-// The device split solves this for the agent loop; nothing could solve it here,
-// because the whole point is that the microphone is open to the room.
 const spokenLines = [];
 const normalise = (s) => s.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
 
@@ -401,102 +410,63 @@ function isOurOwnVoice(heard) {
   });
 }
 
-/// A transcript we should act on, or a reason not to.
-function usable(heard) {
-  const words = heard.trim().split(/\s+/).filter(Boolean);
-  // "p" arrived as a task on a live run. A real instruction is a sentence.
-  if (words.length < 3 || heard.trim().length < 12) return 'too short to be an instruction';
-  if (isOurOwnVoice(heard)) return 'that was the crew talking, not you';
-  return null;
-}
+const maxRow = async () =>
+  Number(await sqlite('SELECT COALESCE(MAX(rowid),0) FROM voice_sessions;')) || 0;
 
-async function wakeAndListen() {
-  if (waking) return;              // one conversation at a time
-  // Don't ask again while the crew is still working — a second greeting over a
-  // running show is how one run became three on stage.
+/// Press 1 — one agent walks on, asks, and opens the ear.
+async function startListening() {
   const busy = [...tasks.values()].some((t) => t.status === 'running');
   if (busy) { console.log('[wake] ignored — the crew is still working'); return; }
-  waking = true;
+
   const greeter = Object.keys(CREW)[0];
   const task = { taskId: 'wake', agents: { [greeter]: { name: greeter, state: 'idle', lastMessage: '' } } };
-
-  // The crew arrives and asks. This is the beat the whole demo turns on: the
-  // audience sees them show up *before* anyone has said what the job is.
   say(task, greeter, 'working', GREETING);
+  listening = { from: await maxRow(), task, greeter };
+  console.log('[wake] listening — say what you want, then press it again');
+}
 
-  let before = Number(await sqlite('SELECT COALESCE(MAX(rowid),0) FROM voice_sessions;')) || 0;
-  console.log(`[wake] listening — say what you want (${LISTEN_MS / 1000}s)`);
+/// Press 2 — close the ear and run whatever was actually said.
+async function stopAndRun() {
+  const { from, task, greeter } = listening;
+  listening = null;
 
-  const deadline = Date.now() + LISTEN_MS;
-  let heard = '';
-  while (Date.now() < deadline && !heard) {
-    await new Promise((r) => setTimeout(r, 350));
-    const row = await sqlite(
-      `SELECT transcript FROM voice_sessions WHERE rowid > ${before} AND transcript IS NOT NULL `
-      + "AND trim(transcript) <> '' ORDER BY rowid DESC LIMIT 1;");
-    if (!row) continue;
-    const candidate = row.replace(/\s+/g, ' ').trim();
-    const why = usable(candidate);
-    if (why) {
-      console.log(`[wake] ignoring "${candidate}" — ${why}`);
-      before = Number(await sqlite('SELECT COALESCE(MAX(rowid),0) FROM voice_sessions;')) || before;
-      continue;
-    }
+  const rows = await sqlite(
+    `SELECT transcript FROM voice_sessions WHERE rowid > ${from} AND transcript IS NOT NULL `
+    + "AND trim(transcript) <> '' ORDER BY rowid ASC;");
 
-    // Stop when you stop talking, not when the first fragment lands. VoiceOS
-    // segments on pauses, so one spoken sentence can arrive as several rows —
-    // acting on the first would take half an instruction. Keep collecting until
-    // you have been quiet for SETTLE_MS, then run what you actually said.
-    let parts = [candidate];
-    before = Number(await sqlite('SELECT COALESCE(MAX(rowid),0) FROM voice_sessions;')) || before;
-    console.log(`[wake] hearing you: "${candidate}"`);
-    let quietSince = Date.now();
-    while (Date.now() - quietSince < SETTLE_MS) {
-      await new Promise((r) => setTimeout(r, 300));
-      const more = await sqlite(
-        `SELECT transcript FROM voice_sessions WHERE rowid > ${before} AND transcript IS NOT NULL `
-        + "AND trim(transcript) <> '' ORDER BY rowid ASC;");
-      if (!more) continue;
-      for (const line of more.split('\n')) {
-        const t = line.replace(/\s+/g, ' ').trim();
-        if (!t || isOurOwnVoice(t)) continue;
-        parts.push(t);
-        console.log(`[wake]   ...and: "${t}"`);
-      }
-      before = Number(await sqlite('SELECT COALESCE(MAX(rowid),0) FROM voice_sessions;')) || before;
-      quietSince = Date.now();
-    }
-    heard = parts.join(' ').replace(/\s+/g, ' ').trim();
+  // Everything you said, in order, minus the crew's own voice coming back
+  // through the microphone and minus fragments too short to be an instruction.
+  const parts = [];
+  for (const line of (rows || '').split('\n')) {
+    const t = line.replace(/\s+/g, ' ').trim();
+    if (!t) continue;
+    if (isOurOwnVoice(t)) { console.log(`[wake] ignoring "${t}" — that was the crew, not you`); continue; }
+    parts.push(t);
   }
+  const heard = parts.join(' ').replace(/\s+/g, ' ').trim();
 
-  waking = false;
-  if (!heard) {
-    // Distinguish "you said nothing" from "VoiceOS was not listening", because
-    // they look identical from here and only one of them is your fault. A run
-    // where the transcript table never moved means the microphone was never
-    // opened — hands-free is a human press and nothing we do can make it.
-    const after = Number(await sqlite('SELECT COALESCE(MAX(rowid),0) FROM voice_sessions;')) || 0;
-    if (after === before) {
-      console.log('[wake] VoiceOS never heard ANYTHING — hands-free is probably off.');
-      console.log('       press fn+space once, then try again. It stays on after that.');
+  if (heard.split(/\s+/).filter(Boolean).length < 3) {
+    if (!heard) {
+      console.log('[wake] VoiceOS heard nothing — is hands-free on? press fn+space, then try again.');
     } else {
-      console.log('[wake] heard something but nothing usable — running the rehearsed task');
+      console.log(`[wake] only got "${heard}" — too short to act on`);
     }
-    // Stand down rather than invent a task. Running the rehearsed inbox job
-    // because nobody spoke is worse than doing nothing: on a live run it started
-    // while Vraj was still talking, so the crew was busy narrating the wrong
-    // thing when his actual instruction arrived. Say one line, go quiet, and
-    // wait to be asked again — ⌃⌥C is right there.
+    // Stand down rather than invent a task: starting the rehearsed run over
+    // someone who is mid-sentence is worse than doing nothing.
     say(task, greeter, 'done', 'No rush. Press it again when you are ready.');
+    return;
   }
+
   console.log(`[wake] heard: "${heard}"`);
-  // Hand the microphone to the crew. You spoke on the real mic; in `voice` mode
-  // the agents drive VoiceOS by speaking to BlackHole, and one VoiceOS cannot
-  // listen to both. Requires `voiceos-setup.sh auto` so VoiceOS follows the
-  // system default rather than a pinned device — then this is instant and costs
-  // no restart. Silent no-op in every other mode, where nobody is competing.
+  // Hand the microphone to the crew — in `voice` mode the agents drive VoiceOS
+  // by speaking to BlackHole, and one VoiceOS cannot listen to both.
   if (MODE === 'voice') await micTo('BlackHole 2ch');
   return startTask(heard);
+}
+
+/// One entry point, because it is one key.
+async function wakeAndListen() {
+  return listening ? stopAndRun() : startListening();
 }
 
 function startTask(instructions) {

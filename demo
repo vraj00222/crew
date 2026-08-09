@@ -70,16 +70,15 @@ fi
 cat <<'BANNER'
 
   ────────────────────────────────────────────────────────────
-    ready. nothing has been asked for yet.
+    ready.
 
-    FIRST, ONCE:  press fn + space
-                  that opens VoiceOS's ear and leaves it open.
-                  without it the crew asks and never hears you.
+    ONCE, FIRST:   fn + space        opens VoiceOS's ear, stays open
 
-    THEN:  ⌃⌥C   the crew arrives and asks what you want — just talk
-           ⌃⌥L   the long one, five agents, no question asked
+    THEN, ALWAYS:  ⌃⌥C   an agent walks on and asks
+                   ...say what you want, take your time...
+                   ⌃⌥C   again — the crew goes and does it
 
-    press as many times as you like. ctrl-C here to stop.
+    same key both times. ctrl-C here to stop.
   ────────────────────────────────────────────────────────────
 
 BANNER
