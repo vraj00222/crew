@@ -1308,6 +1308,63 @@ same thing to a human. Only fires on an error path, so it is polish, not a block
 Nothing is lost. **Rungs 1-3 need none of this** and all three work today. The decision to
 keep the voice layer swappable behind one HTTP contract is what makes that true.
 
+## ➡️ B (Sameer) — the VoiceOS↔MCP integration is YOURS. A is handing it over
+
+**Why you and not me:** it is your server, your annotations, and your finding that VoiceOS
+renames tools. I have the Mac the demo runs on, so I will run whatever you need run — but
+the decisions here are yours to make and I should stop making them.
+
+VoiceOS is **building a custom Crew integration** on A's Mac right now (not a plain
+`customMcpServers` entry — it generates notch cards, argument controls and **confirmation
+cards** around our server). It reasons while it builds, and it is reasoning about
+`confirmation_cards_json`, the manifest, and which tools require confirmation. **It is
+reading your `annotations`.**
+
+### 1. Confirm the wiring the moment the build finishes (A will run it, you call it)
+
+- `tools/list` shows `crew`. If not, VoiceOS never started the server — the cause is
+  almost always the node path, and it must be **absolute**, not bare `node`.
+- **Write down the real tool names.** They will be prefixed. Your `custom_mcp_<server>_<tool>`
+  finding predicted this; now we get to see it and record the actual strings. Nothing in
+  A's prompts hardcodes them, and nothing should start.
+- Already cleared on A's side so you do not have to chase them: the server survives being
+  spawned with **no shell, no cwd, no PATH** (`env -i`, cwd `/`, absolute node → init OK,
+  8 tools, clean stdout), and it does **not hang** when :4001 is down.
+
+### 2. Your `readOnlyHint` question — this is the moment it gets answered
+
+Watch which tools produce a confirmation card:
+
+- read-only tools (`crew_gmail_list_inbox`, `crew_task_status`) skip it, writes
+  (`crew_gmail_archive`, `crew_calendar_book`) show it → **annotations drive it, we already
+  declare honestly, and the loop is autonomous with no workaround.**
+- everything confirms regardless → the voice-answered-confirmation path is the fallback,
+  and it is A's finding 6, already known to exist.
+
+Record the answer either way. It is the last unknown in the whole system.
+
+### 3. One wording fix, your file, ~2 minutes — and it is a stage moment
+
+With :4001 down, `run_crew_task` replies:
+
+> "Could not reach the orchestrator at http://localhost:4001 — is it running? (node orchestrator/server.js)"
+
+**VoiceOS reads tool replies aloud, verbatim.** A character saying "http colon slash slash
+localhost four thousand one, is it running, node orchestrator dot server dot js" is ten
+bad seconds in front of a room. Something a person would say — *"The crew isn't awake yet.
+Start it and ask me again."* — carries the same information. Error path only, so it is
+polish rather than a blocker, but it is the kind of polish that is only cheap now.
+
+Worth a pass over **every** tool's reply text with the same lens: not "is this correct?"
+but "is this a sentence a person would say out loud?" You already did exactly this for
+`crew_task_status` and it is the reason that one lands.
+
+### 4. Your own box, when convenient
+
+`customMcpServers` is still 0 on Windows. Not blocking anything — the demo runs on A's
+Mac — but a second registration is the only way we would catch a Mac-only assumption
+before it matters.
+
 ## Decisions log
 
 - _Sat night — orchestrator is one file (`orchestrator/server.js`), Node stdlib only, not the 4-file TypeScript layout in the folder plan — A — no build step, no `npm install`, no deps to break at 5pm; the whole thing is ~170 lines and restarts instantly. The frozen bit is the HTTP contract, and that's unchanged._
@@ -2000,7 +2057,7 @@ done; this is what is genuinely still open.
 | | state | the one thing left |
 |---|---|---|
 | **A — Vraj** | voice loop proven, Piper voices in, rungs 1-3 real | **the long-task feedback loop** (below) — the only unbuilt feature |
-| **B — Sameer** | 8 tools, both platforms, `run-demo.ps1` | register `crew` in VoiceOS on your box; then the `readOnlyHint` check |
+| **B — Sameer** | 8 tools, both platforms, `run-demo.ps1` | **OWNS the VoiceOS↔MCP integration** — see the handover section: confirm `tools/list`, record the real prefixed names, answer `readOnlyHint` from the confirmation cards, and make the tool replies sound like sentences |
 | **C — Abhishek** | dock done, stall indicator, `register.sh` | **nothing.** Take `crew-say`/`Narrator` back if you want it; it is one line |
 | **D — Yaseen** | unblocked, art not started | **`recap` art.** It is the only workstream nobody else can do |
 | **E — Rukaiya** | all three deliverables done, rung 2 proven on the backup rig | ~~re-record~~ **done — re-cut with the Piper voices, 95s, 10/10.** Next: deliver the talk out loud over a run |
