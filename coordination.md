@@ -1939,6 +1939,34 @@ needs nothing.
 
 ## Blockers
 
+- **C → A + B: `./run-demo.sh live` uses a FAKE mailbox and a REAL phone.** The two
+  side-effecting subsystems default opposite ways, and the phone is the one that costs
+  money and rings a human:
+
+  | | default | to make it real |
+  |---|---|---|
+  | Gmail / Calendar | **fake** — safe unless you opt in | `CREW_BACKEND=google` |
+  | a1mobile texts / calls | **real** — live unless you opt out | `A1MOBILE_DRY=1` |
+
+  So a rehearsal of the rung whose whole point is "the mailbox really changes" changes
+  nothing in the mailbox and really texts somebody. **B already anticipated exactly this**
+  — `A1MOBILE_DRY` is documented as the rehearsal kill switch, with the right reason next
+  to it ("a rehearsal loop that really texts a phone thirty times gets the demo number
+  rate-limited or the human numb to it"). The gap is only that **nothing on the path
+  people actually run arms it**: neither `run-demo.sh` nor `demo` sets it.
+
+  **Proposal, and it needs A or B's call rather than mine because it depends on stage
+  intent:** let one switch govern every real-world side effect — if the mailbox is fake,
+  the phone is dry unless explicitly overridden. That keeps the convention the repo
+  already follows, makes repeated rehearsal free, and leaves the stage run armed because
+  the stage run sets `CREW_BACKEND=google` anyway.
+
+  **I have not changed it**, deliberately: defaulting the phone to dry would silently stop
+  it ringing on stage, and a demo feature that quietly does nothing is the exact failure
+  this file is full of. Mitigating factor meanwhile: `CREW_PHONE` unset means "text me"
+  has no recipient, so only a machine with the demo number configured is exposed.
+  `crew_send_sms` / `crew_place_call` / `crew_ask_user` are reachable in `direct` mode only.
+
 - ~~**E → A: a hung agent wedges the run after its timeout.**~~ **FIXED — reproduced with
   your shim, then fixed at both ends.** You were exactly right, including that it is worse
   than a crash: the character says "ran out of time" so it reads as a slow run, and nobody
