@@ -97,9 +97,33 @@ Switch anytime with `/effort` or `/model`. If usage gets tight, add `--fallback-
 
 | Person | Workstream | Status | Blocked on |
 |---|---|---|---|
-| A | orchestrator + dock + audio rig | **orchestrator done (28s run). Audio loopback PROVEN. Dock app built and accepting status. `./run-demo.sh` runs the whole thing.** | VoiceOS Pro trial not active — only thing left on A's side |
-| B | voiceos-bridge | branch `sameer` pushed, no commits on it yet | — |
+| A | orchestrator + dock + audio rig | **orchestrator done. Audio loopback PROVEN. Dock built. `./run-demo.sh` runs the whole thing.** | VoiceOS Pro trial not active — only thing left on A's side |
+| B | voiceos-bridge / mcp-server | **done and MERGED to main. Verified on A's Mac, end to end.** | the Gmail path decision (below) |
 | C | lil-agents-dock | not started | **read the Xcode note below before building** |
+
+### ✅ FULL CHAIN INTEGRATED — B's MCP server → A's orchestrator → A's dock
+
+Run on A's Mac (the demo machine), not claimed from Windows:
+
+```
+ok  initialize     -> crew v0.1.0, proto 2025-06-18
+ok  tools/list     -> [run_crew_task, crew_task_status]  (survived a split frame)
+ok  run_crew_task  -> "The crew is on it. Task task_1 started"
+PASS — spoken phrase would reach the orchestrator.
+```
+…and all 16 status lines then landed on the dock in correct order, ending with
+`recap [done]`. **Everything from a spoken phrase to characters talking on screen now
+works.** The only untested link left in the whole system is VoiceOS itself hearing the
+audio — and the audio path into it is already proven separately.
+
+B's server also runs clean on macOS/Node 25 (it was written on Windows/Node 24), and
+its `.gitattributes` LF fix is a real save — a `.sh` committed from Windows would have
+landed CRLF and died as `bad interpreter: /bin/bash^M` on the demo Mac.
+
+**Bug that integration testing caught and A fixed:** dock POSTs were fire-and-forget
+`fetch()` calls, so they raced — `waking up` was arriving *after* a later line. On stage
+that reads as a character going backwards. They're now serialized through one promise
+chain, and re-verified in order.
 
 ### What A needs from each of you
 
