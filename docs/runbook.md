@@ -49,10 +49,17 @@ anything you say that ends in Enter runs.
 ## 2. Pre-flight — 5:15, not 5:55
 
 ```bash
-git pull --rebase origin main && ./checkpoint.sh    # must end CHECKPOINT PASS
+git pull --rebase origin main && ./crew-dock/build.sh   # pull THEN rebuild, in that order
+./checkpoint.sh                                     # must end CHECKPOINT PASS
 ./run-demo.sh fake                                  # full dress rehearsal, zero spend
 ./voiceos-bridge/audio-loopback/spike.sh off        # ALWAYS — or the Mac has no mic
 ```
+
+**Why the explicit rebuild:** the dock is the one compiled thing here, and a pull
+while it is running leaves you watching the old app. `run-demo.sh` rebuilds for
+you, but launching the binary directly — which is what you do to read its
+stderr — does not. This has caught us four times in one day, always as a feature
+that "isn't working" and is simply not in the build.
 
 - [ ] Volume up; dock narrates to `MacBook Pro Speakers` and nowhere else
 - [ ] Do Not Disturb on (a banner lands on top of a character)
@@ -80,12 +87,14 @@ walk up**:
 - **Press ⌃⌥C** — no VoiceOS, no helper, no terminal in the shot. The crew walks
   down from the top of the screen and starts. **Tested by a real press on a
   second Mac**; a synthesised keystroke does *not* work, so this is a human
-  beat. Three conditions, all learned the hard way:
+  beat. Two conditions, learned the hard way:
   **(a)** Accessibility must be granted to the app that *launches* the dock
-  (Terminal, VS Code — whichever), **(b)** restart that app after granting, then
-  press once to confirm — `hotkey ready` in the log is not proof on its own, and
-  **(c)** the walk-down entrance only plays on a **freshly started dock**, so
-  `./run-demo.sh stop` between rehearsals or the crew is already standing there.
+  (Terminal, VS Code — whichever), and **(b)** restart that app after granting,
+  then press once to confirm — `hotkey ready` in the log is not proof on its own.
+- **⌃⌥L** is the *long* five-agent run that shows agents handing findings to each
+  other. **Do not put it on stage** unless you have rehearsed it: A's call is
+  that ⌃⌥C is the 45-second run that has been said out loud dozens of times.
+  Know which key you are pressing — they are one letter apart.
 
 - **`run-demo.sh wait` + the natural sentence** — the real beat, if B's helper
   action is live.
@@ -117,7 +126,20 @@ Say it, then nobody touches the machine for ~45 seconds. Talk over it:
 
 **Watch the dock, not the terminal.** Speech trails the log by ~10 seconds — when
 the terminal says done, the last character is still mid-sentence. Don't stop
-talking, don't touch anything, until Karen finishes out loud.
+talking, don't touch anything, until the last voice finishes.
+
+**The show ends itself — let it.** About 7 seconds after everyone has signed off,
+the crew walks back off the top of the screen and **one character is left alone
+with the closing summary** (whoever finished last, not always recap). Measured at
+8s from the final `done`. That is your closing image and the line the room should
+be reading while you land the last sentence — so stop talking *into* it rather
+than over it, and don't hit `stop` until it has played.
+
+**Rehearsing twice in a row is safe.** After the curtain, characters reset and a
+second trigger gets a clean entrance — they walk down again rather than sliding
+in from wherever they stood. Verified end to end. (If you re-trigger *before* the
+curtain has played, the crew is still on screen and there is no entrance to see —
+that reads as a dead hotkey and isn't one.)
 
 ## 5. When it breaks — never debug on stage
 
@@ -129,6 +151,8 @@ talking, don't touch anything, until Karen finishes out loud.
 | `READY` never becomes `VoiceOS started task_…` | nothing reached the orchestrator — ctrl-C, drop to rung 2 or 1, keep talking |
 | dock vanishes / never appears | orchestrator finishes anyway; narrate the terminal, then `stop && fake` |
 | everything silent | volume, then `/tmp/crew-dock.log` — `SAY ->` lines are what the room got |
+| crew never walks off at the end | you are on a stale build — `./crew-dock/build.sh`. Cosmetic; keep going |
+| characters don't walk down on a re-press | they never left; the curtain hadn't played. Not a broken hotkey |
 
 The recovery command is always the same two words: **`stop`, then `fake`**.
 
