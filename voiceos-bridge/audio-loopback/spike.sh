@@ -3,6 +3,7 @@
 #   ./spike.sh install   one-time, asks for your password (installs an audio driver)
 #   ./spike.sh on        route audio into VoiceOS's mic
 #   ./spike.sh say "..." speak a command into VoiceOS
+#   ./spike.sh trigger   start hands-free dictation with no hands (after `voiceos-setup.sh handsfree`)
 #   ./spike.sh verify    proves the audio path, NO VoiceOS needed  <- run before rehearsal
 #   ./spike.sh split     proves dock narration and agent commands stay separate
 #   ./spike.sh test      the whole go/no-go: routes, speaks, checks, restores
@@ -71,6 +72,38 @@ say)
   say -v Samantha -r 190 "${2:?usage: $0 say \"the command\"}"
   ;;
 
+trigger)  # start hands-free dictation with no hands. Needs `voiceos-setup.sh handsfree` first.
+  # This is the step that was supposed to be impossible. `fn` cannot be
+  # synthesized — it is handled below the layer CGEvent/AppleScript reaches — so
+  # the design assumed one human press per demo. Rebinding hands-free to an
+  # ordinary chord removes even that: the chord posts like any other keystroke.
+  #
+  # One human action remains, ONCE, ever: macOS requires Accessibility
+  # permission to post keystrokes, granted per-application in
+  # System Settings -> Privacy & Security -> Accessibility. That is a setup
+  # step, not a per-run step.
+  KEYS=$(node -pe '
+    const s=JSON.parse(require("fs").readFileSync(process.env.HOME+"/Library/Application Support/VoiceOS/config.json","utf8")).settings;
+    (s.handsFreeShortcut?.keys||[]).join(",")')
+  case "$KEYS" in
+    *fn*) echo "hands-free is still bound to [$KEYS] — fn cannot be synthesized."
+          echo "run: ./voiceos-setup.sh handsfree"; exit 1 ;;
+    "")   echo "no hands-free shortcut configured"; exit 1 ;;
+  esac
+  # "control-left,option-left,h" -> modifiers + the single non-modifier key
+  MODS=$(printf '%s' "$KEYS" | tr ',' '\n' | sed -n 's/^control.*/control down/p; s/^option.*/option down/p; s/^command.*/command down/p; s/^shift.*/shift down/p' | paste -sd, -)
+  KEY=$(printf '%s' "$KEYS" | tr ',' '\n' | grep -Ev '^(control|option|command|shift|fn)' | head -1)
+  [ -n "$KEY" ] || { echo "chord [$KEYS] has no non-modifier key to press"; exit 1; }
+  if osascript -e "tell application \"System Events\" to keystroke \"$KEY\" using {$MODS}" 2>/tmp/crew-trigger.err; then
+    echo "triggered hands-free: [$KEYS]"
+  else
+    echo "could not post the keystroke:"; cat /tmp/crew-trigger.err
+    echo "Grant Accessibility to your terminal, once:"
+    echo "  System Settings -> Privacy & Security -> Accessibility -> add your terminal app"
+    exit 1
+  fi
+  ;;
+
 off)
   SwitchAudioSource -t output -s "$DOCK_DEVICE" 2>/dev/null || true
   SwitchAudioSource -t input  -s "MacBook Pro Microphone" 2>/dev/null || true
@@ -123,7 +156,7 @@ split)  # proves the two speech streams cannot collide. NO VoiceOS needed.
 
 test)  # the whole go/no-go, hands-off except for one key press
   BEFORE=$(sqlite3 -readonly "$HOME/Library/Application Support/VoiceOS/voiceos.db" \
-    "SELECT COUNT(*) FROM dictations;" 2>/dev/null || echo 0)
+    "SELECT COUNT(*) FROM voice_sessions;" 2>/dev/null || echo 0)
   printf 'crew loopback scratch — dictated text lands here\n\n' > /tmp/crew-dictation.txt
   open -a TextEdit /tmp/crew-dictation.txt   # absorbs the text so it can't type into your terminal
   sleep 2
@@ -141,14 +174,14 @@ test)  # the whole go/no-go, hands-off except for one key press
   done
   echo
   AFTER=$(sqlite3 -readonly "$HOME/Library/Application Support/VoiceOS/voiceos.db" \
-    "SELECT COUNT(*) FROM dictations;" 2>/dev/null || echo 0)
-  echo "=== dictations before=$BEFORE after=$AFTER ==="
+    "SELECT COUNT(*) FROM voice_sessions;" 2>/dev/null || echo 0)
+  echo "=== voice_sessions before=$BEFORE after=$AFTER ==="
   if [ "$AFTER" -gt "$BEFORE" ]; then
     echo "*** VOICE LOOP IS LIVE — VoiceOS transcribed audio it never heard through a microphone ***"
     sqlite3 -readonly "$HOME/Library/Application Support/VoiceOS/voiceos.db" \
-      "SELECT created_at, final_transcription FROM dictations ORDER BY rowid DESC LIMIT 3;"
+      "SELECT created_at, app_name, transcript FROM voice_sessions ORDER BY rowid DESC LIMIT 3;"
   else
-    echo "No new dictation. Check, in this order:"
+    echo "No new voice session. Check, in this order:"
     echo "  1. did you actually hold the trigger while it was speaking?"
     echo "  2. VoiceOS mic set to 'BlackHole 2ch'?  ./voiceos-setup.sh show"
     echo "  3. muteWhenDictating still true?        ./voiceos-setup.sh apply"

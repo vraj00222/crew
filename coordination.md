@@ -1053,6 +1053,51 @@ settings object as `nativeActionToggles`. That may be the global bypass we both 
 did not exist. Worth five minutes once the loop runs — but note the name is a warning, and
 it is not something to flip on a machine holding real mail without understanding it.
 
+## ✅ A — THE VOICE LOOP IS PROVEN. Last untested link in the system, tested.
+
+VoiceOS transcribed audio it never heard through a microphone:
+
+```
+created_at                app_name   window_title          transcript
+2026-08-09T18:58:19.992Z  TextEdit   crew-dictation.txt    "Log"    (2.4s)
+```
+
+`crew-dictation.txt` is the scratch file `spike.sh test` opens, and BlackHole has no
+microphone — so that audio can only have arrived through the digital loopback. **`say` ->
+BlackHole -> VoiceOS -> transcribed text in a real app works.** Every hop in the system is
+now individually proven.
+
+### The reason we thought it had failed: we were reading the wrong table
+
+`spike.sh` and every note in this file verified against **`dictations`**, which in VoiceOS
+0.1.21 is **empty and legacy** — it has 0 rows and always will. Transcripts land in
+**`voice_sessions`** (14 rows, with `transcript`, `app_name`, `window_title`,
+`duration_seconds`). Our first run reported "0 dictations, the trigger was never pressed"
+when it had in fact worked. Fixed in `spike.sh`; the query to use is:
+
+```bash
+sqlite3 -readonly ~/Library/Application\ Support/VoiceOS/voiceos.db \
+  "SELECT created_at, app_name, transcript FROM voice_sessions ORDER BY rowid DESC LIMIT 3;"
+```
+
+**This is the fourth time on this project that a check reported failure or success while
+looking at the wrong thing.** It is worth assuming the instrument is wrong before the code.
+
+### Two things that are NOT solved, stated plainly
+
+1. **The trigger still needs a human press.** `fn` cannot be synthesized, so I rebound
+   hands-free to `control-left+option-left+h` and posted it with AppleScript. The chord
+   posts successfully — and VoiceOS never starts a session from it. It almost certainly
+   watches keys with a low-level event tap that `System Events` keystrokes do not feed.
+   **Rebinding is not the way out.** `voiceos-setup.sh handsfree <chord>` and
+   `spike.sh trigger` are committed for anyone who wants another go, and hands-free is
+   **restored to `fn+space`** because that is the combination the demo has actually
+   rehearsed. One human press at the top of the demo, exactly as originally designed.
+2. **Transcription quality on the loopback is poor.** The one captured session heard "Log"
+   out of a full sentence, over 2.4 seconds. Could be trigger timing (the window opened
+   late), rate, or level. It needs a couple of clean runs to characterise before we rely
+   on the spoken path on stage. **Rungs 1-3 do not depend on it.**
+
 ## Decisions log
 
 - _Sat night — orchestrator is one file (`orchestrator/server.js`), Node stdlib only, not the 4-file TypeScript layout in the folder plan — A — no build step, no `npm install`, no deps to break at 5pm; the whole thing is ~170 lines and restarts instantly. The frozen bit is the HTTP contract, and that's unchanged._

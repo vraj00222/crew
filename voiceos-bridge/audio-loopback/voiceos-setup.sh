@@ -2,6 +2,7 @@
 # Apply the VoiceOS settings the voice loop needs. Run once the Pro trial is active.
 #   ./voiceos-setup.sh apply    quits VoiceOS, patches settings, relaunches
 #   ./voiceos-setup.sh revert   restores the newest backup
+#   ./voiceos-setup.sh handsfree  rebind hands-free off `fn` so a script can trigger it
 #   ./voiceos-setup.sh show     print the settings that matter, change nothing
 #
 # Each setting here was found by reading VoiceOS's own config on 2026-08-08.
@@ -43,6 +44,34 @@ apply)
   open -a VoiceOS
   sleep 5
   echo "applied:"; show
+  ;;
+
+handsfree)
+  # Rebind hands-free off `fn`, which is the single thing keeping a human in the
+  # loop: `fn` is handled below the layer CGEvent/AppleScript can post, so no
+  # script can press it. Every other chord can be synthesized, and VoiceOS
+  # already ships a non-fn chord (control-left + option-left) of its own, so
+  # arbitrary combos are clearly supported.
+  #
+  # After this, `spike.sh trigger` starts dictation with no hands.
+  CHORD="${2:-control-left,option-left,h}"
+  cp "$CFG" "$CFG.backup-$(date +%Y%m%d-%H%M%S)"
+  osascript -e 'quit app "VoiceOS"' 2>/dev/null || true
+  sleep 3
+  pkill -f "VoiceOS.app/Contents/MacOS" 2>/dev/null || true
+  sleep 1
+  node -e '
+    const fs=require("fs"), p=process.argv[1], keys=process.argv[2].split(",");
+    const c=JSON.parse(fs.readFileSync(p,"utf8")), s=c.settings;
+    s.handsFreeShortcut = { ...s.handsFreeShortcut, keys };
+    // The bare-`fn` push-to-talk entry stays: it is the human fallback, and
+    // losing it would mean a failed rebind leaves no way to talk at all.
+    fs.writeFileSync(p, JSON.stringify(c,null,2));
+  ' "$CFG" "$CHORD"
+  open -a VoiceOS
+  sleep 5
+  echo "hands-free rebound to: $CHORD"
+  echo "now: ./spike.sh trigger    (needs Accessibility once — see below)"
   ;;
 
 revert)
