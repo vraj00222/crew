@@ -17,10 +17,13 @@
     "If this file is missing or unparseable the dock uses the built-in three and",
     "logs it, so the rehearsed run can never be broken by a bad edit here.",
     "",
-    "PLACEHOLDER (A, stopgap): researcher and analyst reuse the two upstream clips so a longer task visibly drops more characters TODAY. D — these two rows are yours the moment you have art; swap `asset` and drop `mirrored`. Nothing else needs to change.",
+    "D: A's placeholders for researcher and analyst are now REPLACED with real art.",
+    "All five roles have their own clip — no two characters are the same drawing any more.",
+    "Costumes read the role: researcher wears a lab coat, analyst hi-vis, recap warm orange.",
     "",
-    "D: recap now has its OWN clip (walk-recap-01) — it is no longer triage flipped.",
-    "researcher and analyst are still on A's placeholders and remain my gap."
+    "walk-normal-01 is a SPARE (tan shirt, navy trousers, no role costume). It is",
+    "committed but referenced by nothing — it is here so the next crew member A adds",
+    "has a face on day one. Add a row pointing at it and it appears; no other change."
   ],
   "characters": [
     {
@@ -35,12 +38,12 @@
     },
     {
       "role": "researcher",
-      "asset": "walk-jazz-01",
+      "asset": "walk-researcher-01",
       "mirrored": true
     },
     {
       "role": "analyst",
-      "asset": "walk-bruce-01",
+      "asset": "walk-analyst-01",
       "mirrored": false
     },
     {
