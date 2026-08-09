@@ -196,23 +196,56 @@ the characters keep your rhythm. But speech can't work that way: a line takes ~2
 VoiceOS), queue (drifts), or skip. What it does:
 - bubbles: immediate, never queued
 - speech: one `say` at a time, never two characters talking over each other
-- backlog over 2 lines is dropped so audio can't drift behind the bubbles
+- speech trails the bubbles by a few seconds and skips lines only if it falls
+  more than 4 behind — reads as a character finishing its thought
 - a `Done:` line is **never** dropped — the sign-off always gets said
+- `"waking up"` is shown in the bubble but not spoken (it was costing a real line)
 
-If you'd rather have every line spoken even if audio lags, it's a one-constant change
-(`maxBacklog`). Tell me which reads better on stage and I'll set it.
+**Tuning note, worth knowing:** two agents narrating in parallel share one voice
+channel, so lines arrive faster than they can physically be spoken. My first pass
+dropped over half the run — including *"Booking two PM with David Chen"*, the line the
+whole demo exists to produce. Raising the backlog to 4 and `say -r 200` fixed it.
+Current run speaks 8 lines and this is the whole script, in order:
+
+```
+[Samantha/triage]    Scanning the inbox.
+[Daniel/scheduler]   Reading the flagged emails.
+[Samantha/triage]    Archiving six newsletters.
+[Daniel/scheduler]   Booking two PM with David Chen.
+[Samantha/triage]    Done: inbox down to two real emails.
+[Daniel/scheduler]   Done: two meetings on the calendar.
+[Karen/recap]        Pulling together what the crew did.
+[Karen/recap]        Done: inbox cleared, two meetings booked.
+```
+
+Two lines get skipped ("Flagging two emails…", "Finding open slots tomorrow"). **A —
+if you want every line spoken, drop your `LINE_MS` pacing to ~2200 and I'll raise the
+backlog; the ceiling is speech rate, not the dock.**
 
 Knobs: `CREW_MUTE=1` silences narration entirely. `CREW_AUDIO_DEVICE="…"` picks the
-output device. `CREW_VOICE_TRIAGE` / `_SCHEDULER` / `_RECAP` override voices
+output device. `CREW_RATE` sets words-per-minute (default 200).
+`CREW_VOICE_TRIAGE` / `_SCHEDULER` / `_RECAP` override voices
 (default Samantha / Daniel / Karen).
 
-One bug worth knowing since it would have hit on stage: the first version crashed the
-whole app on a fast burst of messages — Swift's `suffix()` returns a slice that keeps
-the parent's indices, so inserting at 0 traps. The dock died silently and the
-orchestrator's `fetch(...).catch(() => {})` swallowed it, so the log looked perfect
-while nothing was on screen. Fixed and stress-tested with 13 back-to-back POSTs.
-**If the dock ever looks dead mid-demo, check it's still running — the orchestrator
-log will happily lie to you.**
+**Debugging on the day:** the dock logs `DOCK <- …` and `SAY -> …` to stderr, but
+`open Crew.app` throws stderr away. To see it, run the binary directly:
+`./crew-dock/Crew.app/Contents/MacOS/Crew` — that is the only reliable way to answer
+"did it actually speak?".
+
+Two bugs found by running it, both of which would have hit on stage:
+
+1. **The app crashed outright on a fast burst of messages.** Swift's `suffix()` returns
+   a slice that keeps the parent's indices, so inserting at 0 traps. The dock died
+   silently and the orchestrator's `fetch(...).catch(() => {})` swallowed the connection
+   error — so the orchestrator log printed a flawless run while the screen was empty.
+   Fixed, stress-tested with 13 back-to-back POSTs.
+2. **The narrator wedged after one line and went silent for good.** It relied on
+   `Process.terminationHandler` to advance the queue and that doesn't fire reliably;
+   one missed callback silenced the dock permanently. Now it blocks on
+   `waitUntilExit()` instead, with a 15s watchdog.
+
+**Takeaway for everyone: the orchestrator log is not evidence that anything reached the
+audience.** It reports what it *sent*. Confirm against the dock's own stderr.
 
 ### A — orchestrator: ready to integrate against (Sat 23:5x)
 

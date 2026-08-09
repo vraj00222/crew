@@ -16,17 +16,36 @@ final class Narrator {
     ]
     private static let fallbackVoice = "Samantha"
 
-    /// Narration is decoration over the visuals: if we fall this far behind,
-    /// the bubbles are already showing later lines and the backlog is stale.
-    private static let maxBacklog = 2
+    /// Two agents narrate in parallel but there is only one voice channel, so
+    /// lines arrive faster than they can be spoken. This is the budget for how
+    /// far speech may trail the bubbles before we start skipping lines.
+    /// At 2 it dropped over half the run, including "Booking two PM with David
+    /// Chen" — the line the whole demo is for. 4 keeps the content and trails
+    /// by a few seconds, which reads as a character finishing its thought.
+    private static let maxBacklog = 4
 
-    private let queue = DispatchQueue(label: "xyz.crew.narrator")
+    /// Default `say` is ~175 wpm. A little faster keeps narration close to the
+    /// bubbles without sounding rushed.
+    private static let defaultRate = 200
+
+    /// Orchestrator placeholder — it shows in the bubble as the character fades
+    /// in, but spending a speech slot on it costs a real line later.
+    private static let unspoken: Set<String> = ["waking up"]
+
+    /// A `say` that somehow never exits must not silence the rest of the show.
+    private static let utteranceTimeout: TimeInterval = 15
+
+    /// `state` guards the queue; `speech` runs the utterances, one at a time,
+    /// blocking on each until the audio finishes.
+    private let queue = DispatchQueue(label: "xyz.crew.narrator.state")
+    private let speech = DispatchQueue(label: "xyz.crew.narrator.speech")
     private let voices: [String: String]
     private let device: String?
     private let muted: Bool
+    private let rate: Int
 
     private var pending: [(text: String, voice: String, final: Bool)] = []
-    private var speaking = false
+    private var draining = false
     private var lastSaid: [String: String] = [:]
 
     init(environment env: [String: String] = ProcessInfo.processInfo.environment) {
@@ -34,6 +53,7 @@ final class Narrator {
         // Set this to keep narration off whichever device VoiceOS is listening
         // on — otherwise the dock narrates into the agents' own command channel.
         device = env["CREW_AUDIO_DEVICE"].flatMap { $0.isEmpty ? nil : $0 }
+        rate = env["CREW_RATE"].flatMap(Int.init) ?? Self.defaultRate
 
         var v = Self.defaultVoices
         for role in v.keys {
@@ -47,7 +67,8 @@ final class Narrator {
     /// Called on every status POST. Safe to call from any thread.
     func narrate(character: String, message: String, state: String) {
         let text = message.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !muted, !text.isEmpty, state != "idle" else { return }
+        guard !muted, !text.isEmpty, state != "idle",
+              !Self.unspoken.contains(text.lowercased()) else { return }
 
         queue.async {
             // The orchestrator re-sends the last line with state "done" to close
@@ -68,19 +89,38 @@ final class Narrator {
                 kept.insert(contentsOf: self.pending.prefix(cut).filter(\.final), at: 0)
                 self.pending = kept
             }
-            self.speakNext()
+            guard !self.draining else { return }
+            self.draining = true
+            self.speech.async { self.drain() }
         }
     }
 
-    /// Must be called on `queue`.
-    private func speakNext() {
-        guard !speaking, !pending.isEmpty else { return }
-        let utterance = pending.removeFirst()
-        speaking = true
+    /// Runs on `speech`. Speaks until the queue is empty, then stops.
+    ///
+    /// Deliberately blocking rather than driven by `Process.terminationHandler`:
+    /// the handler did not fire reliably, which left the narrator wedged
+    /// mid-utterance and silenced the dock for the rest of its life. Waiting on
+    /// the process is the thing we actually mean, and it can't be missed.
+    private func drain() {
+        while true {
+            var next: (text: String, voice: String, final: Bool)?
+            queue.sync {
+                if self.pending.isEmpty {
+                    self.draining = false
+                } else {
+                    next = self.pending.removeFirst()
+                }
+            }
+            guard let utterance = next else { return }
+            speak(utterance)
+        }
+    }
 
+    /// Returns once the audio has finished playing.
+    private func speak(_ utterance: (text: String, voice: String, final: Bool)) {
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: "/usr/bin/say")
-        var args = ["-v", utterance.voice]
+        var args = ["-v", utterance.voice, "-r", String(rate)]
         if let device { args += ["-a", device] }
         // `--` so a message starting with "-" is never read as a flag.
         args += ["--", utterance.text]
@@ -88,23 +128,23 @@ final class Narrator {
         proc.standardOutput = FileHandle.nullDevice
         proc.standardError = FileHandle.nullDevice
 
-        // `say` exits when the audio finishes playing, which is exactly the
-        // gate we want before starting the next line.
-        proc.terminationHandler = { [weak self] _ in
-            guard let self else { return }
-            self.queue.async {
-                self.speaking = false
-                self.speakNext()
-            }
-        }
+        // Same spirit as the DOCK <- lines: the pipeline has to be verifiable
+        // from a log, because "was that silent?" is not answerable on stage.
+        FileHandle.standardError.write(Data("SAY -> [\(utterance.voice)] \(utterance.text)\n".utf8))
 
         do {
             try proc.run()
         } catch {
             // No voice is better than a dead dock — keep the queue moving.
-            FileHandle.standardError.write(Data("say failed: \(error)\n".utf8))
-            speaking = false
-            speakNext()
+            FileHandle.standardError.write(Data("SAY !! failed: \(error)\n".utf8))
+            return
         }
+
+        // Not on `speech` — this drain is blocking that queue right now.
+        let watchdog = DispatchWorkItem { if proc.isRunning { proc.terminate() } }
+        DispatchQueue.global().asyncAfter(deadline: .now() + Self.utteranceTimeout,
+                                         execute: watchdog)
+        proc.waitUntilExit()
+        watchdog.cancel()
     }
 }
