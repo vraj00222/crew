@@ -108,7 +108,7 @@ Switch anytime with `/effort` or `/model`. If usage gets tight, add `--fallback-
 | Person | Workstream | Status | Blocked on |
 |---|---|---|---|
 | **D — Yaseen** | character art + visual identity | **not started — read `docs/onboarding.md`, then your task block below** | nothing. Your work is new files only; you cannot be blocked by us |
-| **E — Rukaiya** | rehearsal, resilience, backup rig | **backup rig PROVEN — clean clone → full show → CHECKPOINT PASS (17 ok / 0 failed) on a second MacBook Air.** Clone to spoken demo in 72s, 16 lines received, 10 spoken, 0 dropped. C's speaker fallback fired for real here (no `MacBook Pro Speakers` on an Air) and saved the run — see my section at the bottom. Onboarding fixed where my run disproved it. Next: break-glass table | nothing |
+| **E — Rukaiya** | rehearsal, resilience, backup rig | **backup rig PROVEN — clean clone → full show → CHECKPOINT PASS (17 ok / 0 failed) on a second MacBook Air.** Clone to spoken demo in 72s, 16 lines received, 10 spoken, 0 dropped. C's speaker fallback fired for real here (no `MacBook Pro Speakers` on an Air) and saved the run — see my section at the bottom. Onboarding fixed where my run disproved it. **Break-glass table now TESTED, row by row — one row was half-true: a hung agent can wedge the whole run after saying "ran out of time" (A: repro + fix in my section and Blockers).** Next: `docs/runbook.md` + recorded clean run | nothing |
 | A | orchestrator + dock + audio rig | **CHECKPOINT READY — everyone run `./checkpoint.sh`, see the Checkpoint section at the bottom.** Orchestrator done, 3 modes (`narrate`/`live`/`voice`) selected by a flag not a file edit. Audio split decided + measured. 10/10 lines spoken, 0 dropped. Three accents + written personalities. Characters no longer freeze. `docs/demo-script.md` written. Full chain with real agents: ~45s, PASS | VoiceOS Pro trial not active — still the only thing left on A's side |
 | B | voiceos-bridge (mcp-server + demo-seed + Gmail/Calendar tools) | **`verify.ps1` 6 suites all green. Checkpoint 13 ok / 1 failed — and the 1 is A's new check working correctly:** `claude` on this box is installed but logged out, which the old `have claude` test called a PASS. Nothing on B's side regressed; my machine genuinely cannot run an agent, and now it says so. A — good fix, that is exactly the hole. All 8 tools built and tested. **`crew_task_status` closes the loop: no taskId needed, and it answers in a spoken sentence instead of a JSON dump** — see below. Tool `annotations` declared on all 8 tools, honestly. Gmail decision made; A unblocked. VoiceOS installed on Windows and inspected — see the tool-naming finding. **A: two things for you in Blockers — `direct` mode has no MCP wiring, so rung 3 narrates without touching anything, and `checkpoint.sh`'s claude check is a false green. Plus one bug in `CANNED`, off the rehearsed path.** | VoiceOS Pro trial (same paywall as A, now confirmed on a 2nd machine) + a demo Google account & OAuth creds |
 | C | crew-dock (took option 2) | **the dock talks, and the handover is proven.** `Narrator.swift` speaks every `/agent-status` line via `say`, per-character voices, never two at once. Re-verified this morning from a **throwaway clone of current `main`** — clone → speaking app in 13s. **A's audio split + new voices then re-verified on my Air against A's unmodified `run-demo.sh`: 16 received, 10 spoken, 0 failed.** Nothing left to hand-carry to A's Mac but two commands. **Stall indication shipped: a `working` agent gone quiet for 10s now slows and trails an ellipsis instead of looking identical to a healthy one. Roster moved to `crew-dock/characters.json` — D, the shape is agreed and working, adding a character is a row plus a .mov.** **Reviewed and kept A's character fix — verified by screen capture, not by log — and fixed the stale-binary hole that let `checkpoint.sh` PASS while grading an old build** | **nothing — CHECKPOINT PASS (17 ok / 0 failed)** |
@@ -975,6 +975,16 @@ needs nothing.
 
 ## Blockers
 
+- **E → A: a hung agent wedges the run after its timeout — on rung 2, the plan of
+  record.** `child.kill('SIGKILL')` + `child.on('close')` in `server.js`: if the
+  hung `claude` spawned a subprocess (it does, for tools), the orphan holds the
+  stdout pipe, `close` never fires, and the task never reaches `done` — recap
+  never appears. Character still says "ran out of time", so on stage it looks like
+  a slow run, not a dead one. Repro + fix options in my section at the bottom;
+  `demo-script.md` break-glass row updated in the meantime (treat "ran out of
+  time" as the cue to `stop && fake`). Your file, your call — shout if you want
+  me to take it.
+
 - ~~**C → A: two speech streams will collide.**~~ **DECIDED, IMPLEMENTED AND MEASURED —
   C, you are unblocked and there is nothing for you to change.** Your proposal was right.
   Numbers, device names and the check are in "A — the audio split" above. `run-demo.sh`
@@ -1542,3 +1552,45 @@ What the fourth machine found — the tradition holds:
 
 Next, in order: the break-glass table in `docs/demo-script.md` (every row is an
 untested claim), then `docs/runbook.md` plus a recorded clean run.
+
+### E — the break-glass table is now tested, and one row was hiding a real bug
+
+Deliverable 2 done. Every testable row of the "When it breaks" table, exercised for
+real on this Mac, zero Claude spend. What holds exactly as written:
+
+- **`stop && fake` mid-run** — killed a run at +8s; the second show came up clean,
+  10/10 lines spoken, 27s total.
+- **Dead dock** — killed the dock at +6s; the orchestrator finished the whole task
+  against nothing, no crash, POSTs failed silently as designed.
+- **Dead orchestrator** — killed it at +6s; the dock stayed up with its 6 received
+  lines. (C's stall indication will make this state visible.)
+- **CREW_MUTE=1** — 16 received, 0 spoken, and the run summary says so honestly.
+  One wart: `run-demo.sh` then waits ~60s for a spoken recap line that can never
+  come. Harmless, just slow — A, a `CREW_MUTE` check before that wait loop would
+  save a confused minute.
+- **Bad voice name** — `say -v NoSuchVoice` exits **0** and speaks in the system
+  default voice (verified by rendering to file: ~1.2s of real audio). So a voice
+  typo costs an accent, not a line — and C's per-line exit check *cannot* catch it,
+  because `say` doesn't fail. The preflight `voices.sh check` is the only guard.
+
+**A — the one that matters: the 180s timeout can wedge the run, and it's on the
+rehearsed rung.** Repro with a shimmed `claude` and `AGENT_TIMEOUT_MS=5000`:
+
+- shim = `bash` that runs `sleep 600` as a *child* → SIGKILL kills the shim, the
+  orphaned child keeps the stdout pipe open, `child.on('close')` never fires, so
+  `finish()` never runs: the agent says "Done: ran out of time" (spoken and
+  bubbled — that half is true) but stays `working` forever, **recap never starts,
+  `/status` never says `done`**, and `run-demo.sh` polls its full 120s in silence.
+- shim = `exec sleep 600` (no grandchild) → everything works: all three agents
+  flip to `done`, task completes in ~19s.
+
+The real `claude` CLI spawns subprocesses for tools, so a genuine hang is likely
+the *first* shape, not the second. Fix is one of: key `finish()` off `exit`
+instead of `close`, or spawn detached and kill the process group. `server.js` is
+your file — shout if you'd rather I did it.
+
+Not tested, honestly labeled: "pull the network" (fake mode makes no network
+calls by construction, and the only network dependency — first-build art fetch —
+is now documented in onboarding); "a character freezes" (no way to induce it
+deliberately). The table in `demo-script.md` now records all of this next to the
+rows it corrects.
