@@ -63,6 +63,24 @@ if [ ! -f "$VOICES_DIR/$MODEL.onnx" ] || ! command -v uvx >/dev/null; then
   say_fallback
 fi
 
+# Routing is not the same as playback, and this is the one place they can part.
+# `play` (sox) honours AUDIODEV; `afplay` has no device option at all. So with
+# sox missing and a device requested, the Piper path would play to whatever the
+# system default happens to be — silently. That is how dock narration reaches
+# VoiceOS's ear, which is precisely the collision the 0.00-vs-0.80 device split
+# exists to prevent, and it would arrive through the fallback.
+#
+# `piper-install` already requires sox, so in the intended setup this never
+# fires. It exists for the states that actually happen: sox uninstalled later,
+# models copied in by hand, CREW_SAY set manually. Correct routing beats a
+# better voice — a robotic line on the right speaker cannot break the loop.
+# Checked before synthesis so we don't spend ~1.1s rendering audio we won't play.
+if [ -n "$DEVICE" ] && ! command -v play >/dev/null; then
+  [ "$MODE" = piper ] && { echo "crew-say: -a $DEVICE needs sox (brew install sox)" >&2; exit 1; }
+  echo "crew-say: sox missing, so -a $DEVICE cannot be honoured — using \`say\` to keep narration on the requested device (brew install sox for Piper voices AND correct routing)" >&2
+  say_fallback
+fi
+
 # `say -r` is words-per-minute; Piper's length-scale is seconds-per-unit, so it
 # runs the other way — a higher rate has to mean a SHORTER length scale.
 # 1.0 at 175wpm is Piper's natural pace, which matches `say`'s default.
