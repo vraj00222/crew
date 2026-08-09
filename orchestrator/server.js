@@ -50,6 +50,7 @@ const MCP_CONFIG = JSON.stringify({
 const CREW_TOOLS = [
   'crew_gmail_list_inbox', 'crew_gmail_archive', 'crew_gmail_label',
   'crew_calendar_find_slot', 'crew_calendar_book', 'crew_calendar_list',
+  'crew_send_sms', 'crew_place_call', 'crew_ask_user', // a1mobile: real texts, real rings
 ].map((t) => `mcp__crew__${t}`).join(',');
 // How the agents actually act: narrate (no tools) | direct (crew_* tools) | voice
 // (speak to VoiceOS). One prompt file each, all three known-good — switching is
