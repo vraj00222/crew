@@ -99,7 +99,7 @@ Switch anytime with `/effort` or `/model`. If usage gets tight, add `--fallback-
 |---|---|---|---|
 | A | orchestrator + dock + audio rig | **orchestrator done. Audio loopback PROVEN. Dock built. `./run-demo.sh` runs the whole thing.** | VoiceOS Pro trial not active — only thing left on A's side |
 | B | voiceos-bridge (mcp-server + demo-seed) | **mcp-server done + merged. demo-seed done, dry-run verified. Gmail decision made — A is unblocked, see below.** | VoiceOS-for-Windows not installed (needs a download + account, can't be scripted) |
-| C | crew-dock (took option 2) | **the dock now talks.** `Narrator.swift` speaks every `/agent-status` line via `say`, per-character voices, never two at once. Verified end-to-end against `FAKE=1` — 3 characters on screen, 8 spoken lines, correct order | — (needs A's call on the two-speech-stream collision, see Blockers) |
+| C | crew-dock (took option 2) | **the dock talks, and the handover is proven.** `Narrator.swift` speaks every `/agent-status` line via `say`, per-character voices, never two at once. Re-verified this morning from a **throwaway clone of current `main`** — clone → speaking app in 13s, 8 lines, correct order. Nothing left to hand-carry to A's Mac but two commands | — (needs A's call on the two-speech-stream collision, see Blockers) |
 
 ### ✅ FULL CHAIN INTEGRATED — B's MCP server → A's orchestrator → A's dock
 
@@ -227,6 +227,28 @@ Agreed, `crew-dock/` is the right base — my Mac has the same problem (Command 
 Tools, no Xcode), so option 1 was never really on the table. Confirmed `build.sh`
 works from a clean clone on a second machine: ~15s, no Xcode, no signing.
 
+**A — the handover you were expecting me to hand-carry is just this (verified, not
+assumed).** I threw away my working copy and ran a fresh `git clone` of current `main`
+into an empty directory, as your Mac will experience it:
+
+```sh
+git clone https://github.com/vraj00222/crew.git
+cd crew && ./crew-dock/build.sh      # 13s, including fetching the art
+./crew-dock/Crew.app/Contents/MacOS/Crew
+```
+
+Clone → speaking app in **13 seconds**, then the full `FAKE=1` run: 3 characters,
+8 spoken lines, all three voices, correct order, dock still alive at the end.
+No Xcode, no signing, no `npm install`, nothing to copy off my machine.
+
+The one part worth knowing: **`crew-dock/Assets/` is `.gitignore`d** — it's 18MB of
+video and it belongs to upstream lil-agents (MIT). It is *not* in the repo, so a clean
+clone has no character art. `build.sh` shallow-clones lil-agents and copies the two
+`.mov`s in on first build. That works, and I've now watched it work from empty — but
+it means **the first build on your Mac needs network**. If the venue wifi is bad on the
+day, build once before you leave, or copy `crew-dock/Assets/` over by hand; after that
+the check is a no-op and every later build is offline and ~3s.
+
 `crew-dock` updated bubbles but never made a sound, so the "agents narrate themselves"
 half of the demo was silent. `Sources/Narrator.swift` fixes that.
 
@@ -263,6 +285,21 @@ Two lines get skipped ("Flagging two emails…", "Finding open slots tomorrow").
 if you want every line spoken, drop your `LINE_MS` pacing to ~2200 and I'll raise the
 backlog; the ceiling is speech rate, not the dock.**
 
+**Stage timing — this one belongs in the demo script.** Speech trails the bubbles, so
+the run is not over when the orchestrator says it's over. Measured on a `FAKE=1` run:
+orchestrator reports `status: done` at **+8s**, but the last utterance —
+*"Done: inbox cleared, two meetings booked."*, the closing line of the whole demo —
+only *starts* at **+15s** and runs ~3s past that. **Don't cut the room, stop talking,
+or hit the next slide when the terminal says done — there are ~10 more seconds of
+audience-facing audio.** Whoever drives on the day should be watching the dock, not
+the log.
+
+**Rehearsing twice in a row is safe.** The narrator drops consecutive duplicate lines
+per character, so I checked whether a second run on a still-running dock would go
+silent — it doesn't. Ran the same task twice against one dock process: all 8 lines
+spoken both times, same order. (`run-demo.sh` restarts the dock anyway, so this only
+matters if you re-fire the task by hand between rehearsals.)
+
 Knobs: `CREW_MUTE=1` silences narration entirely. `CREW_AUDIO_DEVICE="…"` picks the
 output device. `CREW_RATE` sets words-per-minute (default 200).
 `CREW_VOICE_TRIAGE` / `_SCHEDULER` / `_RECAP` override voices
@@ -271,9 +308,16 @@ output device. `CREW_RATE` sets words-per-minute (default 200).
 **Debugging on the day:** the dock logs `DOCK <- …` and `SAY -> …` to stderr, but
 `open Crew.app` throws stderr away. To see it, run the binary directly:
 `./crew-dock/Crew.app/Contents/MacOS/Crew` — that is the only reliable way to answer
-"did it actually speak?".
+"did it actually speak?". Anything that went wrong with the audio prints as `SAY !!`.
 
-Two bugs found by running it, both of which would have hit on stage:
+**A, small trap that cost me ten minutes and will cost you more at 5pm:**
+`orchestrator/test.sh` starts its *own* `fake-dock.js` on :4002 and `server.js` on
+:4001. Run it while the demo is up and both fail to bind, and it reports
+`FAIL: nothing reached the dock` — which reads exactly like a real regression in my
+listener. It isn't. `./run-demo.sh stop` first, then `test.sh`. (Clean run this
+morning after the narrator change: `PASS — contract, routing, and dock push all good`.)
+
+Three bugs found by running it, all of which would have hit on stage:
 
 1. **The app crashed outright on a fast burst of messages.** Swift's `suffix()` returns
    a slice that keeps the parent's indices, so inserting at 0 traps. The dock died
@@ -284,9 +328,22 @@ Two bugs found by running it, both of which would have hit on stage:
    `Process.terminationHandler` to advance the queue and that doesn't fire reliably;
    one missed callback silenced the dock permanently. Now it blocks on
    `waitUntilExit()` instead, with a 15s watchdog.
+3. **A bad `CREW_AUDIO_DEVICE` made the dock totally silent while the log looked
+   perfect — and it was sitting right on the path A is about to take.** `say -a` reports
+   an unknown device on *its* stderr, which the narrator sent to `/dev/null`, and it
+   never checked the exit code. So `CREW_AUDIO_DEVICE="BlackHole 2ch"` on a Mac where
+   BlackHole isn't installed yet — or with the name a word off — printed a flawless
+   `SAY ->` for all 8 lines and made **no sound whatsoever**. Verified:
+   `say -a "BlackHole 2ch"` → `Found no Audio Output Device matching`, exit 1.
+   Now the device name is resolved **once at startup** against `say -a '?'`; an unknown
+   one logs `SAY !!` with the list of real devices and **falls back to the default
+   output** rather than going quiet — the dock is the audience channel, so the default
+   is the safe way to fail. A nonzero `say` exit is now logged per line too, so the log
+   can no longer claim a line was heard when it wasn't. Tested bogus / valid / unset.
 
 **Takeaway for everyone: the orchestrator log is not evidence that anything reached the
-audience.** It reports what it *sent*. Confirm against the dock's own stderr.
+audience.** It reports what it *sent*. Confirm against the dock's own stderr. Bug 3 is
+the same trap one layer down — even `SAY ->` only proved the dock *asked* for audio.
 
 ### A — orchestrator: ready to integrate against (Sat 23:5x)
 
@@ -465,7 +522,9 @@ no Claude spend, and nothing about this decision takes that away.
 
 ## Blockers
 
-- **C → A, needs a decision before rehearsal: two speech streams will collide.**
+- **C → A, now urgent — B's Gmail decision just made this live.** You're about to write
+  the real `execution.md`; this is the choice you have to make *while* you write it, not
+  after. Two speech streams will collide.
   `prompts/execution.md` Option A has each *agent* run `say -v Samantha "<command>"`
   to drive VoiceOS. The dock now *also* speaks narration on every `/agent-status`
   POST. Both land on the same speakers and the same mic, so an overlap feeds
@@ -478,6 +537,11 @@ no Claude spend, and nothing about this decision takes that away.
   Then the audience never hears the robot command voice and VoiceOS never hears
   the narration. The dock already takes `CREW_AUDIO_DEVICE` for exactly this;
   `CREW_MUTE=1` silences dock narration entirely if we'd rather not risk it.
+  **Safe to just try now** — as of this morning a device name the Mac doesn't have
+  no longer silences the dock (bug 3 above); it warns, lists the real device names,
+  and speaks on the default output. So setting this wrong costs you a wrong speaker,
+  not a silent demo. Get the exact name from `say -a '?'` on your Mac and paste it —
+  it must match what BlackHole actually registers as, not what we assume.
 - **A — the one real blocker: VoiceOS Pro trial is not on A's account yet** (the free month
   from the event). Until it is, the loopback test can't run. BlackHole, the `crew`
   multi-output device, both scripts and the verification query are all ready and waiting —
