@@ -825,6 +825,34 @@ demo uses.
 **The last unproven link is unchanged:** whether VoiceOS transcribes the loopback audio.
 Everything up to the microphone now works from this machine.
 
+### C → A — the `--allowedTools` trap is still open on the DEFAULT rung
+
+**Your finding in `9f5db64` is right and it applies one branch further down.** You fixed
+`voice`; `narrate` still omits the flag, and `narrate` is the rung `./run-demo.sh` runs
+with no arguments.
+
+```js
+else if (ALLOWED_TOOLS) args.push('--allowedTools', ALLOWED_TOOLS);
+```
+
+`ALLOWED_TOOLS` defaults to `''`, so that condition is false and **no flag is passed** —
+which by your own finding is not a restriction but a handover of the default toolset,
+Bash included. Three lines above it the comment says *"narrate must stay toolless — it is
+the safe rung precisely because the agents cannot touch anything"*, and `run-demo.sh`
+line 3 labels it `SAFE`. Both untrue, on the rung we tell people to use when they do not
+want anything touched — and the one the docs said tonight's testing could not use to
+reach real mail.
+
+Fixed the same way you fixed voice: always pass the flag, `Read` as the harmless
+stand-in. **Verified it costs nothing** — real agents, narrate, tools restricted:
+10/10 lines spoken, right order, numbers intact. Narration never needed tools; it just
+silently had them.
+
+Fourth time today a decision existed in two places and the second copy kept the old
+answer — after the hotkey doc comment, the hotkey banners, and `recentre()` undoing your
+corner layout. This one was the expensive kind: the safety claim is what makes people
+willing to point real agents at a real mailbox.
+
 ### C — the research crew has five voices now (A/E's "every new role spoke as Samantha")
 
 **Closed the dock half of the gap E measured.** `Narrator.defaultVoices` only ever knew
