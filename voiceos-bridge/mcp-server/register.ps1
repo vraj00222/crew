@@ -113,14 +113,39 @@ Write-Host "  args    : `"$serverPath`""
 Write-Host "  (absolute path on purpose -- VoiceOS's working directory is not this folder)"
 
 Write-Host "`n  Sanity check before registering..." -ForegroundColor DarkGray
-& node $serverPath --selftest 2>&1 | Select-String "PASS|FAIL" | ForEach-Object { Write-Host "  $_" }
+# node writes the selftest result to stderr on purpose (stdout is the MCP channel).
+# PowerShell wraps native stderr in NativeCommandError, and $ErrorActionPreference=Stop
+# then makes it fatal -- so merge the streams down in cmd, where PowerShell can't see them.
+$selftest = cmd /c "node `"$serverPath`" --selftest 2>&1"
+($selftest | Select-String "PASS|FAIL") | ForEach-Object { Write-Host "  $($_.ToString().Trim())" }
 
-if ($Apply -and $cli) {
-    Head "Running: voiceos add mcp"
-    Write-Host "  (interactive -- answer with the command/args above)" -ForegroundColor DarkGray
-    & voiceos add mcp
-} elseif ($cli) {
-    Write-Host "`n  Run it:  voiceos add mcp        (or re-run this script with -Apply)" -ForegroundColor Cyan
+if ($cli) {
+    if ($Apply) {
+        Head "Running: voiceos add mcp"
+        & voiceos add mcp
+    } else {
+        Write-Host "`n  Run it:  voiceos add mcp        (or re-run this script with -Apply)" -ForegroundColor Cyan
+    }
+} else {
+    Head "How to actually register (there is no CLI on Windows)"
+    Write-Host @"
+  VoiceOS for Windows ships ONE executable and no command-line interface --
+  'voiceos add mcp' does not exist here. Registration is in-app:
+
+      tray icon -> VoiceOS window -> Settings -> MCP / custom servers -> Add
+
+  and it writes into `customMcpServers` in
+      $env:APPDATA\VoiceOS\config.json
+
+  Do NOT hand-edit that file while VoiceOS is running -- it is an electron-store
+  and the app rewrites the whole file on its own schedule, so your entry vanishes.
+  Quit VoiceOS first if you edit it at all.
+
+  BLOCKED TODAY: the app opens onto a paywall ("Start your 7-day free trial",
+  `$143.88/yr after). Onboarding terminates there with no skip, and
+  onboardingCompleted stays false. Redeem the event's free month on the account
+  first -- do not start the paid trial by accident.
+"@ -ForegroundColor DarkGray
 }
 
 Head "Then prove the outer loop"

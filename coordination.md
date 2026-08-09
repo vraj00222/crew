@@ -98,7 +98,7 @@ Switch anytime with `/effort` or `/model`. If usage gets tight, add `--fallback-
 | Person | Workstream | Status | Blocked on |
 |---|---|---|---|
 | A | orchestrator + dock + audio rig | **orchestrator done. Audio loopback PROVEN. Dock built. `./run-demo.sh` runs the whole thing. Audio split decided + measured (C unblocked). All 10 lines now spoken. Crew has three accents and written personalities.** | VoiceOS Pro trial not active — only thing left on A's side |
-| B | voiceos-bridge (mcp-server + demo-seed) | **mcp-server done + merged. demo-seed done, dry-run verified. Gmail decision made — A is unblocked, see below.** | VoiceOS-for-Windows not installed (needs a download + account, can't be scripted) |
+| B | voiceos-bridge (mcp-server + demo-seed + Gmail/Calendar tools) | **all 8 tools built and tested. `voiceos-bridge/verify.ps1` runs every B-side check in one command — 4 suites green. Gmail decision made; A unblocked. VoiceOS installed on Windows and inspected — see the tool-naming finding, it changes A's prompts.** | VoiceOS Pro trial (same paywall as A, now confirmed on a 2nd machine) + a demo Google account & OAuth creds |
 | C | crew-dock (took option 2) | **the dock talks, and the handover is proven.** `Narrator.swift` speaks every `/agent-status` line via `say`, per-character voices, never two at once. Re-verified this morning from a **throwaway clone of current `main`** — clone → speaking app in 13s, 8 lines, correct order. Nothing left to hand-carry to A's Mac but two commands | — (needs A's call on the two-speech-stream collision, see Blockers) |
 
 ### ✅ FULL CHAIN INTEGRATED — B's MCP server → A's orchestrator → A's dock
@@ -142,6 +142,58 @@ Also: **don't add your own queueing or delay** to incoming messages. I pace narr
 ~1.4s/line on the orchestrator side so the characters have a readable rhythm; if you
 delay on top, lines drift behind the agents. Lines arrive pre-truncated to 110 chars so
 they fit a bubble. Test against `curl` or `./run-demo.sh fake` — you are not blocked on me.
+
+### B — what VoiceOS for Windows actually looks like (installed and inspected)
+
+VoiceOS is now installed on B's Windows box. Four findings, one of which **changes A's
+prompts**.
+
+**1. `voiceos add mcp` DOES NOT EXIST on Windows.** The install is a single
+`VoiceOS.exe` (Electron) and ships no command-line interface at all. The command in the
+brief and on the website is Mac-only or docs-only. **Registration is in-app**: tray icon →
+window → Settings → MCP/custom servers. It writes to `customMcpServers` in
+`%APPDATA%\VoiceOS\config.json` — same schema as A's Mac, different path. Don't hand-edit
+that file while the app is running; it's an electron-store and the app rewrites the whole
+thing on its own schedule, so the entry silently vanishes.
+
+**2. ⚠️ A — THIS CHANGES YOUR PROMPTS. VoiceOS renames every custom MCP tool.** Its own
+integrations are registered as pseudo-MCP servers, and the bundle contains
+`NAME_PREFIX = "custom_mcp_voiceosapplemail_"`, plus
+`custom_mcp_voiceoschatgpt_send_instruction`, `custom_mcp_voiceosspotify_`,
+`custom_mcp_voiceosnotes_`. So the scheme is:
+
+```
+custom_mcp_<servername>_<toolname>
+```
+
+Our `crew_gmail_archive` will **not** be callable as `crew_gmail_archive` from inside
+VoiceOS — it becomes something like `custom_mcp_crew_crew_gmail_archive`. When you write
+Option A into `execution.md`, do **not** hardcode the bare names; the exact prefix has to
+be read off a live `tools/list` once the trial is active. This would have been a silent
+"the agent never calls the tool" failure at 5pm.
+
+**3. Confirmation is per-tool, declared, not a global setting.** VoiceOS's tool
+declarations carry a `requiresConfirmation` boolean (Apple Mail's read tools ship
+`false`), and there's an `AGENT_CONFIRM_REQUIRED` code path. That's consistent with A's
+finding 6 and with the website: **no global bypass exists**. What we don't yet know is
+whether VoiceOS derives `requiresConfirmation` from the MCP spec's tool `annotations`
+(`readOnlyHint` / `destructiveHint`) — the MCP SDK carrying those is bundled. **If it
+does, our tools can declare themselves non-confirming and the loop is fully autonomous.**
+Worth 5 minutes the moment the trial is live: register, call `tools/list`, and see whether
+flipping `readOnlyHint` changes the confirmation behaviour. A's voice-answered-confirmation
+path is the fallback and is already known to work.
+
+**4. Windows has no native mail path at all** — `connectedIntegrations` is `[]`, and Apple
+Mail is macOS-only, so finding 7 doesn't transfer. `nativeActionToggles` is the same list
+as the Mac (editText, insertText, openApp, setVolume, controlPlayback, reminders) — **no
+email, no calendar-write**. This independently confirms MCP-owns-Gmail was the right call:
+on Windows there was never another option.
+
+**Blocked the same way A is:** the app opens onto "Start your 7-day free trial"
+($143.88/yr after), onboarding terminates there with no skip, and `onboardingCompleted`
+stays `false`. I did not start a paid trial — **the event's free month should be redeemed
+on the account instead.** Everything else is staged: `register.ps1` audits the Windows
+config, prints the exact command/args, and self-tests the server before you register.
 
 ### B — what shipped this morning
 
@@ -391,7 +443,8 @@ screen. Send me the raw transcript; don't try to normalize it first.
 - BlackHole itself: **installed and working.** `blackhole-2ch` + `switchaudio-osx` in, multi-output device **`crew`** (BlackHole + MacBook Pro Speakers, drift correction on the speakers) built and switchable from the CLI. Verified routing on/off cleanly. `sox` added for the verify check.
 - VoiceOS trigger key rebindable away from physical Fn: **YES — confirmed**
 - VoiceOS auto-confirm / trust setting for agent actions: no on/off switch in the config, **but confirmations can be answered by voice** — see finding 6, this is better news than a trust setting
-- B's Windows test: does VoiceOS-for-Windows correctly call `run_crew_task` from a normal spoken command? **NOT RUN — VoiceOS is not installed on B's machine** and installing it needs a download plus an account sign-in, which isn't something B can script. Everything on B's side of that test is ready and automated (`voiceos-bridge/mcp-server/register.ps1` finds VoiceOS, audits its config, and prints the exact registration). **This never blocked the demo**: the same hop was proven on A's Mac end to end, which is the machine we're demoing from. Treat the Windows test as a nice-to-have second data point, not a gap.
+- B's Windows test: **VoiceOS IS now installed on B's machine — and it is paywalled exactly like A's.** See "B — what VoiceOS for Windows actually looks like" below. Still NOT RUN, but the reason changed from "not installed" to "same trial gate A is stuck behind, on a second machine". ~~NOT RUN — VoiceOS is not installed on B's machine~~ (superseded)
+- _(historical)_ ~~VoiceOS is not installed on B's machine~~ and installing it needs a download plus an account sign-in, which isn't something B can script. Everything on B's side of that test is ready and automated (`voiceos-bridge/mcp-server/register.ps1` finds VoiceOS, audits its config, and prints the exact registration). **This never blocked the demo**: the same hop was proven on A's Mac end to end, which is the machine we're demoing from. Treat the Windows test as a nice-to-have second data point, not a gap.
 - **Decision:** still pending the audio test. Nothing found so far rules the voice loop out; two settings that would have silently broken it are now known and scripted.
 
 ### What A found in VoiceOS's own config tonight
