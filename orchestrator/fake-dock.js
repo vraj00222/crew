@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// Stand-in for C's Swift listener on :4002. Prints whatever the orchestrator pushes.
+// Stand-in for C's Swift listener. Prints whatever the orchestrator pushes.
+const PORT = Number(process.env.DOCK_PORT || 4002);
 require('node:http').createServer((req, res) => {
   let body = '';
   req.on('data', (d) => (body += d));
@@ -19,4 +20,9 @@ require('node:http').createServer((req, res) => {
       : `fake dock: ${e.message}`);
     process.exit(1);
   })
-  .listen(4002, () => console.log('fake dock on :4002'));
+  // Own port by default so the smoke test never poisons the real dock's.
+  // Node leaves accepted connections in TIME_WAIT on 4002, and Network.framework
+  // (the Swift dock) cannot bind over another process's TIME_WAIT sockets — so
+  // running the test used to make the next real dock fail with EADDRINUSE while
+  // nothing was listening at all. Set DOCK_PORT=4002 to stand in for real.
+  .listen(PORT, () => console.log(`fake dock on :${PORT}`));

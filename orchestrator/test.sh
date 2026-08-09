@@ -4,6 +4,14 @@ set -u
 cd "$(dirname "$0")"
 fail() { echo "FAIL: $1"; exit 1; }
 
+# Anything left running from a previous demo owns :4001/:4002, and this test
+# would then silently report on THAT process instead of the one it started.
+../run-demo.sh stop >/dev/null 2>&1
+
+# Off the real dock's port on purpose — see fake-dock.js. Running this test used
+# to leave 4002 unbindable by the Swift dock for ~15s afterwards.
+export DOCK_PORT=4102
+export DOCK_URL="http://localhost:$DOCK_PORT/agent-status"
 node fake-dock.js > /tmp/crew-fakedock.log 2>&1 &
 DOCK_PID=$!
 # LINE_MS is stage rhythm (4000ms, set from how long a line takes to SAY) and

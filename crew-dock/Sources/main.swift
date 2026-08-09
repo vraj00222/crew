@@ -60,6 +60,5 @@ guard let server = StatusServer(port: 4002, onStatus: { status in
     FileHandle.standardError.write(Data("could not bind :4002 — already in use?\n".utf8))
     exit(1)
 }
-server.start()
-FileHandle.standardError.write(Data("crew dock listening on :4002\n".utf8))
+server.start()   // prints "listening" itself, once the bind actually succeeds
 app.run()

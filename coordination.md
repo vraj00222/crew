@@ -97,7 +97,7 @@ Switch anytime with `/effort` or `/model`. If usage gets tight, add `--fallback-
 
 | Person | Workstream | Status | Blocked on |
 |---|---|---|---|
-| A | orchestrator + dock + audio rig | **orchestrator done. Audio loopback PROVEN. Dock built. `./run-demo.sh` runs the whole thing. Audio split decided + measured (C unblocked). All 10 lines now spoken. Crew has three accents and written personalities.** | VoiceOS Pro trial not active — only thing left on A's side |
+| A | orchestrator + dock + audio rig | **CHECKPOINT READY — everyone run `./checkpoint.sh`, see the Checkpoint section at the bottom.** Orchestrator done, 3 modes (`narrate`/`live`/`voice`) selected by a flag not a file edit. Audio split decided + measured. 10/10 lines spoken, 0 dropped. Three accents + written personalities. Characters no longer freeze. `docs/demo-script.md` written. Full chain with real agents: ~45s, PASS | VoiceOS Pro trial not active — still the only thing left on A's side |
 | B | voiceos-bridge (mcp-server + demo-seed + Gmail/Calendar tools) | **all 8 tools built and tested. `voiceos-bridge/verify.ps1` runs every B-side check in one command — 4 suites green. Gmail decision made; A unblocked. VoiceOS installed on Windows and inspected — see the tool-naming finding, it changes A's prompts.** | VoiceOS Pro trial (same paywall as A, now confirmed on a 2nd machine) + a demo Google account & OAuth creds |
 | C | crew-dock (took option 2) | **the dock talks, and the handover is proven.** `Narrator.swift` speaks every `/agent-status` line via `say`, per-character voices, never two at once. Re-verified this morning from a **throwaway clone of current `main`** — clone → speaking app in 13s. **A's audio split + new voices then re-verified on my Air against A's unmodified `run-demo.sh`: 16 received, 10 spoken, 0 failed.** Nothing left to hand-carry to A's Mac but two commands | **nothing — blocker resolved by A** |
 
@@ -764,4 +764,79 @@ needs nothing.
 
 ## Demo script
 
-_(write this ~5pm once the run is rehearsed — exact trigger phrase, exact seeded emails, exact expected outputs, timing)_
+**Written: [`docs/demo-script.md`](docs/demo-script.md).** Exact trigger phrase, the four
+rungs and when to drop one, the pre-flight list, the ten-line beat sheet with what to say
+over it, the break-glass table, and teardown. Read it once before rehearsal.
+
+The short version: **one sentence — "Clean up my inbox and schedule everything" — then
+nobody touches the machine for 45 seconds.** Rung 2 (`./run-demo.sh`, real agents,
+nothing touched) is the plan of record until the Pro trial lands; `fake` is the panic
+button and needs no network, no Claude and no account.
+
+---
+
+# CHECKPOINT — everybody stop here and test the same thing
+
+We have been pushing all day against each other's stubs. This is the point where all
+three of us run the *same* commit and confirm it does the same thing on three machines,
+before anyone builds anything else.
+
+**Run this, then paste your output into the chat:**
+
+```bash
+git pull --rebase origin main
+./checkpoint.sh          # ~60s, or `./checkpoint.sh quick` to skip the dress rehearsal
+```
+
+It checks what your machine can actually check and skips the rest — B is not expected to
+have BlackHole, C is not expected to have `uv`. It ends in one line: **CHECKPOINT PASS**
+or the specific thing that failed. If it fails, that failure is your next task, ahead of
+anything planned.
+
+There is also **`/crew-next`** in this repo: it pulls, runs the checkpoint, works out
+which of us you are, and gives you one task with the reason and the command. Use it
+instead of re-reading this file.
+
+### What A verified on the demo Mac at this checkpoint
+
+| | state |
+|---|---|
+| orchestrator, all 3 modes | PASS |
+| dock receives | 16/16 lines, correct order |
+| dock speaks | **10/10 lines, 0 dropped** |
+| characters | walking, bobbing per line, never freezing |
+| B's MCP protocol | PASS |
+| B's Gmail/Calendar tools | PASS — every spoken number true of the mailbox |
+| B's demo-seed dry run | PASS — 18 emails, counts hold |
+| audio split | PASS — 0.00 vs 0.80, measured |
+| full chain, real agents | PASS — ~45s end to end |
+
+### Then: one task each, in priority order
+
+**A (me) — next:** finish the voice loop the moment the Pro trial lands
+(`spike.sh demo` → `spike.sh test` → check the `dictations` table). That is the last
+untested link in the system and it is a 5-minute test, not a workstream. Rung 4
+(`./run-demo.sh voice`) is written and waiting for it.
+
+**B — next: `crew_task_status` needs to make the loop *continuous*.** Right now the
+human says one sentence, the crew runs, and it ends. What the demo is really about is
+the loop staying alive: VoiceOS should be able to ask "what's the crew doing?" and get a
+spoken answer mid-run, and know when it is finished. You have `crew_task_status` built
+against the frozen `/status/:taskId` contract — make its reply a *sentence a person would
+say out loud*, not a JSON dump ("Triage is archiving, scheduler is booking two o'clock"),
+because VoiceOS speaks it verbatim. Everything you need is testable with
+`FAKE=1 node orchestrator/server.js` on your own machine, no Mac required.
+Second, smaller: `register.ps1` still can't be exercised because VoiceOS isn't installed
+on your box — say so in your row and leave it, the same hop is proven on the demo Mac.
+
+**C — next: the agents can get stuck, and the dock is where that shows.** Two cases
+neither of us has covered: an agent that hangs (the orchestrator kills it at 180s and the
+character says "ran out of time") and an agent whose state stays `working` while nothing
+new arrives for 30+ seconds. Both currently look identical to a healthy character. A
+visible "still thinking" behaviour — the walk slowing, or the bubble showing an ellipsis
+after ~10s of silence — turns a hang into something the audience reads as thinking rather
+than as a crash. **You own `AgentCharacter.swift`**; I edited it at this checkpoint to
+stop the characters freezing on `done` (they now express state as tempo, bob on each
+line, and the recap is mirrored since it reuses triage's clip) — review that and take it
+back, it is your file and your call.
+Test it with `curl` alone: POST `working` and then simply stop posting.

@@ -210,4 +210,16 @@ http.createServer((req, res) => {
   }
 
   send(res, 404, { error: 'not found' });
-}).listen(PORT, () => console.log(`orchestrator on :${PORT}${FAKE ? ' [FAKE]' : ''} -> dock ${DOCK}`));
+})
+  // Without this a second orchestrator dies quietly and every client keeps
+  // talking to the FIRST one — which may be running different prompts, a
+  // different mode, or different pacing. test.sh spent a run reporting on a
+  // stale server it had not started. Fail loudly instead.
+  .on('error', (e) => {
+    console.error(e.code === 'EADDRINUSE'
+      ? `orchestrator: :${PORT} is already in use — another one is running.\n`
+      + '  ./run-demo.sh stop   (then start this again)'
+      : `orchestrator: ${e.message}`);
+    process.exit(1);
+  })
+  .listen(PORT, () => console.log(`orchestrator on :${PORT}${FAKE ? ' [FAKE]' : ''} mode=${MODE} -> dock ${DOCK}`));

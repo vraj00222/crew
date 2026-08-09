@@ -28,17 +28,34 @@ stop() {
   pkill -f "Crew.app/Contents/MacOS/Crew" 2>/dev/null
   pkill -f "orchestrator/server.js" 2>/dev/null
   pkill -f "node server.js" 2>/dev/null
-  sleep 1
+  pkill -f "fake-dock.js" 2>/dev/null
+  # Wait for the ports, don't sleep and hope. A listener takes a moment to let
+  # go, and starting the next dock inside that window fails the bind — which
+  # used to leave an app on screen that could never receive a line.
+  #
+  # Connect rather than ask lsof: lsof cannot see these sockets at all in a
+  # sandboxed shell, so it reported "free" every time and this loop never
+  # waited. Trying the connection is what we actually mean, and it can't lie.
+  for _ in $(seq 1 20); do
+    node -e 'const net=require("net");let n=0;const done=()=>{if(++n===2)process.exit(open?1:0)};let open=false;
+      for (const p of [4001,4002]) {
+        const s=net.connect(p,"127.0.0.1");
+        s.on("connect",()=>{open=true;s.destroy();done()});
+        s.on("error",()=>done());
+      }' && return 0
+    sleep 0.25
+  done
+  echo "warning: :4001/:4002 still held after 5s" >&2
 }
 
 [ "${1:-}" = stop ] && { stop; echo "stopped."; exit 0; }
 
 FAKE=""
 case "${1:-}" in
-  fake)  FAKE="FAKE=1" ;;
-  live)  export CREW_MODE=direct ;;
-  voice) export CREW_MODE=voice ;;
-  "")    export CREW_MODE=narrate ;;
+  fake)  FAKE="FAKE=1"; LABEL="canned, no Claude" ;;
+  live)  export CREW_MODE=direct; LABEL="direct — the mailbox really changes" ;;
+  voice) export CREW_MODE=voice;  LABEL="voice — agents speak to VoiceOS" ;;
+  "")    export CREW_MODE=narrate; LABEL="narrate — real agents, nothing touched" ;;
   *)     echo "unknown mode '$1' — use: (none) | live | voice | fake | stop"; exit 1 ;;
 esac
 # Fail here, not on stage: a missing prompt file means every agent dies silently.
@@ -54,6 +71,10 @@ stop
 crew-dock/Crew.app/Contents/MacOS/Crew > /tmp/crew-dock.log 2>&1 &
 sleep 2
 pgrep -f "Crew.app/Contents/MacOS/Crew" >/dev/null || { echo "dock failed to start"; exit 1; }
+# Running is not the same as listening — the bind is asynchronous and can fail
+# while the app stays happily on screen, receiving nothing all show.
+grep -q 'listening on :4002' /tmp/crew-dock.log \
+  || { echo "dock is up but never bound :4002:"; cat /tmp/crew-dock.log; exit 1; }
 echo "dock up on :4002 (narrating to '$CREW_AUDIO_DEVICE', log: /tmp/crew-dock.log)"
 
 env $FAKE node orchestrator/server.js > /tmp/crew-orchestrator.log 2>&1 &
@@ -62,7 +83,7 @@ for _ in $(seq 1 20); do
   curl -s -o /dev/null -w '' localhost:4001/status/x 2>/dev/null && break
   sleep 0.3
 done
-echo "orchestrator up on :4001 ${FAKE:+(FAKE MODE) }[mode: ${FAKE:+canned}${FAKE:-$CREW_MODE}]"
+echo "orchestrator up on :4001  [$LABEL]"
 echo
 
 ID=$(curl -sf -X POST localhost:4001/start-task -H 'content-type: application/json' \

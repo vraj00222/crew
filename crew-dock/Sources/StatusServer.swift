@@ -16,8 +16,15 @@ final class StatusServer {
     private let onStatus: (Status) -> Void
 
     init?(port: UInt16, onStatus: @escaping (Status) -> Void) {
+        // SO_REUSEADDR. Without it the bind fails for ~15s after the previous
+        // dock exits: the listener is long gone, but the POST connections it
+        // accepted sit in TIME_WAIT and hold the port. Restarting the dock
+        // straight after a run — exactly what you do between rehearsals — hit
+        // "Address already in use" while nothing was actually listening.
+        let params = NWParameters.tcp
+        params.allowLocalEndpointReuse = true
         guard let p = NWEndpoint.Port(rawValue: port),
-              let l = try? NWListener(using: .tcp, on: p) else { return nil }
+              let l = try? NWListener(using: params, on: p) else { return nil }
         listener = l
         self.onStatus = onStatus
     }
@@ -27,8 +34,25 @@ final class StatusServer {
             conn.start(queue: .global())
             self?.receive(conn, buffer: Data())
         }
+        // Binding is asynchronous, so "listening" can only honestly be printed
+        // from .ready. It used to be printed by main.swift the moment start()
+        // returned, and a failed bind only added a second line below it — so a
+        // dock that had received nothing all run still opened its log with
+        // "crew dock listening on :4002". That is the log lying about the one
+        // thing it exists to prove.
         listener.stateUpdateHandler = { state in
-            if case .failed(let e) = state { FileHandle.standardError.write(Data("listener failed: \(e)\n".utf8)) }
+            switch state {
+            case .ready:
+                FileHandle.standardError.write(Data("crew dock listening on :4002\n".utf8))
+            case .failed(let e):
+                // Almost always another dock still holding the port. Staying up
+                // is worse than dying: an app on screen that can never receive a
+                // line looks exactly like a working one until the show starts.
+                FileHandle.standardError.write(Data(
+                    "listener failed: \(e)\nis another Crew.app running? ./run-demo.sh stop\n".utf8))
+                exit(1)
+            default: break
+            }
         }
         listener.start(queue: .global())
     }
