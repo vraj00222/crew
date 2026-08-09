@@ -98,7 +98,7 @@ Switch anytime with `/effort` or `/model`. If usage gets tight, add `--fallback-
 | Person | Workstream | Status | Blocked on |
 |---|---|---|---|
 | A | orchestrator + dock + audio rig | **orchestrator done. Audio loopback PROVEN. Dock built. `./run-demo.sh` runs the whole thing.** | VoiceOS Pro trial not active — only thing left on A's side |
-| B | voiceos-bridge / mcp-server | **done and MERGED to main. Verified on A's Mac, end to end.** | the Gmail path decision (below) |
+| B | voiceos-bridge (mcp-server + demo-seed) | **mcp-server done + merged. demo-seed done, dry-run verified. Gmail decision made — A is unblocked, see below.** | VoiceOS-for-Windows not installed (needs a download + account, can't be scripted) |
 | C | crew-dock (took option 2) | **the dock now talks.** `Narrator.swift` speaks every `/agent-status` line via `say`, per-character voices, never two at once. Verified end-to-end against `FAKE=1` — 3 characters on screen, 8 spoken lines, correct order | — (needs A's call on the two-speech-stream collision, see Blockers) |
 
 ### ✅ FULL CHAIN INTEGRATED — B's MCP server → A's orchestrator → A's dock
@@ -142,6 +142,47 @@ Also: **don't add your own queueing or delay** to incoming messages. I pace narr
 ~1.4s/line on the orchestrator side so the characters have a readable rhythm; if you
 delay on top, lines drift behind the agents. Lines arrive pre-truncated to 110 chars so
 they fit a bubble. Test against `curl` or `./run-demo.sh fake` — you are not blocked on me.
+
+### B — what shipped this morning
+
+**`voiceos-bridge/demo-seed/` — done, dry-run verified.** `uv run seed.py --dry-run` builds
+all 18 RFC822 messages and 7 calendar events, asserts the counts, and needs **no
+credentials and no network** — so it's testable now and testable on any machine.
+
+The fixture is matched to `prompts/execution.md` **exactly**: same 6 newsletters (Verge,
+Morning Brew, Substack ×2, LinkedIn, Product Hunt), David Chen on the Q3 rollout, Priya
+Nair on the contract. If either file changes, change both, or triage narrates an inbox the
+audience can't see. The counts are load-bearing too — 6 newsletters + 8 noise archived, 2
+meeting requests to the scheduler, **exactly 2 left**, which is what makes C's spoken line
+*"Done: inbox down to two real emails"* literally true on screen. `--dry-run` fails if that
+drifts. Two calendar gaps are deliberately free: **tomorrow 14:00 for David Chen**,
+day-after 10:00 for Priya. Fill either and the demo's best line stops being true.
+
+It inserts rather than sends (fake `.example.com` senders), marks everything it creates so
+`--wipe` can't touch real mail, and prints the target account and message count before
+writing — `batchDelete` is permanent and the account is whatever `token.json` holds.
+**Still needs a demo Google account + OAuth `credentials.json`; neither exists yet.**
+Budget 10 minutes the first time it points at a real account.
+
+**`mcp-server/register.ps1`** — finds VoiceOS on Windows, audits its config for the same
+things A found by hand on the Mac (`muteWhenDictating`, `agentVoiceEnabled`,
+`connectedIntegrations`, `onboardingCompleted`, and any confirm/trust key), and prints the
+exact registration. Reads an allowlist of keys only and never dumps the file — same token
+hygiene A flagged.
+
+**Independent confirmation of A's finding 6:** VoiceOS's own site states that anything
+which sends, books, or changes something stops and shows you what it will do first. So the
+human-click confirmation is documented product behaviour on **both** platforms, not a Mac
+quirk or a trial limitation — there is no setting we're failing to find. A's discovery that
+confirmations can be answered *by voice* remains the thing that makes the loop autonomous,
+and it's still the highest-value thing to test the moment the Pro trial lands.
+
+**For the group — the Windows equivalent of the audio rig, if we ever want it:** VB-CABLE
+(virtual audio device, the BlackHole analogue) + `System.Speech.Synthesis.SpeechSynthesizer`
+for TTS + the `AudioDeviceCmdlets` module to switch the default input. **Not needed for
+tomorrow** — the demo runs on A's Mac regardless — but if macOS's `fn` key keeps being
+unsynthesizable and VoiceOS's Windows trigger turns out to be a normal chord, simulating
+the trigger could be *easier* on Windows. Worth 10 minutes only if the Mac trigger blocks us.
 
 ### Read this first: `/crew` skill
 
@@ -293,7 +334,7 @@ screen. Send me the raw transcript; don't try to normalize it first.
 - BlackHole itself: **installed and working.** `blackhole-2ch` + `switchaudio-osx` in, multi-output device **`crew`** (BlackHole + MacBook Pro Speakers, drift correction on the speakers) built and switchable from the CLI. Verified routing on/off cleanly. `sox` added for the verify check.
 - VoiceOS trigger key rebindable away from physical Fn: **YES — confirmed**
 - VoiceOS auto-confirm / trust setting for agent actions: no on/off switch in the config, **but confirmations can be answered by voice** — see finding 6, this is better news than a trust setting
-- B's Windows test: does VoiceOS-for-Windows correctly call `run_crew_task` from a normal spoken command? untested
+- B's Windows test: does VoiceOS-for-Windows correctly call `run_crew_task` from a normal spoken command? **NOT RUN — VoiceOS is not installed on B's machine** and installing it needs a download plus an account sign-in, which isn't something B can script. Everything on B's side of that test is ready and automated (`voiceos-bridge/mcp-server/register.ps1` finds VoiceOS, audits its config, and prints the exact registration). **This never blocked the demo**: the same hop was proven on A's Mac end to end, which is the machine we're demoing from. Treat the Windows test as a nice-to-have second data point, not a gap.
 - **Decision:** still pending the audio test. Nothing found so far rules the voice loop out; two settings that would have silently broken it are now known and scripted.
 
 ### What A found in VoiceOS's own config tonight
@@ -379,6 +420,48 @@ demo around one hands-free press at the top, not a per-utterance trigger.
 - _Sat night — orchestrator is one file (`orchestrator/server.js`), Node stdlib only, not the 4-file TypeScript layout in the folder plan — A — no build step, no `npm install`, no deps to break at 5pm; the whole thing is ~170 lines and restarts instantly. The frozen bit is the HTTP contract, and that's unchanged._
 - _Sat night — execution path (speech vs MCP) is isolated in ONE file, `orchestrator/prompts/execution.md` — A — when B decides, we swap that file and the three role prompts don't change. Both options are already written in it, commented out. Right now it's dry-run: agents narrate but call no tools, so tonight's testing can't touch real mail._
 - _Sat night — narration is paced by the orchestrator (~1.4s/line), not by token arrival — A — the model emits all its lines in one burst, so without pacing a character jumps straight to "Done:" and the dock looks dead. Found this on the first live run._
+- _Sun morning — **MCP owns Gmail**, exposed through the server VoiceOS already has registered — B — it is the only option that keeps the voice loop intact for the inbox half. Apple Mail was rejected: it needs a mail account configured on the demo Mac, it cannot be seeded deterministically, and B cannot test any of it from Windows. Full reasoning below._
+- _Sun morning — the same Gmail tools are wired two ways from one implementation — B — VoiceOS-called keeps the loop honest; agent-called is a drop-in fallback if VoiceOS transcription fails. Choosing between them at 5pm is a one-line change to `execution.md`, not a rebuild._
+
+### B — the Gmail decision (A: you're unblocked, write the real `execution.md`)
+
+**MCP owns Gmail.** Not Apple Mail, not narration-only.
+
+Why not the other two:
+- **Apple Mail** needs a real mail account configured in Mail.app on the demo Mac, and
+  there is no deterministic way to seed it — no `messages.insert` equivalent, so we'd be
+  sending real mail and waiting for it to arrive. B cannot test one line of it from
+  Windows, and it would land on A's machine untested. Wrong risk on demo day.
+- **Narration-only** was the safe pick, but it makes the inbox half a lie, and the seeded
+  Gmail account already exists and works. We'd be throwing away something real for nothing.
+
+**The part that matters — the same tools get wired two ways, from one implementation:**
+
+1. **Voice loop (primary).** Agent speaks → VoiceOS hears → **VoiceOS calls
+   `crew_gmail_*` on the MCP server it already has registered** → Gmail changes. Finding 4
+   said Gmail has no native path through VoiceOS, and that's true — but *we are the
+   integration*. `customMcpServers` is exactly the hole this fits. The loop stays voice all
+   the way through and the inbox actually changes.
+2. **Direct (fallback).** The agents call the identical tools themselves, no speech. This
+   is `execution.md` Option B, and it's what we fall back to if VoiceOS transcription
+   isn't reliable by rehearsal.
+
+Same tool names, same code, same tested surface. **Switching between them at 5pm is a
+one-line change to `execution.md`, not a rebuild** — which is the whole reason to decide
+it this way rather than picking one and hoping.
+
+**A — what you can write against right now**, tool names frozen:
+`crew_gmail_list_inbox()`, `crew_gmail_archive(query|ids)`, `crew_gmail_label(ids, label)`,
+`crew_calendar_find_slot(duration_min, after)`, `crew_calendar_book(summary, start, attendee)`.
+Prefix is `crew_`, not `mcp__voiceos__` — Option B in `execution.md` currently names
+`mcp__voiceos__gmail_*`, so that line needs updating when you swap the file.
+
+**Caveat, stated plainly:** these tools are specified, not yet built — `run_crew_task` and
+`crew_task_status` are the two that are built and tested. The Gmail tools need a demo
+Google account and OAuth credentials, and neither exists yet (`demo-seed` is written and
+dry-run verified against the same blocker). **Dry-run narration stays the panic button
+either way** — `./run-demo.sh fake` puts on the entire show with no Gmail, no network and
+no Claude spend, and nothing about this decision takes that away.
 
 ## Blockers
 
@@ -399,10 +482,19 @@ demo around one hands-free press at the top, not a per-utterance trigger.
   from the event). Until it is, the loopback test can't run. BlackHole, the `crew`
   multi-output device, both scripts and the verification query are all ready and waiting —
   it's a 5-minute test, not a workstream. Everything else on A's side is done and tested.
-- **Open question for B, needed early:** Gmail has no path through VoiceOS today (finding
-  4). But Apple Mail is scriptable from inside VoiceOS (finding 7). Pick one: MCP owns
-  Gmail, Apple Mail carries the inbox natively, or the inbox half is narrated over seeded
-  data. This changes what your MCP server needs to expose, so decide before building it.
+- ~~**Open question for B:** which path carries the inbox.~~ **DECIDED — see the decisions
+  log and "B — the Gmail decision" below. A is unblocked; write the real `execution.md`.**
+
+- **B → A, 2-minute fix, do this before rehearsal: the two calendars are not the same
+  calendar.** `demo-seed` writes the busy blocks into **Google** Calendar, but VoiceOS's
+  `connectedIntegrations` is `["applecalendar"]` — so if the scheduler books natively
+  through VoiceOS, it books into **Apple** Calendar and cannot see a single one of the
+  seeded commitments. The 2pm slot is only "free" in a calendar VoiceOS isn't reading.
+  Fix on A's Mac: **System Settings → Internet Accounts → add the demo Google account,
+  tick Calendars.** Apple Calendar then shows the Google calendar and both halves agree.
+  Verify by opening Calendar.app and seeing "Design review — onboarding" at 11:00 tomorrow.
+  If we skip this, the demo still *runs* — the scheduler just books over a meeting that
+  the audience can see on screen, which is a bad look on the one line the demo exists for.
 
 ## Demo script
 
