@@ -975,6 +975,27 @@ needs nothing.
 
 ## Blockers
 
+- ~~**E → A: a hung agent wedges the run after its timeout.**~~ **FIXED — reproduced with
+  your shim, then fixed at both ends.** You were exactly right, including that it is worse
+  than a crash: the character says "ran out of time" so it reads as a slow run, and nobody
+  reaches for the panic button.
+  Repro first, with a shimmed `claude` that prints one line, backgrounds an orphan holding
+  stdout, then hangs: 4s timeout, **still `running` at 24s**, recap never ran.
+  Two fixes, because the cause and the consequence are different bugs:
+  - **cause** — agents now spawn `detached`, so the timeout kills the process *group*
+    (`process.kill(-child.pid)`), not just the agent. The orphan dies and the pipe closes.
+  - **consequence** — finishing no longer depends on `close` alone. `close` waits on every
+    inherited stdio pipe; `exit` waits only on the process. Normal runs still finish on
+    `close` with all output drained, and `exit` finishes anyway after a 1.5s grace, so a
+    pipe held by something we could not kill can no longer wedge the run.
+  Same shim after the fix: **`done` at t+10s, recap ran, zero orphans left behind.** Real
+  agents re-run afterwards: 10/10 lines spoken, nothing truncated. Checkpoint 18 ok.
+  Thank you for testing rows nobody had tested — you can put the break-glass row back to
+  what it originally claimed, and "ran out of time" is a slow agent again rather than a
+  dead run.
+
+<details><summary>original report (resolved)</summary>
+
 - **E → A: a hung agent wedges the run after its timeout — on rung 2, the plan of
   record.** `child.kill('SIGKILL')` + `child.on('close')` in `server.js`: if the
   hung `claude` spawned a subprocess (it does, for tools), the orphan holds the
@@ -984,6 +1005,8 @@ needs nothing.
   `demo-script.md` break-glass row updated in the meantime (treat "ran out of
   time" as the cue to `stop && fake`). Your file, your call — shout if you want
   me to take it.
+
+</details>
 
 - ~~**C → A: two speech streams will collide.**~~ **DECIDED, IMPLEMENTED AND MEASURED —
   C, you are unblocked and there is nothing for you to change.** Your proposal was right.

@@ -188,10 +188,19 @@ function runRole(task, role) {
     if (MODE === 'direct') args.push('--mcp-config', MCP_CONFIG, '--allowedTools', ALLOWED_TOOLS || CREW_TOOLS);
     else if (MODE === 'voice') args.push('--allowedTools', ALLOWED_TOOLS || 'Bash');
     else if (ALLOWED_TOOLS) args.push('--allowedTools', ALLOWED_TOOLS);
-    const child = spawn('claude', args, { cwd: __dirname, stdio: ['ignore', 'pipe', 'pipe'] });
+    // `detached` makes the agent its own process-group leader so the timeout can
+    // kill the whole tree. An agent spawns tool subprocesses, and SIGKILLing only
+    // the parent leaves orphans holding its stdout — see the killer below.
+    const child = spawn('claude', args,
+      { cwd: __dirname, stdio: ['ignore', 'pipe', 'pipe'], detached: true });
 
     const killer = setTimeout(() => {
-      child.kill('SIGKILL');
+      // Kill the GROUP, not the child. E reproduced the alternative: SIGKILL the
+      // agent alone, its orphaned tool subprocess keeps the stdout pipe open,
+      // 'close' never fires, and the task never reaches done — so recap never
+      // appears. On stage that reads as a slow run rather than a dead one, which
+      // is the worst version: nobody reaches for the panic button.
+      try { process.kill(-child.pid, 'SIGKILL'); } catch { child.kill('SIGKILL'); }
       push(['Done: ran out of time.']);
     }, TIMEOUT_MS);
 
@@ -209,7 +218,17 @@ function runRole(task, role) {
     });
     child.stderr.on('data', (d) => process.stderr.write(`[${role}] ${d}`));
     child.on('error', (e) => push([`Done: could not start (${e.message}).`]));
-    child.on('close', () => { clearTimeout(killer); finish(); });
+
+    // Belt and braces, because the group kill is a fix for the cause and this is
+    // a fix for the consequence. 'close' waits for every inherited stdio pipe;
+    // 'exit' only for the process itself. Normal runs finish on 'close' with all
+    // output drained; if a pipe is still held by something we could not kill,
+    // 'exit' finishes anyway after a short grace so the run cannot wedge. Either
+    // way the recap gets to happen, which is what the audience actually sees.
+    let over = false;
+    const done = () => { if (over) return; over = true; clearTimeout(killer); finish(); };
+    child.on('close', done);
+    child.on('exit', () => setTimeout(done, 1500));
   });
 }
 
