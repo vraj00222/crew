@@ -111,7 +111,7 @@ Switch anytime with `/effort` or `/model`. If usage gets tight, add `--fallback-
 | **E — Rukaiya** | rehearsal, resilience, backup rig | **not started — read `docs/onboarding.md`, then your task block below** | nothing. Needs a Mac that is not A's |
 | A | orchestrator + dock + audio rig | **CHECKPOINT READY — everyone run `./checkpoint.sh`, see the Checkpoint section at the bottom.** Orchestrator done, 3 modes (`narrate`/`live`/`voice`) selected by a flag not a file edit. Audio split decided + measured. 10/10 lines spoken, 0 dropped. Three accents + written personalities. Characters no longer freeze. `docs/demo-script.md` written. Full chain with real agents: ~45s, PASS | VoiceOS Pro trial not active — still the only thing left on A's side |
 | B | voiceos-bridge (mcp-server + demo-seed + Gmail/Calendar tools) | **CHECKPOINT PASS on Windows (14 ok / 0 failed).** All 8 tools built and tested; `verify.ps1` now runs **6 suites, all green**. **`crew_task_status` closes the loop: no taskId needed, and it answers in a spoken sentence instead of a JSON dump** — see below. Tool `annotations` declared on all 8 tools, honestly. Gmail decision made; A unblocked. VoiceOS installed on Windows and inspected — see the tool-naming finding. **A: two things for you in Blockers — `direct` mode has no MCP wiring, so rung 3 narrates without touching anything, and `checkpoint.sh`'s claude check is a false green. Plus one bug in `CANNED`, off the rehearsed path.** | VoiceOS Pro trial (same paywall as A, now confirmed on a 2nd machine) + a demo Google account & OAuth creds |
-| C | crew-dock (took option 2) | **the dock talks, and the handover is proven.** `Narrator.swift` speaks every `/agent-status` line via `say`, per-character voices, never two at once. Re-verified this morning from a **throwaway clone of current `main`** — clone → speaking app in 13s. **A's audio split + new voices then re-verified on my Air against A's unmodified `run-demo.sh`: 16 received, 10 spoken, 0 failed.** Nothing left to hand-carry to A's Mac but two commands. **Reviewed and kept A's character fix — verified by screen capture, not by log — and fixed the stale-binary hole that let `checkpoint.sh` PASS while grading an old build** | **nothing — CHECKPOINT PASS on my Air (14 ok / 0 failed)** |
+| C | crew-dock (took option 2) | **the dock talks, and the handover is proven.** `Narrator.swift` speaks every `/agent-status` line via `say`, per-character voices, never two at once. Re-verified this morning from a **throwaway clone of current `main`** — clone → speaking app in 13s. **A's audio split + new voices then re-verified on my Air against A's unmodified `run-demo.sh`: 16 received, 10 spoken, 0 failed.** Nothing left to hand-carry to A's Mac but two commands. **Stall indication shipped: a `working` agent gone quiet for 10s now slows and trails an ellipsis instead of looking identical to a healthy one. Roster moved to `crew-dock/characters.json` — D, the shape is agreed and working, adding a character is a row plus a .mov.** **Reviewed and kept A's character fix — verified by screen capture, not by log — and fixed the stale-binary hole that let `checkpoint.sh` PASS while grading an old build** | **nothing — CHECKPOINT PASS (17 ok / 0 failed)** |
 
 ### ✅ FULL CHAIN INTEGRATED — B's MCP server → A's orchestrator → A's dock
 
@@ -677,6 +677,70 @@ Mine now passes on a binary provably newer than its sources.
 
 Two touched files are A's. Both are one-line guards, no contract touched, and the same
 class of thing as the `test.sh` port fix — shout if you'd rather own the change.
+
+### C — a stuck agent now reads as thinking, and the roster is data (D: read this)
+
+Both of the things A left me at the checkpoint. Checkpoint after: **17 ok, 0 failed.**
+
+**1. Stall indication — the assigned one.** A `working` character whose lines stopped
+arriving looked *identical* to a healthy one: same brisk walk, same caption sitting
+there. So a hang and a pause were indistinguishable, and an audience resolves that
+ambiguity as "it crashed". After **10s of silence** the character slows to 0.40 and
+trails an animated ellipsis on the line it already has. It invents no new text — the
+dock genuinely knows nothing new, and making it say "still working…" would be the dock
+asserting something it can't see. A new line clears it instantly.
+
+10s is deliberately between the two numbers that matter: well past the ~2.2s line beat
+(so a healthy run never triggers it) and well short of A's 180s kill (so a real hang is
+visible for ~170s before the orchestrator gives up). Logged `THINK ->` / `THINK <-`, so
+it's checkable without watching the screen.
+
+Tested by curl and by pixel, per A's instruction to POST `working` and then stop:
+
+```
+t+6s  : 0 think events        <- healthy, no false positive
+t+10s : THINK -> triage — no line for 10s
+        bubble: "Reading the flagged emails. .."     <- ellipsis animating
+        legs:   af0d42… / 71ce29… / 41fe34…          <- still walking, just slower
+        new line -> THINK <- triage resumed, ellipsis gone
+healthy full run: 0 THINK events, and still 0 after 15s of everyone sitting `done`
+```
+
+**2. `crew-dock/characters.json` — D, this is the shape, and it already works.**
+A said we should agree it rather than both guessing, so rather than write a spec I built
+the loader and shipped a manifest that describes *exactly today's reality* — three roles,
+two clips, recap mirrored. Behaviour is unchanged; the file just moved the roster out of
+Swift.
+
+```json
+"characters": [                                  // order = left-to-right on screen
+  { "role": "triage", "asset": "walk-bruce-01", "mirrored": false }
+],
+"activities": { "research": { "rate": 0.90 } }   // rate while `working`
+```
+
+- `role` must match the `character` the orchestrator POSTs. `asset` is `Assets/<asset>.mov`,
+  no extension. `mirrored` flips it — only needed while two roles share one clip.
+- **`activities` is keyed on A's new `activity` field, not on the role** — so two agents
+  doing research move alike and this file never has to learn the roster. That was A's
+  design intent and it's now wired: the POST's `activity` picks the rate.
+- **Adding researcher/analyst is a row each plus a `.mov`. No Swift, no rebuild of
+  anything but the app.** Your art gap and my loader meet exactly here.
+- Change the shape if it doesn't suit the art — you own the file, I'll move the loader.
+
+**Every failure mode falls back to the built-in three, so a bad edit cannot break the
+rehearsed run:** missing file (silent, it's the normal case), unreadable JSON, or no
+usable rows. All three tested. The unreadable case now names the offending path —
+it fell back *silently* at first, which would have had you editing the file, seeing no
+change, and concluding the loader ignores you.
+
+**Two smaller things while I was in there:**
+- `activity` was being **dropped on the floor** by my listener — it's parsed and logged
+  now (`DOCK <- triage [working] {sorting} …`). A, that field was arriving nowhere.
+- An unknown character now logs `spoken but NOT shown`. A verified this returns 200 and
+  doesn't crash — correct — but the narrator still *speaks* the line, so today a
+  researcher line is heard with nothing on screen. That is the one failure the audience
+  notices and the log didn't mention. It's D's gap; the dock now says so out loud.
 
 ### A — the crew has voices now, not one robot with three sprites
 
