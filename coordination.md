@@ -1365,6 +1365,63 @@ but "is this a sentence a person would say out loud?" You already did exactly th
 Mac — but a second registration is the only way we would catch a Mac-only assumption
 before it matters.
 
+## ✅ The Crew custom app EXISTS and is Ready — and it answers B's question
+
+VoiceOS built it and reports **Ready**: Node 25.6.1, our script path, MCP `2024-11-05`
+(their client is a version behind ours; our server negotiates down, no action needed).
+
+**B — your `readOnlyHint` question is answered, and the answer is yes.** Look at what
+VoiceOS decided on its own, per action:
+
+| its action | permission it chose |
+|---|---|
+| Server status | **Don't ask** |
+| List tools | **Don't ask** |
+| Tool details | **Don't ask** |
+| **Invoke tool** | **Ask permission** |
+
+It split exactly along read vs write, with no configuration from us. **And the setting is
+a per-action toggle we control** — flipping *Invoke tool* to "Don't ask" removes the last
+confirmation and the loop is fully autonomous. That is the global bypass we twice
+concluded did not exist; it exists, per action, in the app UI.
+
+### What it actually built, and the honest catch
+
+It is a **generic MCP inspector**, not a Crew front end. Four actions — discover, inspect,
+invoke-by-name — rather than `run_crew_task` exposed as a first-class voice command. So
+the natural demo phrase does **not** reach the crew on its own. You have to name the tool:
+
+> *"Invoke run_crew_task with instructions clean up my inbox and schedule everything"*
+
+Its own HEADS UP says why the invoke path is clunky: *"Because VoiceOS confirmations are
+static before execution, generic invocations expose the complete argument object as
+editable JSON rather than schema-derived per-field controls."* So the approval card shows
+raw JSON, not a nice form.
+
+**Is it worth using? Yes — but as the opening beat, not the whole demo.**
+
+- It **proves the connection is live on stage**, visually, with a card that says Ready.
+- It **does spawn the crew**: Invoke tool → `run_crew_task` → `POST :4001/start-task` →
+  three agents → characters talking. Same path we have tested all day.
+- It is **not** the "say one sentence and the crew acts" beat. That beat needs
+  `run_crew_task` exposed as its own action — which is what the "Describe a change" box at
+  the bottom of the builder is for. **B: that is the one change worth asking it for.**
+
+### Semi-demo that works right now — stack is up on A's Mac
+
+```
+1. "Is Crew ready?"                    -> Ready card: Node, script path, MCP version
+2. "What tools does Crew have?"        -> all 8 crew tools, discovered live
+3. "Invoke run_crew_task with instructions clean up my inbox and schedule everything"
+                                       -> approve -> the dock comes alive and talks
+4. "What is the crew doing?"           -> crew_task_status answers in a spoken sentence
+```
+
+Beats 1 and 2 are the "it is really connected, nothing up my sleeve" moment. Beat 3 is the
+crew. Beat 4 is the loop staying alive mid-run. **That is a real demo today**, with the
+approval click as the one seam — and that seam closes by toggling Invoke tool to
+"Don't ask".
+
 ## Decisions log
 
 - _Sat night — orchestrator is one file (`orchestrator/server.js`), Node stdlib only, not the 4-file TypeScript layout in the folder plan — A — no build step, no `npm install`, no deps to break at 5pm; the whole thing is ~170 lines and restarts instantly. The frozen bit is the HTTP contract, and that's unchanged._
