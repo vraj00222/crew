@@ -242,7 +242,7 @@ on anyone else's process being up. Each side has a stub of the others.
 | **B** — Sameer | MCP bridge, Gmail/Calendar tools, demo-seed | Windows |
 | **C** — Abhishek | dock characters, speech bubbles, narration | Mac |
 | **D** — Yaseen | character art + visual identity | |
-| **E** — Rukiya | rehearsal, resilience, backup rig | |
+| **E** — Rukaiya | rehearsal, resilience, backup rig | |
 
 New here? **[`docs/onboarding.md`](docs/onboarding.md)** is the front door — clone to a
 running demo in about sixty seconds, plus the file-ownership map and the merge ritual.

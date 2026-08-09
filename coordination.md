@@ -701,6 +701,51 @@ just stops sounding synthetic. `./crew-dock/voices.sh check` tells you where you
 
 No new dependency for any of this: no TTS service, no API key, no network call on stage.
 
+## Sponsors — what we can actually use, and where
+
+**The rule that decides all three: nothing goes on the stage path that needs the network
+at 6pm.** That is not caution for its own sake, it is why `./run-demo.sh fake` exists. A
+sponsor integration that can take the demo down is worth less than the prize.
+
+**The thing that makes trying any of them cheap:** the frozen contract. Anything that can
+`POST :4001/start-task` is a valid front end — VoiceOS is not special, it is just the one
+we wired first. The voice layer is swappable by design.
+
+### Lightberry — talk to them first, highest value
+
+"Brains for robots — listen, speak, act autonomously through natural voice commands."
+That is architecturally *the same machine we built*. And it lands on our one remaining
+blocker: **VoiceOS is paywalled on both A's and B's accounts.** If Lightberry gives us a
+listen→act loop we can drive today, it replaces the exact layer we are stuck on.
+
+Questions for their booth, in order: is there an SDK or HTTP endpoint we can hit today;
+can it call a local MCP server (B's is built and tested); can it be triggered without
+their hardware. **Investigate as a parallel path, not a swap** — rung 2 stays the plan of
+record until something is proven on the demo Mac.
+
+### Convex — yes, but strictly off the stage path
+
+Wrong tool for the critical path: we have no database problem. The entire state of a run
+is one `Map` in memory for 45 seconds, and adding a hosted backend to that is pure new
+risk on the one path that must not fail.
+
+**Where it genuinely fits — a live spectator view.** The crew's status streamed to a web
+page the audience and judges open on their own phones while the demo runs. That is what
+reactive sync is actually for, it is visibly impressive during judging, and **if it dies
+mid-demo nothing on stage notices** — it reads `/status/:taskId`, it is not in the path.
+Optionally: run history across rehearsals, which we currently keep in `/tmp`.
+
+Staged, not started — waiting on the month of premium. Whoever picks it up: it is a new
+directory, so it collides with nobody.
+
+### a1mobile — one question, then decide
+
+"AI native carrier that talks, texts, and handles tasks." The interesting beat is
+triggering the crew by **text message from outside the room** instead of speaking to a
+laptop — that is a better opening than a keypress, and it is one HTTP call to
+`/start-task`. Entirely contingent on whether they expose a developer API today. Ask; do
+not build speculatively.
+
 ## Decisions log
 
 - _Sat night — orchestrator is one file (`orchestrator/server.js`), Node stdlib only, not the 4-file TypeScript layout in the folder plan — A — no build step, no `npm install`, no deps to break at 5pm; the whole thing is ~170 lines and restarts instantly. The frozen bit is the HTTP contract, and that's unchanged._
