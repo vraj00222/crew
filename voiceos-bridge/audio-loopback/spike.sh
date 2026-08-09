@@ -3,6 +3,7 @@
 #   ./spike.sh install   one-time, asks for your password (installs an audio driver)
 #   ./spike.sh on        route audio into VoiceOS's mic
 #   ./spike.sh say "..." speak a command into VoiceOS
+#   ./spike.sh verify    proves the audio path, NO VoiceOS needed  <- run before rehearsal
 #   ./spike.sh test      the whole go/no-go: routes, speaks, checks, restores
 #   ./spike.sh off       put audio back to normal  <- ALWAYS run this when done
 set -euo pipefail
@@ -46,6 +47,24 @@ off)
   SwitchAudioSource -t output -s "MacBook Pro Speakers" 2>/dev/null || true
   SwitchAudioSource -t input  -s "MacBook Pro Microphone" 2>/dev/null || true
   echo "restored. input=$(SwitchAudioSource -t input -c), output=$(SwitchAudioSource -t output -c)"
+  ;;
+
+verify)  # proves the audio path with NO VoiceOS involved. Run this before rehearsal.
+  command -v sox >/dev/null || { echo "needs sox: brew install sox"; exit 1; }
+  trap '"$0" off >/dev/null' EXIT INT TERM
+  "$0" demo >/dev/null
+  sox -q -d /tmp/crew-loop.wav trim 0 7 2>/dev/null &
+  REC=$!
+  sleep 1
+  say -v Samantha -r 190 "The quick brown fox jumps over the lazy dog"
+  wait $REC 2>/dev/null
+  AMP=$(sox /tmp/crew-loop.wav -n stat 2>&1 | awk '/Maximum amplitude/{print $3}')
+  echo "captured peak amplitude: $AMP  (expect > 0.10; silence reads ~0.00)"
+  # BlackHole has no microphone — audio can only arrive via the digital loopback.
+  awk -v a="$AMP" 'BEGIN{exit !(a>0.10)}' \
+    && echo "PASS — say() reaches the virtual mic. Voice loop is physically possible." \
+    || { echo "FAIL — no audio on the loopback. Check the 'crew' multi-output device"
+         echo "       exists and has BlackHole 2ch ticked (Audio MIDI Setup)."; exit 1; }
   ;;
 
 test)  # the whole go/no-go, hands-off except for one key press

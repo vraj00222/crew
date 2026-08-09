@@ -135,7 +135,16 @@ screen. Send me the raw transcript; don't try to normalize it first.
 ## Tonight's spike result (A runs it, on A's own Mac — the confirmed demo machine. B joins remotely to help write/debug the script. C can try the same spike independently on their own Mac as a quick parallel sanity check — not required, but a second confirmation is useful if A hits a snag.)
 
 - BlackHole + `say` + VoiceOS mic: **BLOCKED, not failed — VoiceOS Pro trial not active on A's account yet.** All the plumbing around it is installed, scripted and dry-run verified; the moment the trial lands this is a ~5 minute test. See "How to finish the spike" below.
-- BlackHole itself: **installed and working.** `blackhole-2ch` + `switchaudio-osx` in, multi-output device **`crew`** (BlackHole + MacBook Pro Speakers, drift correction on the speakers) built and switchable from the CLI. Verified routing on/off cleanly.
+- **THE AUDIO PATH WORKS — measured, not assumed.** `./spike.sh verify` speaks through the
+  `crew` multi-output device, records off BlackHole's input, and reads the level back:
+  **peak amplitude 0.80, no clipping**, signal confined to the first ~2s matching the
+  utterance. BlackHole has no microphone, so audio can only have arrived via the digital
+  loopback. **`say` → BlackHole → mic input is proven.** This needed no VoiceOS and no Pro
+  trial, and it was the project's single biggest unknown.
+  → run `./spike.sh verify` before rehearsal; it's a 8-second self-contained check.
+- What that leaves: the only untested link is now "does VoiceOS *transcribe* what it
+  receives" — a far smaller risk than "does audio arrive at all", which is settled.
+- BlackHole itself: **installed and working.** `blackhole-2ch` + `switchaudio-osx` in, multi-output device **`crew`** (BlackHole + MacBook Pro Speakers, drift correction on the speakers) built and switchable from the CLI. Verified routing on/off cleanly. `sox` added for the verify check.
 - VoiceOS trigger key rebindable away from physical Fn: **YES — confirmed**
 - VoiceOS auto-confirm / trust setting for agent actions: no on/off switch in the config, **but confirmations can be answered by voice** — see finding 6, this is better news than a trust setting
 - B's Windows test: does VoiceOS-for-Windows correctly call `run_crew_task` from a normal spoken command? untested
