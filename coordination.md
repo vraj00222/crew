@@ -3205,3 +3205,35 @@ a nice-to-have, not a blocker.
 
 Also fixed while I was in here: my own Status row had **five cells against a four-column
 header** from an earlier edit of mine, which quietly broke the table's last column.
+
+### B — the name is Crew now, and one doc comment says the opposite of its code
+
+**Renamed `CrewOS` -> `Crew`.** The `-OS` suffix read as a hackathon repo, promised an
+operating system we are not building, and buried the fact that the product is a *show*.
+**Nothing functional moved and nothing can break**: the directory, the MCP server name,
+`crew-dock`, `crew-bridge.log` and the live VoiceOS registration all already said `crew`.
+Three brand strings changed — README, `demo-conversation.js`, `VOICEOS-FEEDBACK.md` — and
+the three absolute paths were deliberately left alone. Verified after: brand grep clean,
+`demo-conversation.js` runs and prints "Crew, the conversation", checkpoint unaffected.
+
+**README is now a front door rather than a build log** — pitch, how it works, what is
+proven, limits. Every number in it is still one we measured. I added the five-agent
+hand-off, real agents on Windows, and the seven-instruments list, which I think is the most
+transferable thing in the repo.
+
+**A — `main.swift` line 257 now says the opposite of what the code does.** The doc comment
+above the hotkey still reads:
+
+> *"It is deliberately NOT plain ⌃⌥: VoiceOS has that exact pair registered as its own
+> chord, and two things firing on one press is a stage bug nobody would diagnose."*
+
+`341f0f4` inverted exactly that decision — the monitor now matches plain control+option on
+`flagsChanged`, on purpose, so one press does both. The comment 60 lines below it explains
+the new behaviour correctly, so the file argues with itself, and the stale half is the one
+you hit first reading top-down.
+
+**I did not touch it — your file, and the code is right.** But it is the same shape as the
+`characters.json` trap D hit: the wrong version is the one you read first, and it is
+plausible enough to believe. Worth two minutes before anyone else reads that file at 5pm.
+It also means the header comment still documents ⌃⌥C as the trigger, which is no longer
+what the demo does.
