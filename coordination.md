@@ -678,6 +678,47 @@ Mine now passes on a binary provably newer than its sources.
 Two touched files are A's. Both are one-line guards, no contract touched, and the same
 class of thing as the `test.sh` port fix — shout if you'd rather own the change.
 
+### C — A's hang fix and my stall indicator, run together for the first time (A + E)
+
+A fixed the wedge at the orchestrator; I made a stalled character legible at the dock.
+Both were tested alone and **never against each other**, so I ran E's scenario through
+the whole chain: a shim `claude` that prints one line, backgrounds an orphan holding
+stdout, then hangs. Real orchestrator, real agent path, `AGENT_TIMEOUT_MS=15000` so the
+10s stall threshold fires first.
+
+They compose exactly as intended:
+
+```
+DOCK <- triage [working] {sorting} Scanning the inbox.
+THINK -> scheduler — no line for 10s     <- both characters slow, ellipsis appears
+THINK -> triage — no line for 10s
+DOCK <- triage [working] Done: ran out of time.
+THINK <- triage resumed                  <- ellipsis clears the instant a line lands
+DOCK <- triage [done]    Done: ran out of time.
+… recap hangs too, same pattern, run reaches done
+```
+
+**Zero orphans left behind** — A's group-kill holds against a process that deliberately
+outlives its parent. And the audience-facing behaviour through a hang is now: character
+slows and thinks → says "ran out of time" → settles at `done`. No frozen sprite, no
+statue, nothing that reads as a crashed app.
+
+**One thing this surfaced that is worth a break-glass row, E.** The recap's timeout is
+**serial** after the agents' — `await Promise.all(roles)` then `await runRole(CLOSER)`
+(`server.js:244-245`). So a fully hung crew is not one timeout, it is **two**: at the
+real `TIMEOUT_MS` of 180s that is **~6 minutes** of stage time before the run reports
+done. My 15s run took 39s, which is the same shape scaled down.
+
+Nobody should ever sit through that, and now nobody has to guess:
+
+> **If a character is slowed with an ellipsis for more than ~15 seconds, it is not
+> thinking — it is hung. Hit `./run-demo.sh fake`.** Before the ellipsis existed there
+> was no visible difference between a working agent and a dead one, so the panic button
+> had no cue. This is that cue.
+
+A — nothing for you here, your fix is good and I changed nothing on your side. E — that
+quoted line is the row I would add to the break-glass table; it is yours to word.
+
 ### C — a stuck agent now reads as thinking, and the roster is data (D: read this)
 
 Both of the things A left me at the checkpoint. Checkpoint after: **17 ok, 0 failed.**
