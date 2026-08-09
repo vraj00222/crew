@@ -18,6 +18,8 @@ final class AgentCharacter {
     /// Where this character lives once it has arrived. `enter()` animates to it
     /// from the top of the screen, so the resting place has to outlive the frame.
     private let restingOrigin: NSPoint
+    /// Kept because walking flips the layer and must know the resting orientation.
+    private let mirrored: Bool
     /// Staggered per slot so the crew arrives one after another, not in a rank.
     private let entranceSeconds: TimeInterval
     private static let entranceBase: TimeInterval = 0.85
@@ -26,6 +28,7 @@ final class AgentCharacter {
          mirrored: Bool = false, slot: Int = 0) {
         self.role = role
         self.restingOrigin = NSPoint(x: originX, y: originY)
+        self.mirrored = mirrored
         self.entranceSeconds = Self.entranceBase + Double(slot) * 0.18
 
         let height = Self.charHeight + Self.bubbleHeight
@@ -137,9 +140,17 @@ final class AgentCharacter {
     /// reads as *thinking*, which is both honest and survivable. It says nothing
     /// new, because the dock genuinely knows nothing new.
     func tick(_ now: Date) {
+        guard window.alphaValue > 0 else { return }
+
+        // Walking is not conditional on state — a character that stops moving
+        // the moment it finishes is the frozen-dock problem again, just later in
+        // the run. Tempo already says what state it is in; position says it is
+        // alive. `done` characters amble, they do not stand.
+        walkTick()
+
         // Only `working` can stall. `done` is finished and `idle` has not been
         // handed anything yet — neither is waiting on a line that isn't coming.
-        guard currentState == "working", window.alphaValue > 0 else { return }
+        guard currentState == "working" else { return }
 
         if now.timeIntervalSince(lastLineAt) >= Self.thinkingAfter {
             if !thinking {
@@ -148,9 +159,10 @@ final class AgentCharacter {
                 FileHandle.standardError.write(Data(
                     "THINK -> \(role) — no line for \(Int(Self.thinkingAfter))s\n".utf8))
             }
-            ellipsisTick += 1
-            // One dot every ~0.5s, cycling 1→2→3.
-            bubble.setText(currentMessage + " " + String(repeating: ".", count: 1 + (ellipsisTick / 2) % 3))
+            // Time-based, not tick-based: the clock runs at 30Hz for movement
+            // now, and a tick-counted ellipsis would flicker seven times too fast.
+            let dots = 1 + Int(now.timeIntervalSince(lastLineAt) * 2) % 3
+            bubble.setText(currentMessage + " " + String(repeating: ".", count: dots))
         }
 
         // Re-assert tempo rather than trusting it to persist: `rate` is a
@@ -195,6 +207,97 @@ final class AgentCharacter {
             // character a few points off is invisible at the screen edge.
             self?.window.setFrame(resting, display: true)
         })
+    }
+
+    // MARK: - Walking, ported from lil-agents' WalkerCharacter (MIT)
+    //
+    // The characters used to walk on the spot, which reads as a looping sprite
+    // rather than someone crossing the room. Upstream's insight is that
+    // translation must be driven by the *video's own* timeline, not by a
+    // wall-clock tween: the clip has a stand, an acceleration, a cruise and a
+    // stop, and if you move at a constant rate the feet slide against the floor.
+    //
+    // These are upstream's measurements of the shipped clip, in seconds.
+    private static let accelStart: Double = 3.0     // stands still until here
+    private static let fullSpeedStart: Double = 3.75
+    private static let decelStart: Double = 7.5
+    private static let walkStop: Double = 8.25      // stopped again after this
+
+    /// Fraction of the walk covered by `t` seconds into the clip, 0...1.
+    /// Trapezoid: ease in over `dIn`, cruise, ease out over `dOut`, normalised
+    /// so the whole trip is exactly 1.
+    private static func progress(atVideoTime t: Double) -> CGFloat {
+        let dIn = fullSpeedStart - accelStart
+        let dLin = decelStart - fullSpeedStart
+        let dOut = walkStop - decelStart
+        let v = 1.0 / (dIn / 2.0 + dLin + dOut / 2.0)
+        if t <= accelStart { return 0 }
+        if t <= fullSpeedStart { let x = t - accelStart; return CGFloat(v * x * x / (2 * dIn)) }
+        if t <= decelStart { return CGFloat(v * dIn / 2 + v * (t - fullSpeedStart)) }
+        if t <= walkStop {
+            let x = t - decelStart
+            return CGFloat(v * dIn / 2 + v * dLin + v * (x - x * x / (2 * dOut)))
+        }
+        return 1
+    }
+
+    private var walkFromX: CGFloat = 0
+    private var walkToX: CGFloat = 0
+    private var walking = false
+    private var pauseUntil = Date.distantPast
+    /// Player time at which the current walk began, so the trapezoid measures
+    /// this walk rather than the whole session.
+    private var walkStartVideoTime: Double = 0
+    /// Loop length, for detecting a wrap mid-walk.
+    private var clipSeconds: Double = 8.25
+    /// How far either side of its slot a character may wander. Wide enough to
+    /// read as walking, narrow enough that three of them never trade places —
+    /// upstream keeps siblings apart at runtime; fixed lanes do it for free.
+    private static let roam: CGFloat = 95
+
+    private func walkTick() {
+        guard window.alphaValue > 0 else { return }
+        let t = player.currentTime().seconds
+        guard t.isFinite else { return }
+
+        // Elapsed within THIS walk, not the player's absolute clock. Using the
+        // absolute time meant every walk after the first started already past
+        // `walkStop`, completed instantly with zero distance, and the crew
+        // simply stopped moving after one step. AVPlayerLooper restarts the item
+        // underneath us, so a negative delta means the clip wrapped mid-walk.
+        var elapsed = t - walkStartVideoTime
+        if elapsed < 0 { elapsed += max(clipSeconds, 0.001) }
+
+        if !walking {
+            // Between walks the character stands. Upstream pauses 5-12s; ours
+            // are on stage for ~45s, so a shorter beat keeps them alive without
+            // turning the dock into a screensaver.
+            guard Date() >= pauseUntil else { return }
+            let here = window.frame.origin.x
+            let low = restingOrigin.x - Self.roam, high = restingOrigin.x + Self.roam
+            // Turn around at the edge of the lane, otherwise pick a side.
+            let goRight = here <= low ? true : (here >= high ? false : Bool.random())
+            let dist = CGFloat.random(in: 60...Self.roam)
+            walkFromX = here
+            walkToX = min(max(goRight ? here + dist : here - dist, low), high)
+            walking = true
+            walkStartVideoTime = t
+            if let d = player.currentItem?.duration.seconds, d.isFinite, d > 0 { clipSeconds = d }
+            // Face the way we are going. The mirrored roles are flipped to begin
+            // with, so "forward" for them is the other transform.
+            let faceRight = goRight != mirrored
+            videoLayer.transform = faceRight ? CATransform3DIdentity : CATransform3DMakeScale(-1, 1, 1)
+        }
+
+        let p = Self.progress(atVideoTime: elapsed)
+        var f = window.frame
+        f.origin.x = walkFromX + (walkToX - walkFromX) * p
+        window.setFrameOrigin(f.origin)
+
+        if p >= 1 {
+            walking = false
+            pauseUntil = Date().addingTimeInterval(Double.random(in: 1.5...4.0))
+        }
     }
 
     /// One small hop, on the layer so it costs nothing and can't fight AppKit.

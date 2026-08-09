@@ -127,7 +127,7 @@ final class DockController {
     /// in the app. Drives the "still thinking" behaviour when an agent goes
     /// quiet — see AgentCharacter.tick.
     func startClock() {
-        Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
+        Timer.scheduledTimer(withTimeInterval: 1.0 / 30.0, repeats: true) { [weak self] _ in
             let now = Date()
             self?.characters.values.forEach { $0.tick(now) }
         }

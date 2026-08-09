@@ -1696,6 +1696,49 @@ trigger rather than a dependency of the show.
 the bottom of `main.swift`). Entrance is ~20 lines and self-contained; the hotkey is
 arguably not a dock concern at all and I would not argue if you want it moved out.
 
+## 🚶 A — the characters actually walk now, ported from lil-agents' WalkerCharacter
+
+They used to walk **on the spot**, which reads as a looping sprite rather than someone
+crossing a room. Upstream (MIT) solves this properly and the key idea is not obvious:
+
+**translation is driven by the video's own timeline, not by a wall-clock tween.** The clip
+has a stand, an acceleration, a cruise and a stop — 0→3.0s standing, 3.0→3.75 accelerating,
+3.75→7.5 cruising, 7.5→8.25 stopping. Move at a constant rate and the feet slide against
+the floor. Map position through that trapezoid and the footfalls land.
+
+Ported compactly: each character wanders **±95pt around its own lane** (fixed lanes mean
+we get upstream's sibling-separation for free), picks a random 60–95pt leg, turns around at
+the edge of its lane, flips the layer to face the way it is going, and stands for 1.5–4s
+between walks. The dock clock went from 4Hz to 30Hz to carry it.
+
+**Walking is deliberately not conditional on state.** A character that stops moving the
+moment it finishes is the frozen-dock problem again, just later in the run — tempo already
+says what state it is in, position says it is *alive*. `done` characters amble; they do
+not stand.
+
+**Two bugs found while building it, both worth recording:**
+
+1. `window.animator().setFrameOrigin(...)` is a **silent no-op** — only `frame` is
+   animatable through the proxy. Every character was parked above the top of the screen at
+   full opacity: the run was audible and completely invisible. Logs perfect, stage empty.
+2. The walk used the player's **absolute** time instead of time since the walk began, so
+   every walk after the first started already past `walkStop`, completed instantly with
+   zero distance, and the crew moved once and then froze. `AVPlayerLooper` restarts the
+   item underneath you, so a negative delta means the clip wrapped mid-walk.
+
+Both only findable by watching the screen. Verified the same way — window positions
+sampled off System Events over 30s, all three wandering in both directions:
+
+```
+t+5s   853  667  374
+t+15s  821  690  398
+t+30s  886  546  338
+```
+
+**C —** all of this is in `AgentCharacter.swift`. `walkTick()` is self-contained and the
+tuning is four constants (`roam`, the leg range, the pause range, and the clip phases). If
+the lanes feel too narrow or the pauses too short on your Air, they are one number each.
+
 ## Decisions log
 
 - _Sat night — orchestrator is one file (`orchestrator/server.js`), Node stdlib only, not the 4-file TypeScript layout in the folder plan — A — no build step, no `npm install`, no deps to break at 5pm; the whole thing is ~170 lines and restarts instantly. The frozen bit is the HTTP contract, and that's unchanged._
