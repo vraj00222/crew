@@ -250,25 +250,37 @@ guard let server = StatusServer(port: 4002, onStatus: { status in
 }
 server.start()   // prints "listening" itself, once the bind actually succeeds
 
-/// Global hotkey: ⌃⌥C wakes the crew, from anywhere, with no terminal.
+/// Global hotkey: hold ⌃⌥, speak, let go. No terminal, no typed command.
 ///
-/// The demo used to begin with somebody typing a command, which is a bad first
-/// beat — it says "a script did this". A chord says "I asked, and they came".
-/// It is deliberately NOT plain ⌃⌥: VoiceOS has that exact pair registered as
-/// its own chord, and two things firing on one press is a stage bug nobody
-/// would diagnose in the moment.
+/// The demo used to begin with somebody typing, which is a bad first beat — it
+/// says "a script did this". Holding a chord and talking says "I asked, and
+/// they came".
+///
+/// **It is deliberately plain ⌃⌥, because that is VoiceOS's own push-to-talk.**
+/// This comment used to say the exact opposite — that plain ⌃⌥ was avoided
+/// precisely *because* VoiceOS owns it — and `341f0f4` inverted the decision
+/// without updating the text, so the file argued with itself and the stale half
+/// was the one you met first reading top-down. Being the collision is the whole
+/// trick: one gesture opens VoiceOS's ear and wakes the crew together, which is
+/// what retired `fn`+`space` — the one step no script could ever perform.
+///
+/// Down wakes the crew and starts VoiceOS listening; up is when VoiceOS
+/// transcribes, so it is also when we read what you said. A tap shorter than
+/// `minimumHold` is not speech and keeps the ear open, so brushing the keys
+/// cannot send an empty instruction.
 ///
 /// Needs Accessibility (System Settings -> Privacy & Security -> Accessibility),
 /// the same grant `spike.sh trigger` needs. Without it the monitor silently
 /// never fires, so we say so at start-up rather than leaving it a mystery.
-/// Two chords, two tasks, so the demo is not one hardcoded sentence.
 ///
-/// ⌃⌥C is the rehearsed run — three agents, ~45s, said out loud dozens of times.
-/// ⌃⌥L is the long one — five agents, ~90s, and it shows the hand-off: the
-/// analyst waits for the researcher and opens on what the researcher found.
-/// Both are overridable, so a different demo is an env var rather than a build.
-let shortPhrase = ProcessInfo.processInfo.environment["CREW_PHRASE"]
-    ?? "clean up my inbox and schedule everything"
+/// ⌃⌥L stays as the rehearsal shortcut: the long five-agent task, no talking,
+/// which shows the hand-off — the analyst waits for the researcher and opens on
+/// what the researcher found. Override it with `CREW_PHRASE_LONG`.
+///
+/// There is no short-phrase constant any more, and that is the point: the held
+/// chord asks *the person* rather than replaying a sentence. `CREW_PHRASE` is
+/// read by nothing — it was left declared into an unused variable when the
+/// gesture replaced the fixed task.
 let longPhrase = ProcessInfo.processInfo.environment["CREW_PHRASE_LONG"]
     ?? "go through my inbox, research what is actually urgent, analyse which threads need a reply, and schedule the meetings"
 
