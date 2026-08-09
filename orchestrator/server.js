@@ -185,7 +185,7 @@ function runRole(task, role) {
     const finish = () => { closed = true; if (!draining) drain(); };
 
     say(task, role, 'working', 'waking up');
-    if (FAKE) { push(CANNED[role]); return finish(); }
+    if (FAKE) { push(cannedFor(task, role)); return finish(); }
 
     const args = ['-p', buildPrompt(role, task.instructions, task), '--output-format', 'stream-json', '--verbose'];
     // Only direct mode calls tools. narrate must stay toolless — it is the safe
@@ -243,8 +243,30 @@ const CANNED = {
   scheduler: ['Reading the flagged emails.', 'Finding open slots tomorrow.', 'Booking two PM with David Chen.', 'Done: two meetings on the calendar.'],
   researcher: ['Reading what the thread actually says.', 'Checking the rollout notes against it.', 'Done: three facts worth knowing, one of them awkward.'],
   analyst: ['Lining the numbers up side by side.', 'One of these is not like the others.', 'Done: the Thursday figure is the one to ask about.'],
-  recap: ['Pulling together what the crew did.', 'Done: inbox cleared, two meetings booked.'],
+  recap: ['Pulling together what the crew did.'], // its sign-off is built from who ran
 };
+
+// The closer's canned sign-off was hardcoded to the inbox demo, so a research
+// crew closed the show by claiming it had cleared a mailbox nobody had touched
+// — spoken out loud, last line, and false. Real mode never had this: the closer
+// is handed {{CREW}} and reports what actually ran. Fake mode now takes its
+// sign-off from the same place, the roster.
+// The rehearsed pair still produces the rehearsed line, byte for byte:
+// triage + scheduler -> "Done: inbox cleared, two meetings booked."
+const CANNED_CLOSE = {
+  triage: 'inbox cleared',
+  scheduler: 'two meetings booked',
+  researcher: 'three facts worth knowing',
+  analyst: 'the Thursday figure flagged',
+};
+const cannedFor = (task, role) =>
+  role !== CLOSER ? CANNED[role] : [
+    ...CANNED[CLOSER],
+    // Unknown roles contribute nothing rather than a placeholder — a closer that
+    // says "and something else" out loud is worse than one that stays specific.
+    `Done: ${task.roles.filter((r) => CANNED_CLOSE[r]).map((r) => CANNED_CLOSE[r]).join(', ')
+      || 'nothing to report'}.`,
+  ];
 
 // Agents that depend on another agent's findings wait for them, and are handed
 // what that agent actually said. Everything else still runs in parallel, so the

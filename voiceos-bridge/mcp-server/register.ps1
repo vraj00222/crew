@@ -56,6 +56,49 @@ function VoiceOSProcesses() {
     @(Get-Process -Name VoiceOS -ErrorAction SilentlyContinue)
 }
 
+# C hit this on macOS and it cost an hour: registering the bare word "node" means
+# VoiceOS has to find node on ITS PATH, and a GUI app launched from Explorer or the
+# Start menu never sources a shell profile. When it can't, the error is
+# "MCP error -32000: Connection closed" -- which reads as a broken server rather
+# than a missing interpreter, so you debug the wrong thing.
+#
+# Windows is usually luckier than macOS here: a machine-wide Node install lands in
+# "C:\Program Files\nodejs" and goes on the SYSTEM PATH, which GUI apps do inherit,
+# and nvm-windows keeps that same path as a symlink to the active version -- so it
+# stays correct across "nvm use". fnm and Volta install per-user and lean on shell
+# hooks, and those are exactly the setups a GUI app cannot see.
+#
+# Order: the GUI-visible machine path if it is really there, else the resolved
+# absolute path, saying why. Never the bare word.
+function Resolve-NodeCommand() {
+    $resolved = $null
+    $cmd = Get-Command node -ErrorAction SilentlyContinue
+    if ($cmd) { $resolved = $cmd.Source }
+
+    $machine = Join-Path $env:ProgramFiles "nodejs\node.exe"
+    if (Test-Path $machine) {
+        return [pscustomobject]@{
+            Path = $machine
+            Why  = "machine-wide install on the system PATH -- visible to VoiceOS launched from Explorer"
+            Warn = $null
+        }
+    }
+    if ($resolved) {
+        return [pscustomobject]@{
+            Path = $resolved
+            Why  = "resolved from this shell's PATH"
+            Warn = "node is NOT in `"$machine`" -- this looks like fnm/Volta/a per-user install. " +
+                   "Registering the absolute path so VoiceOS can start it without a shell, but it is " +
+                   "version-pinned: re-run this script after switching node versions."
+        }
+    }
+    return [pscustomobject]@{
+        Path = $null
+        Why  = $null
+        Warn = "No node on PATH at all. Install Node before registering."
+    }
+}
+
 function SetProp($obj, [string]$name, $value) {
     $obj | Add-Member -NotePropertyName $name -NotePropertyValue $value -Force
 }
@@ -66,7 +109,7 @@ function WriteJsonNoBom($path, $value) {
     [System.IO.File]::WriteAllText($path, $json, $utf8NoBom)
 }
 
-function Write-CrewMcpConfig($configPath, $serverPath) {
+function Write-CrewMcpConfig($configPath, $serverPath, $nodePath) {
     $cfg = Get-Content $configPath -Raw | ConvertFrom-Json
     $servers = @()
     if ($null -ne $cfg.customMcpServers) { $servers = @($cfg.customMcpServers) }
@@ -74,7 +117,7 @@ function Write-CrewMcpConfig($configPath, $serverPath) {
     $existing = $servers | Where-Object { $_.name -eq "crew" } | Select-Object -First 1
     if ($existing) {
         SetProp $existing "transport" "stdio"
-        SetProp $existing "command" "node"
+        SetProp $existing "command" $nodePath
         SetProp $existing "args" @($serverPath)
         SetProp $existing "enabled" $true
         SetProp $existing "url" $null
@@ -88,7 +131,7 @@ function Write-CrewMcpConfig($configPath, $serverPath) {
         id = $id
         name = "crew"
         transport = "stdio"
-        command = "node"
+        command = $nodePath
         args = @($serverPath)
         enabled = $true
     }
@@ -136,6 +179,7 @@ $configPath = $candidates | ForEach-Object { Join-Path $_ "config.json" } |
               Where-Object { Test-Path $_ } | Select-Object -First 1
 
 $crewRegistered = $false
+$crewBareCommand = $false
 
 if ($configPath) {
     Head "Config audit  ($configPath)"
@@ -194,6 +238,18 @@ if ($configPath) {
     } elseif ($crew.Count -gt 0) {
         Warn "crew MCP server exists but is disabled"
     }
+    # An entry registered as the bare word "node" works only while VoiceOS happens to
+    # inherit a PATH containing it. That is true of a machine-wide install and false
+    # of fnm/Volta -- and when it is false the error names the connection, not node.
+    if ($crew.Count -gt 0) {
+        $registeredCmd = $crew[0].command
+        Write-Host "  --   crew command: $registeredCmd"
+        if ($registeredCmd -and $registeredCmd -notmatch "[\\/]") {
+            $crewBareCommand = $true
+            Warn "     registered as a bare command, not a path. Works only if VoiceOS's own"
+            Warn "     PATH has it. Re-run with -Apply -StopVoiceOS to pin the absolute path."
+        }
+    }
 } else {
     Warn "No config.json found yet -- VoiceOS may need to be launched once first."
 }
@@ -202,9 +258,14 @@ if ($configPath) {
 Head "Register the Crew MCP server"
 
 if (-not (Test-Path $serverPath)) { Bad "server.js not found at $serverPath"; exit 1 }
-Write-Host "  command : node"
+
+$node = Resolve-NodeCommand
+if (-not $node.Path) { Bad $node.Warn; exit 1 }
+if ($node.Warn) { Warn $node.Warn } else { Good "node: $($node.Why)" }
+
+Write-Host "  command : `"$($node.Path)`""
 Write-Host "  args    : `"$serverPath`""
-Write-Host "  (absolute path on purpose -- VoiceOS's working directory is not this folder)"
+Write-Host "  (both absolute on purpose -- VoiceOS gets no shell, no cwd and no PATH of ours)"
 
 Write-Host "`n  Sanity check before registering..." -ForegroundColor DarkGray
 # node writes the selftest result to stderr on purpose (stdout is the MCP channel).
@@ -252,7 +313,7 @@ if ($cli) {
         $backup = "$configPath.crew-backup-$(Get-Date -Format yyyyMMdd-HHmmss)"
         $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
         [System.IO.File]::WriteAllText($backup, $before, $utf8NoBom)
-        $update = Write-CrewMcpConfig $configPath $serverPath
+        $update = Write-CrewMcpConfig $configPath $serverPath $node.Path
         WriteJsonNoBom $configPath $update.Config
         Good "Crew MCP server $($update.Action) in customMcpServers (id $($update.Id))."
         Good "Backup written: $backup"
@@ -265,7 +326,12 @@ if ($cli) {
         if ($crewRegistered) {
             Head "Registration status"
             Good "VoiceOS already has an enabled custom MCP server named crew."
-            Write-Host "  Re-run with .\register.ps1 -Apply -StopVoiceOS only if the path changes." -ForegroundColor DarkGray
+            if ($crewBareCommand) {
+                Warn "But its command is the bare word, not the path printed above."
+                Write-Host "  Pin it before the demo:  .\register.ps1 -Apply -StopVoiceOS" -ForegroundColor Cyan
+            } else {
+                Write-Host "  Re-run with .\register.ps1 -Apply -StopVoiceOS only if the path changes." -ForegroundColor DarkGray
+            }
         } else {
             Head "How to actually register (there is no CLI on Windows)"
     Write-Host @"

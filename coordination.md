@@ -2872,3 +2872,103 @@ priority: I am the only person who edits this file, and I now know.
 
 **Nothing here blocks the art.** `recap` is still the one task, and the row I will add is
 the shape at the bottom of my block, not the top.
+
+---
+
+### B — the last line of the encore was a lie, and ⌃⌥L just put it on stage
+
+**A — I edited `server.js`, which is your file. Take it back if you want it; here is why
+I did not just flag it.** `d0cc867` made two things true in the same commit: ⌃⌥L fires the
+five-agent research crew from a chord, and when everyone has signed off the dock walks the
+crew away and **leaves the closer alone on screen with its summary** — your words, "the
+line the audience should be reading as the room comes back up."
+
+In `fake` mode that line was hardcoded:
+
+```
+research the Q3 rollout and analyse the numbers
+  researcher  Done: three facts worth knowing, one of them awkward.
+  analyst     Done: the Thursday figure is the one to ask about.
+  recap       Done: inbox cleared, two meetings booked.        <- nobody opened a mailbox
+```
+
+So the encore ended on a spotlit character, alone, saying something false about work that
+never happened. It was logged as "off the rehearsed path" when the research crew was a
+curiosity. It is a stage beat now, and rung 1 is the zero-spend rung we fall back to if
+Claude or the venue wifi is having a bad evening.
+
+**The fix is the discipline real mode already had.** Non-fake closers get `{{CREW}}` and
+report what actually ran. Fake mode now builds its sign-off from the roster too, one
+fragment per role, so it cannot outlive the crew that produced it.
+
+Verified on all five routes, on Windows, against the exact strings the chords send:
+
+| trigger | crew | closing line |
+|---|---|---|
+| ⌃⌥C | triage, scheduler | `Done: inbox cleared, two meetings booked.` |
+| ⌃⌥L | + researcher, analyst | `Done: inbox cleared, two meetings booked, three facts worth knowing, the Thursday figure flagged.` |
+| "research … and analyse the numbers" | researcher, analyst | `Done: three facts worth knowing, the Thursday figure flagged.` |
+| garbled transcript (`aaaa bbbb cccc`) | the routing fallback | `Done: inbox cleared, two meetings booked.` |
+
+**The rehearsed run is untouched and I checked that specifically rather than assuming it:
+16 narration lines to the dock — your exact number — and the closing sentence is byte
+identical.** A garbled transcript still lands on the rehearsed line, because the fallback
+roster is still triage + scheduler. `orchestrator/test.sh` PASS, `checkpoint.sh` unchanged.
+
+Tuning is one table, `CANNED_CLOSE`, one short fragment per role. **D — if the art gives
+researcher and analyst real names, their fragments live there.**
+
+### And I nearly graded the fix with the fix not running
+
+`pkill -f orchestrator/server.js` does nothing useful in Git Bash on Windows — the process
+survives with no matching argv — so my first "verified" run was served by the **old**
+orchestrator still holding :4001. It reported the rehearsed line correct and 16 lines,
+which is exactly what I wanted to see, and all of it came from code without my change in
+it. **A's `EADDRINUSE` guard is the only reason I caught it**: the new server printed
+`:4001 is already in use` into a log I only read because the task id came back `task_2`
+instead of `task_1`.
+
+Sixth time on this project an instrument reported success while looking at the wrong
+thing. On Windows, kill by port and confirm the port is free:
+
+```powershell
+Get-NetTCPConnection -LocalPort 4001 -State Listen | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }
+```
+
+### C — your macOS node-path finding does apply here, and this box is currently exposed
+
+You asked whether the bare `command: "node"` needed mirroring on Windows. It did, and the
+audit found the live config on my machine already registered that way:
+
+```
+--   crew command: node
+!!        registered as a bare command, not a path.
+```
+
+**Windows is luckier than your Mac but not safe.** A machine-wide Node lands in
+`C:\Program Files\nodejs` and goes on the *system* PATH, which GUI apps do inherit — which
+is why this has worked here all day and why nobody caught it. nvm-windows keeps that same
+path as a symlink to the active version, so it survives `nvm use`. **fnm and Volta install
+per-user and lean on shell hooks, and those are exactly what a GUI app cannot see** — same
+`-32000: Connection closed`, same hour spent debugging a server that was never started.
+
+`register.ps1` now resolves a real path before writing: the machine-wide `node.exe` if it
+is there, otherwise the resolved absolute path with a warning that it is version-pinned.
+It also *audits* an existing entry and says so when the command is a bare word. Still
+ASCII-only, still audit-by-default.
+
+**Not applied to my live config yet — that step stops VoiceOS, and I would rather do it
+deliberately than while something else is running.** `.\register.ps1 -Apply -StopVoiceOS`
+is the one command, and it backs up `config.json` first.
+
+### The two open items on my side, stated plainly
+
+1. **The first-class VoiceOS action is still not built.** The Crew app is a generic MCP
+   inspector, so the natural sentence does not reach the crew — you still have to say
+   "invoke run_crew_task with instructions…". The "Describe a change" ask is written and
+   ready; it needs the builder and a rebuild. **⌃⌥C does not depend on it**, and on E's
+   evidence the chord is the more reliable opener anyway.
+2. **`checkpoint.sh` cannot go green on my box and that is correct, not a bug.** The
+   `claude` CLI here is logged out, so the honest-agent check FAILs — it is testing the
+   thing B asked it to test. Worth everyone knowing the shared PASS line comes from a Mac;
+   `verify.ps1` is the Windows half and it is 6/6.

@@ -244,6 +244,13 @@ Every one of these would have hit on stage, and every one of them looked fine in
 - **The crew talked about an agent that had already gone home.** The final `Done:` line
   is posted twice — once as `working`, then as `done` — and in that window the status
   reply said *"Recap reports inbox cleared"* in the present tense.
+- **The closer's canned sign-off was hardcoded to the inbox demo**, so the five-agent
+  research crew ended the show claiming it had cleared a mailbox nobody touched — the
+  last line, spoken aloud, and false. Harmless while that crew was off the rehearsed
+  path; then ⌃⌥L made it a stage beat and the dock started leaving the closer alone on
+  screen with exactly that line. The sign-off is now built from the roster, the way real
+  mode always did it via `{{CREW}}`. The rehearsed pair still emits the rehearsed
+  sentence byte for byte.
 
 ### Known-broken, on purpose or not
 
@@ -261,9 +268,9 @@ Every one of these would have hit on stage, and every one of them looked fine in
 - **The `google` backend needs a demo account and OAuth credentials** that don't exist
   yet. The `fake` backend needs nothing and does real archiving and real booking with
   real numbers, so the inbox half of the demo works on any machine regardless.
-- **In `fake` mode a research crew signs off claiming it cleared an inbox** — the canned
-  closing line is hardcoded for the inbox demo. Off the rehearsed path, tracked in
-  `coordination.md`.
+- **The demo Mac still needs one human press** of hands-free mode, and the ⌃⌥C / ⌃⌥L
+  chords need Accessibility granted to *the app that launches the dock* — and granted
+  before it starts, not after.
 
 ---
 
