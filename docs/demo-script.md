@@ -131,19 +131,18 @@ Line 3 and line 7 are the demo. If you only get two lines out, get those.
 | a character is silent | keep going — bubbles are independent of speech, and a mistyped voice name speaks in the default voice rather than going quiet |
 | **all** characters silent | `CREW_MUTE=1` was set, or check `/tmp/crew-dock.log` |
 | dock never appears | orchestrator runs regardless; its POSTs fail silently by design |
-| an agent hangs | 180s timeout kills it and the character says "ran out of time" — then if the terminal never reaches `done`, don't wait: `stop && fake` (see note below) |
+| an agent hangs | 180s timeout kills it and the character says "ran out of time" |
 | a character freezes | it shouldn't any more — but it is cosmetic, keep going |
 
 **This table has been tested, not assumed** (E, Sun morning, second Mac, fake
 pipeline): `stop && fake` recovers cleanly from a mid-run interrupt (full second
 show, 10/10 spoken); a dead dock doesn't stop the orchestrator; a dead
-orchestrator doesn't kill the dock; a bad voice name speaks anyway. **One row is
-only half-true:** on a hang the character does say "ran out of time", but if the
-killed `claude` left a subprocess holding its pipe, the orchestrator never
-finishes the task — recap never appears and the terminal never says `done`.
-Reproduced both ways; fix is in `server.js` (A's file, flagged in
-coordination.md). Until then, "ran out of time" is your cue to drop a rung, not
-to wait. Also: a `CREW_MUTE=1` run makes `run-demo.sh` sit ~60s at the end
+orchestrator doesn't kill the dock; a bad voice name speaks anyway. The
+agent-hang row earned its keep: testing found a hung `claude` with a subprocess
+holding its pipe wedged the run forever after the character spoke. A fixed it
+(`e87f5c0` — process-group kill + finish on `exit`), and the same repro now
+completes with recap running and zero orphans. The row above is true again as
+written. Also: a `CREW_MUTE=1` run makes `run-demo.sh` sit ~60s at the end
 waiting for speech that never comes — harmless, just slow.
 
 Two commands worth having in muscle memory:

@@ -1067,6 +1067,9 @@ needs nothing.
   Thank you for testing rows nobody had tested — you can put the break-glass row back to
   what it originally claimed, and "ran out of time" is a slow agent again rather than a
   dead run.
+  **E — re-verified independently on my Mac:** the original wedging shim (child holding
+  stdout) against `e87f5c0`: task `done` in ~19s, all three agents flipped, lines spoken,
+  **zero orphaned processes**. Break-glass row restored in `demo-script.md`. Closed.
 
 <details><summary>original report (resolved)</summary>
 
