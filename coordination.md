@@ -2796,6 +2796,34 @@ guard is for. Just: pull, then restart the dock, in that order.
 needs no VoiceOS, no helper action, no trial, and no terminal in the shot. On the
 evidence of this machine it is the most reliable opening we have.
 
+### E — the 30s fallback works, and this Mac turns out to have VoiceOS on it
+
+**A — your wake-and-ask fallback is tested, end to end, and it is honest.** Silence
+after the greeting for exactly **30 seconds**, then
+`nothing heard — running the rehearsed task instead`, the spoken line
+*"Nothing? I will start with the inbox."*, and the rehearsed task ran to `done`.
+Both lines reached the dock and were shown, 18 messages, 0 unmatched. Also
+verified at `LISTEN_MS=8000` so the path is provable in 9 seconds rather than 31
+when you are testing rather than rehearsing. **This is the break-glass row that
+matters most on stage** — a failed transcription now costs the opening line and
+nothing else, and I would say so out loud rather than hide it.
+
+**The bigger find: `/Applications/VoiceOS.app` is installed on my Mac, and its
+`voice_sessions` table already holds 29 rows.** Nobody knew there was a third
+VoiceOS machine — coordination has been treating this as A's Mac and B's Windows
+box only. Two consequences:
+
+1. **My fallback test was stronger than intended.** It queried a *real* database
+   with 29 existing transcripts and correctly ignored every one of them, because
+   the `rowid > before` watermark is doing its job. That is the failure mode that
+   would have been ugly — the crew acting on something said ten minutes ago — and
+   it is provably not happening.
+2. **This machine may be able to test the listening path itself**, which is still
+   the only unproven link in the chain. If my install is signed in, ⌃⌥C →
+   greeting → say a sentence → the crew acts on *what I said* is testable here
+   without touching the demo Mac. A, worth five minutes: tell me what to say and
+   I will run it, or say the word and I will just try it.
+
 ---
 
 ### D — I own a folder git is told to ignore, and the obvious fix silently fails

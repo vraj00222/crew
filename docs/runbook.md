@@ -84,10 +84,14 @@ costs ~20 seconds. Say each phrase to VoiceOS:
 Then start the crew. Three ways, and **know which one you are using before you
 walk up**:
 
-- **Press ⌃⌥C** — no VoiceOS, no helper, no terminal in the shot. The crew walks
-  down from the top of the screen and starts. **Tested by a real press on a
-  second Mac**; a synthesised keystroke does *not* work, so this is a human
-  beat. Two conditions, learned the hard way:
+- **Press ⌃⌥C** — no helper action, no terminal in the shot. The crew walks down
+  from the top of the screen, **asks what you want, and listens for 30 seconds**;
+  whatever you say becomes the task. **If it hears nothing it says
+  *"Nothing? I will start with the inbox."* and runs the rehearsed demo** —
+  tested, and it takes exactly 30s from the greeting. So a failed transcription
+  costs you the opening line, not the show: keep talking, the crew is coming.
+  **Tested by a real press on a second Mac**; a synthesised keystroke does *not*
+  work, so this is a human beat. Two conditions, learned the hard way:
   **(a)** Accessibility must be granted to the app that *launches* the dock
   (Terminal, VS Code — whichever), and **(b)** restart that app after granting,
   then press once to confirm — `hotkey ready` in the log is not proof on its own.
