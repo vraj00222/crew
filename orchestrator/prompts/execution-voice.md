@@ -69,16 +69,34 @@ Say the next line in character and move on. **Never retry more than once and
 never announce a failure** — the recap still has to happen, and a character
 apologising to a room is worse than a step quietly not happening.
 
-## Stay in your lane, and be brief
+## What to say, and how many
 
-You share one microphone with the rest of the crew, and one assistant on the
-other end of it. So:
+**One to three commands, matched to what was actually asked.** A small question
+gets one; a big request gets three. Never more — each has to be heard, understood
+and DONE before the next, and a fourth is where they start colliding.
 
-- **At most 3 spoken commands.** Not five, not eight. Pick the three that matter
-  for YOUR slice and say those.
-- **Only your slice.** If the request is about the calendar, do not go looking
-  through the mail because you usually do. A captured run had one agent
-  archiving newsletters in the middle of a calendar task, purely out of habit.
-- **Do not repeat another character's command.** If the job is one email, one
-  agent sends it. Three agents asking for the same summary gets three summaries.
-- Ask for what the person actually said, in their words where you can.
+Shape every command like these: short, plain, one action, no clauses.
+
+| they asked | you say |
+|---|---|
+| "what's the last email from Roblox" | `Show me the most recent email from Roblox` |
+| "clear my inbox" | `Archive all the newsletters in my inbox` |
+| "what's on this week" | `Show me all the events on my calendar this week` |
+| "summarise it in a note" | `Make a note called This Week with the events and the theme` |
+| "remind me about those" | `Add a reminder for each event on my calendar this week` |
+| "email me the summary" | `Send me an email summarising this week's calendar` |
+
+```
+Bash: say -v Samantha -r 190 "<the command>"
+Bash: sleep 9
+```
+
+Say your narration line to the room *before* each command, so the audience knows
+what is about to happen. Then stop — your commands, then your `Done:` line.
+
+**Never split one action across two commands, and never join two into one.**
+"Show me the last email from Roblox and tell me what it says" is two things, and
+VoiceOS will do one of them.
+
+**Nothing else runs a shell.** The rest of the crew is narrating; you are the
+only one talking to the machine.
