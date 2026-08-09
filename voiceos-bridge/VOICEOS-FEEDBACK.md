@@ -97,10 +97,10 @@ A middle tier would be even better than a binary: confirm destructive things, al
 reversible writes, never confirm reads. Archiving mail is reversible; deleting it
 isn't; and today they're treated identically.
 
-**What we still could not test:** whether VoiceOS currently reads those annotations at
-all. We have Pro now, but the check needs a custom server registered and `tools/list`
-compared with confirmations on and off, and we ran out of day. If it already derives
-them, say so in the docs — it's a strong reason to build on VoiceOS rather than around it.
+**What we confirmed later:** VoiceOS does read those annotations when building the Crew
+app. Read-only actions are allowed without a confirmation card, while writes still ask.
+That is exactly the behavior agent builders need. Please say it plainly in the docs — it
+is a strong reason to build on VoiceOS rather than around it.
 
 **Genuinely good discovery in the same area:** confirmations appear to be answerable
 **by voice** — the bundle has `emitVoiceConfirmation`, `classifyAgentConfirmationIntent`,

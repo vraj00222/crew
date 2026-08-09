@@ -106,6 +106,19 @@ correct from exactly one directory.
 | Claude Code | `mcp__crew__crew_gmail_archive` | `--allowedTools` |
 | VoiceOS | `custom_mcp_crew_crew_gmail_archive` | VoiceOS's own logs |
 
+VoiceOS-side names for this server:
+
+```text
+custom_mcp_crew_run_crew_task
+custom_mcp_crew_crew_task_status
+custom_mcp_crew_crew_gmail_list_inbox
+custom_mcp_crew_crew_gmail_archive
+custom_mcp_crew_crew_gmail_label
+custom_mcp_crew_crew_calendar_find_slot
+custom_mcp_crew_crew_calendar_book
+custom_mcp_crew_crew_calendar_list
+```
+
 ## Register with VoiceOS
 
 **Run the script for your platform — it audits the settings that decide whether the
@@ -116,9 +129,11 @@ voice loop can work, self-tests the server, and prints the exact values to paste
 .\register.ps1         # Windows (B)
 ```
 
-Both **only read** VoiceOS's config. Neither writes it, and neither prints it — it holds
-live auth tokens (`accessToken`, `idToken`, `auth`, `supabase`). Never paste that file
-into chat, the repo, or the group thread.
+Both scripts avoid printing VoiceOS's raw config — it holds live auth tokens
+(`accessToken`, `idToken`, `auth`, `supabase`). `register.sh` only reads. `register.ps1`
+can also write the Windows `crew` entry with `-Apply -StopVoiceOS`, after backing up
+`config.json` and only while VoiceOS is stopped. Never paste that file into chat, the repo,
+or the group thread.
 
 **There is no `voiceos add mcp` CLI on either platform.** B checked on Windows and C
 checked on macOS; registration is in-app on both:
@@ -216,12 +231,10 @@ That file is the answer to "did VoiceOS transcribe it right?". Tail it while spe
 
 ## Tool annotations, and why they are not flattering
 
-Every tool declares MCP `annotations`. VoiceOS confirms anything that "sends, books, or
-changes something", and its own tool declarations carry a `requiresConfirmation` boolean —
-**if it derives that from these hints, the three read-only tools go through without a human
-click**, which is the difference between an autonomous loop and one that stops dead with
-nobody at the keyboard. That makes it tempting to declare everything harmless. They are
-declared exactly as the tools behave instead:
+Every tool declares MCP `annotations`. VoiceOS reads them when it builds the Crew app:
+read-only actions go through without confirmation, while writes still ask. That is the
+difference between a continuous status loop and one that stops dead just to ask "what's
+happening?". The hints are declared exactly as the tools behave:
 
 | tool | `readOnlyHint` | `destructiveHint` | why |
 |---|---|---|---|
@@ -230,5 +243,5 @@ declared exactly as the tools behave instead:
 | `crew_calendar_book` | `false` | `false` | adds an event; never overwrites or cancels one. Not idempotent — booking twice books twice |
 | `run_crew_task` | `false` | `false` | starts work that changes mail and calendar |
 
-**Whether VoiceOS reads any of this is still unverified** — it needs a live Pro trial:
-register, call `tools/list`, and see whether the read-only tools stop asking.
+Live check result: **yes, VoiceOS honors these annotations.** Keep the values honest;
+declaring a write as read-only would make the demo smoother and the product less safe.

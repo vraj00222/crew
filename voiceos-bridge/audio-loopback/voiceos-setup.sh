@@ -1,5 +1,5 @@
 #!/bin/bash
-# Apply the VoiceOS settings the voice loop needs. Run once the Pro trial is active.
+# Apply the VoiceOS settings the voice loop needs.
 #   ./voiceos-setup.sh apply    quits VoiceOS, patches settings, relaunches
 #   ./voiceos-setup.sh revert   restores the newest backup
 #   ./voiceos-setup.sh handsfree  rebind hands-free off `fn` so a script can trigger it

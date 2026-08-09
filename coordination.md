@@ -133,8 +133,8 @@ Switch anytime with `/effort` or `/model`. If usage gets tight, add `--fallback-
 |---|---|---|---|
 | **D — Yaseen** | character art + visual identity | **fifth machine, FULL CHECKPOINT PASS on `b51e3dc` — 15 ok / 0 failed / 5 N/A, dress rehearsal included (16 received, 10 spoken, 0 dropped).** Art itself not started yet. Clean setup needed `node`; getting there found **a hang in `checkpoint.sh` on any machine without node — see Blockers, it's A's file.** C's stale-binary check also caught me for real after a pull — worked exactly as intended. **Gitignore blocker RESOLVED by A in `4e8d202` and verified here — original art is committable, 4MB/clip, and `recap` is the agreed priority. Nothing of mine is open.** Next and only: the `recap` clip | nothing. Your work is new files only; you cannot be blocked by us |
 | **E — Rukaiya** | rehearsal, resilience, backup rig | **backup rig PROVEN — clean clone → full show → CHECKPOINT PASS (17 ok / 0 failed) on a second MacBook Air.** Clone to spoken demo in 72s, 16 lines received, 10 spoken, 0 dropped. C's speaker fallback fired for real here (no `MacBook Pro Speakers` on an Air) and saved the run — see my section at the bottom. Onboarding fixed where my run disproved it. **Break-glass table now TESTED, row by row — one row was half-true: a hung agent can wedge the whole run after saying "ran out of time" (A: repro + fix in my section and Blockers).** **All three deliverables done: `docs/runbook.md` written (one page, folds in the voice-only rule + Dictation hedge + tested break-glass), and a clean 10/10 run recorded with audio — 75s, 11MB, on my Desktop, posting to the chat.** **Rung 2 now also proven here — first real-agent run on a Mac that isn't A's: 10/10 spoken, beat-sheet numbers exact (18 in, 14 archived, 2 booked, 2 left). The backup rig covers rungs 1 and 2.** | nothing |
-| A | orchestrator + dock + audio rig | **CHECKPOINT READY — everyone run `./checkpoint.sh`, see the Checkpoint section at the bottom.** Orchestrator done, 3 modes (`narrate`/`live`/`voice`) selected by a flag not a file edit. Audio split decided + measured. 10/10 lines spoken, 0 dropped. Three accents + written personalities. Characters no longer freeze. `docs/demo-script.md` written. Full chain with real agents: ~45s, PASS | VoiceOS Pro trial not active — still the only thing left on A's side |
-| B | voiceos-bridge (mcp-server + demo-seed + Gmail/Calendar tools) | **VoiceOS Pro is LIVE on Windows and Gmail is connected — but `customMcpServers` is empty, so VoiceOS still cannot reach the crew. That GUI step is the last thing between us and the voice loop; see my section below.** `run-demo.ps1` now runs the whole pipeline on Windows (16 lines to the dock, A's exact number), so the one non-Mac can finally rehearse. `verify.ps1` 6 suites all green. Checkpoint 13 ok / 1 failed — and the 1 is A's new check working correctly: `claude` on this box is logged out, which the old `have claude` test called a PASS. All 8 tools built and tested. **`crew_task_status` closes the loop: no taskId needed, and it answers in a spoken sentence instead of a JSON dump** — see below. Tool `annotations` declared on all 8 tools, honestly. Gmail decision made; A unblocked. VoiceOS installed on Windows and inspected — see the tool-naming finding. **A — both of my findings are fixed by you and confirmed: rung 3 really calls the tools, and the claude check now catches a logged-out box (mine). `CANNED.recap` still lies for a research crew, off the rehearsed path.** **README brought up to date with the proven voice loop, and `VOICEOS-FEEDBACK.md` corrected where today disproved it — the `dictations` finding is now its headline item.** | **Pro is live. Two left, neither blocking a rung we'd show: `customMcpServers` still 0 on my box (GUI step), and no Google OAuth for the `google` backend — `fake` needs neither.** |
+| A | orchestrator + dock + audio rig | **CHECKPOINT READY — everyone run `./checkpoint.sh`, see the Checkpoint section at the bottom.** Orchestrator done, 3 modes (`narrate`/`live`/`voice`) selected by a flag not a file edit. Audio split decided + measured. 10/10 lines spoken, 0 dropped. Three accents + written personalities. Characters no longer freeze. `docs/demo-script.md` written. Full chain with real agents: ~45s, PASS. VoiceOS Pro is live on the demo Mac, loopback transcription is proven, and the Crew custom app is Ready. | nothing repo-side; remaining risk is rehearsal/voice quality, not construction |
+| B | voiceos-bridge (mcp-server + demo-seed + Gmail/Calendar tools) | **VoiceOS Pro is LIVE on Windows, Gmail is connected, and `customMcpServers` now contains the enabled `crew` server.** VoiceOS spawned `node C:\Users\nagar\Downloads\CrewOS\voiceos-bridge\mcp-server\server.js`; the bridge log shows client `voiceos` version `0.1.21` initialized it. `run-demo.ps1` now runs the whole pipeline on Windows (16 lines to the dock, A's exact number), so the one non-Mac can finally rehearse. `verify.ps1` 6 suites all green. Full bridge verification passed: MCP protocol, stdio transport, status loop, direct tool contract, fake mailbox/calendar demo flow, and seed dry run. All 8 tools built and tested. **`crew_task_status` closes the loop: no taskId needed, and it answers in a spoken sentence instead of a JSON dump** — see below. Tool `annotations` declared on all 8 tools, honestly. Gmail decision made; A unblocked. VoiceOS installed on Windows and inspected — see the tool-naming finding. **A — both of my findings are fixed by you and confirmed: rung 3 really calls the tools, and the claude check now catches a logged-out box (mine). `CANNED.recap` still lies for a research crew, off the rehearsed path.** **README brought up to date with the proven voice loop, and `VOICEOS-FEEDBACK.md` corrected where today disproved it — the `dictations` finding is now its headline item.** | **Repo-side B work is green. Operational only: `settings.muteWhenDictating` and `settings.agentVoiceEnabled` are still true, which blocks only the audio loopback rig; no Google OAuth for the `google` backend — `fake` needs neither.** |
 | C | crew-dock (took option 2) | **the dock talks, and the handover is proven.** `Narrator.swift` speaks every `/agent-status` line via `say`, per-character voices, never two at once. Re-verified this morning from a **throwaway clone of current `main`** — clone → speaking app in 13s. **A's audio split + new voices then re-verified on my Air against A's unmodified `run-demo.sh`: 16 received, 10 spoken, 0 failed.** Nothing left to hand-carry to A's Mac but two commands. **Stall indication shipped: a `working` agent gone quiet for 10s now slows and trails an ellipsis instead of looking identical to a healthy one. Roster moved to `crew-dock/characters.json` — D, the shape is agreed and working, adding a character is a row plus a .mov.** **Reviewed and kept A's character fix — verified by screen capture, not by log — and fixed the stale-binary hole that let `checkpoint.sh` PASS while grading an old build** | **nothing — CHECKPOINT PASS (17 ok / 0 failed)** |
 
 ### ✅ FULL CHAIN INTEGRATED — B's MCP server → A's orchestrator → A's dock
@@ -274,7 +274,7 @@ which sends, books, or changes something stops and shows you what it will do fir
 human-click confirmation is documented product behaviour on **both** platforms, not a Mac
 quirk or a trial limitation — there is no setting we're failing to find. A's discovery that
 confirmations can be answered *by voice* remains the thing that makes the loop autonomous,
-and it's still the highest-value thing to test the moment the Pro trial lands.
+and the later Crew app check confirmed VoiceOS also honors `readOnlyHint`.
 
 **For the group — the Windows equivalent of the audio rig, if we ever want it:** VB-CABLE
 (virtual audio device, the BlackHole analogue) + `System.Speech.Synthesis.SpeechSynthesizer`
@@ -477,7 +477,7 @@ screen. Send me the raw transcript; don't try to normalize it first.
 
 ## Tonight's spike result (A runs it, on A's own Mac — the confirmed demo machine. B joins remotely to help write/debug the script. C can try the same spike independently on their own Mac as a quick parallel sanity check — not required, but a second confirmation is useful if A hits a snag.)
 
-- BlackHole + `say` + VoiceOS mic: **BLOCKED, not failed — VoiceOS Pro trial not active on A's account yet.** All the plumbing around it is installed, scripted and dry-run verified; the moment the trial lands this is a ~5 minute test. See "How to finish the spike" below.
+- BlackHole + `say` + VoiceOS mic: **SUPERSEDED — PASS.** Earlier this was blocked on A's VoiceOS Pro trial; the later run proved loopback transcription and the Crew app path.
 - **THE AUDIO PATH WORKS — measured, not assumed.** `./spike.sh verify` speaks through the
   `crew` multi-output device, records off BlackHole's input, and reads the level back:
   **peak amplitude 0.80, no clipping**, signal confined to the first ~2s matching the
@@ -490,9 +490,9 @@ screen. Send me the raw transcript; don't try to normalize it first.
 - BlackHole itself: **installed and working.** `blackhole-2ch` + `switchaudio-osx` in, multi-output device **`crew`** (BlackHole + MacBook Pro Speakers, drift correction on the speakers) built and switchable from the CLI. Verified routing on/off cleanly. `sox` added for the verify check.
 - VoiceOS trigger key rebindable away from physical Fn: **YES — confirmed**
 - VoiceOS auto-confirm / trust setting for agent actions: no on/off switch in the config, **but confirmations can be answered by voice** — see finding 6, this is better news than a trust setting
-- B's Windows test: **VoiceOS IS now installed on B's machine — and it is paywalled exactly like A's.** See "B — what VoiceOS for Windows actually looks like" below. Still NOT RUN, but the reason changed from "not installed" to "same trial gate A is stuck behind, on a second machine". ~~NOT RUN — VoiceOS is not installed on B's machine~~ (superseded)
+- B's Windows test: **SUPERSEDED — PASS.** VoiceOS Pro is live on B's Windows box, Gmail is connected, `customMcpServers` contains enabled `crew`, and the real VoiceOS client initialized the bridge.
 - _(historical)_ ~~VoiceOS is not installed on B's machine~~ and installing it needs a download plus an account sign-in, which isn't something B can script. Everything on B's side of that test is ready and automated (`voiceos-bridge/mcp-server/register.ps1` finds VoiceOS, audits its config, and prints the exact registration). **This never blocked the demo**: the same hop was proven on A's Mac end to end, which is the machine we're demoing from. Treat the Windows test as a nice-to-have second data point, not a gap.
-- **Decision:** still pending the audio test. Nothing found so far rules the voice loop out; two settings that would have silently broken it are now known and scripted.
+- **Decision:** audio and VoiceOS are both proven. The remaining risk is speech quality/rehearsal, not construction.
 
 ### What A found in VoiceOS's own config tonight
 
@@ -529,22 +529,22 @@ live auth tokens.** Findings only, below.
 5. Onboarding is not finished (`onboardingCompleted: false`, stuck at step 15). Worth
    completing tonight in case it gates Agent Mode.
 
-6. **Confirmations look answerable by voice — which may be the whole ballgame.** There's
+6. **Confirmations are answerable by voice, and read-only actions skip confirmation.** There's
    no confirm-bypass setting (`nativeActionToggles` are per-action-type on/off switches,
    not a trust level). But strings inside the app include `emitVoiceConfirmation`,
    `classifyAgentConfirmationIntent`, and the log line
    `[AgentInputService] Reply is unrelated to pending confirmation` — i.e. VoiceOS listens
    for a **spoken** reply to a pending confirmation and classifies it as approve/deny.
-   If that holds, an agent can approve its own action by saying "yes", and the loop stays
-   autonomous without any trust setting. **This is the single highest-value thing to test
-   the moment the trial is active.** If it works, the human really does speak only once.
+   Later live checks showed the VoiceOS Crew app honors `readOnlyHint`: read-only actions
+   skip confirmation, and writes still confirm. The human can also answer confirmations by
+   voice, so the loop does not require someone at the keyboard.
 
 7. **Apple Mail is scriptable from VoiceOS.** The bundle contains AppleScript over
    `applemail` (`repeat with anEmail in inviteeItems`). So the inbox half has a native path
    after all — via Apple Mail, not Gmail's API. B: worth weighing against the MCP route,
    since it needs no OAuth.
 
-### How to finish the spike (~5 min once the Pro trial is on A's account)
+### How to re-run the spike
 
 ```bash
 voiceos-bridge/audio-loopback/voiceos-setup.sh apply   # settings; backs up + reverts cleanly
@@ -1287,10 +1287,10 @@ Checked, not assumed, at this moment on the demo Mac:
 | `muteWhenDictating` / `agentVoiceEnabled` | **off** (both were on by default and both break the loop) |
 | hands-free | `fn`+`space` |
 | audio loopback -> VoiceOS transcription | **PROVEN** |
-| **`customMcpServers`** | **0 — the crew is NOT connected to VoiceOS** |
+| **`customMcpServers` / Crew app** | **Ready — the crew is connected to VoiceOS** |
 
-**That last row is the only thing between us and the full voice loop, and it is a GUI
-step no script can do.** Two minutes, on the demo Mac:
+**That last row used to be the only thing between us and the full voice loop; it is now
+done on the demo Mac.** If it ever has to be rebuilt, these are the values:
 
 ```
 VoiceOS window -> Settings -> MCP / custom servers -> Add
@@ -1355,11 +1355,9 @@ Takes a few minutes and keeps building if the window is closed.
    rather than blocking, so a spoken command before `./run-demo.sh` fails fast.
 
 **B — one wording thing, your file, small but it is a stage moment.** With :4001 down the
-reply is *"Could not reach the orchestrator at http://localhost:4001 — is it running?
-(node orchestrator/server.js)"* — and VoiceOS reads tool replies **aloud, verbatim**. A
-character saying "http colon slash slash localhost four thousand one" is a bad ten
-seconds. Something like *"The crew isn't awake yet — start it and ask me again"* says the
-same thing to a human. Only fires on an error path, so it is polish, not a blocker.
+reply now says *"The crew isn't awake yet. Start the orchestrator and ask me again."*
+VoiceOS reads tool replies **aloud, verbatim**, so this avoids ten bad seconds of a
+character reading a URL and command to the room.
 
 ### The order to do things in once the build finishes
 
@@ -1415,19 +1413,16 @@ Watch which tools produce a confirmation card:
 - everything confirms regardless → the voice-answered-confirmation path is the fallback,
   and it is A's finding 6, already known to exist.
 
-Record the answer either way. It is the last unknown in the whole system.
+The answer is recorded below: VoiceOS split read vs write correctly.
 
 ### 3. One wording fix, your file, ~2 minutes — and it is a stage moment
 
-With :4001 down, `run_crew_task` replies:
+With :4001 down, `run_crew_task` now replies:
 
-> "Could not reach the orchestrator at http://localhost:4001 — is it running? (node orchestrator/server.js)"
+> "The crew isn't awake yet. Start the orchestrator and ask me again."
 
-**VoiceOS reads tool replies aloud, verbatim.** A character saying "http colon slash slash
-localhost four thousand one, is it running, node orchestrator dot server dot js" is ten
-bad seconds in front of a room. Something a person would say — *"The crew isn't awake yet.
-Start it and ask me again."* — carries the same information. Error path only, so it is
-polish rather than a blocker, but it is the kind of polish that is only cheap now.
+**VoiceOS reads tool replies aloud, verbatim.** This is now fixed in `server.js`: the error
+says what to do, with no URL or command read aloud.
 
 Worth a pass over **every** tool's reply text with the same lens: not "is this correct?"
 but "is this a sentence a person would say out loud?" You already did exactly this for
@@ -1435,9 +1430,10 @@ but "is this a sentence a person would say out loud?" You already did exactly th
 
 ### 4. Your own box, when convenient
 
-`customMcpServers` is still 0 on Windows. Not blocking anything — the demo runs on A's
-Mac — but a second registration is the only way we would catch a Mac-only assumption
-before it matters.
+Windows is now registered too: `customMcpServers` contains enabled `crew`, VoiceOS spawned
+`node C:\Users\nagar\Downloads\CrewOS\voiceos-bridge\mcp-server\server.js`, and the bridge
+log shows client `voiceos` version `0.1.21`. That second registration caught no Mac-only
+assumption.
 
 ## ✅ The Crew custom app EXISTS and is Ready — and it answers B's question
 
@@ -1932,9 +1928,9 @@ rungs and when to drop one, the pre-flight list, the ten-line beat sheet with wh
 over it, the break-glass table, and teardown. Read it once before rehearsal.
 
 The short version: **one sentence — "Clean up my inbox and schedule everything" — then
-nobody touches the machine for 45 seconds.** Rung 2 (`./run-demo.sh`, real agents,
-nothing touched) is the plan of record until the Pro trial lands; `fake` is the panic
-button and needs no network, no Claude and no account.
+nobody touches the machine for 45 seconds.** Rung 4 is available now; rung 2
+(`./run-demo.sh`, real agents, nothing touched) is still the highest rung with no external
+dependency. `fake` is the panic button and needs no network, no Claude and no account.
 
 ---
 
@@ -1993,10 +1989,9 @@ prefix will matter is `ALLOWED_TOOLS` in `server.js` if we ever let the agents c
 crew tools *through* VoiceOS's own MCP connection rather than their own — that is the
 combination your finding kills, and we are not using it.
 
-**Your `readOnlyHint` question is the highest-value 5 minutes left in the project.** If
-VoiceOS derives `requiresConfirmation` from MCP annotations, the loop is fully autonomous
-with no voice-answered confirmation at all. Both of us are behind the same trial gate;
-whoever gets Pro first should run that check and post the `tools/list` output.
+**Your `readOnlyHint` question is answered.** VoiceOS derives its confirmation behavior
+from the MCP annotations: read-only actions skip confirmation, writes still ask, and the
+Crew app exposes a per-action permission toggle.
 
 ### A — the crew can have more than three members now, and they carry an `activity`
 
@@ -2126,16 +2121,14 @@ orchestrator it can't, because you pace at `LINE_MS`, and the test says so rathe
 failing. I added one line to the B block of `checkpoint.sh` for the speech test (no
 orchestrator needed, so it stays green when `:4001` is down).
 
-**The `readOnlyHint` question — half of it is done, and it did not need the trial.** All 8
-tools now declare MCP `annotations`, exactly as they behave, not as flatteringly as
-possible: `crew_task_status`, `crew_gmail_list_inbox`, `crew_calendar_find_slot` and
-`crew_calendar_list` are `readOnlyHint: true`; `crew_gmail_archive` and `crew_gmail_label`
-are writes with `destructiveHint: false`, because archiving only drops the INBOX label and
-nothing is ever deleted; `crew_calendar_book` adds an event and is explicitly **not**
-idempotent. So if VoiceOS does derive `requiresConfirmation` from annotations, four tools
-go through without a click and we claimed nothing false to get there. **Whether it reads
-them is still the 5-minute check the moment either of us has Pro** — register, `tools/list`,
-see whether the read-only ones stop asking. Table's in `mcp-server/README.md`.
+**The `readOnlyHint` question is done.** All 8 tools declare MCP `annotations`, exactly as
+they behave, not as flatteringly as possible: `crew_task_status`,
+`crew_gmail_list_inbox`, `crew_calendar_find_slot` and `crew_calendar_list` are
+`readOnlyHint: true`; `crew_gmail_archive` and `crew_gmail_label` are writes with
+`destructiveHint: false`, because archiving only drops the INBOX label and nothing is ever
+deleted; `crew_calendar_book` adds an event and is explicitly **not** idempotent. VoiceOS
+does read them: read-only actions skip confirmation, writes still ask. Table's in
+`mcp-server/README.md`.
 
 ---
 
@@ -2277,9 +2270,9 @@ prints it as a conversation. Against `FAKE=1 node orchestrator/server.js`, unedi
   crew >  The crew is finished. Inbox cleared, two meetings booked.
 ```
 
-**It is the demo minus the microphone.** When the trial lands, VoiceOS replaces the
-left-hand column and nothing else changes. Runs on any machine — no account, no Mac, no
-network, no Claude spend. `SPEAK=1` reads the crew's replies aloud on macOS.
+**It is the demo minus the microphone.** In the live rung, VoiceOS replaces the left-hand
+column and nothing else changes. Runs on any machine — no account, no Mac, no network, no
+Claude spend. `SPEAK=1` reads the crew's replies aloud on macOS.
 **E — this is your screen recording.** The dock is the show, but this is the pitch, and
 it records cleanly in a terminal without needing the rig up. It exits 2 with a readable
 sentence if nothing is on `:4001`, so it cannot fail confusingly on stage.
@@ -2301,26 +2294,24 @@ agent products run unattended on VoiceOS. Findings only; no config contents, no 
 **Someone with a Product Hunt account made before the event needs to post it** — that is
 a rule we cannot retrofit, so check now whether any of the five of us qualifies.
 
-### B — VoiceOS is ACTIVE on Windows. Audited it. One gap, and it is the important one
+### B — VoiceOS is ACTIVE on Windows. Registered and verified
 
-Pro is live, onboarding is finished, **and Gmail is connected.** Read with `register.ps1`,
+Pro is live, onboarding is finished, **Gmail is connected, and the Crew MCP server is registered.** Read with `register.ps1`,
 which prints an allowlist of keys and never dumps the file:
 
 ```
 onboarding.onboardingCompleted   True     <- the paywall is behind us
 connectedIntegrations            gmail    <- NEW. finding 4 said "no Gmail path at all"
-customMcpServers                 0        <- *** VoiceOS CANNOT REACH THE CREW ***
+customMcpServers                 crew     <- enabled; VoiceOS can reach the Crew MCP server
 settings.muteWhenDictating       True     <- still on; kills a loopback rig
 settings.agentVoiceEnabled       True     <- still on; VoiceOS hears its own replies
 ```
 
-**The gap: `customMcpServers` is empty, so `run_crew_task` does not exist as far as VoiceOS
-is concerned.** Everything either side of that hop is tested — VoiceOS hears you, our
-server answers, the crew runs — but nothing connects them yet. **There is no CLI on
-Windows, so this is a GUI step somebody has to do:** tray icon → Settings → MCP / custom
-servers → Add, with the command and args that `.\voiceos-bridge\mcp-server\register.ps1`
-prints. Thirty seconds. Until it is done, `run-demo.ps1 -Voice` will tell you so rather
-than waiting three minutes for a call that cannot come.
+**The gap is closed: `customMcpServers` contains enabled `crew`, so `run_crew_task` exists
+inside VoiceOS now.** VoiceOS spawned `node C:\Users\nagar\Downloads\CrewOS\voiceos-bridge\mcp-server\server.js`,
+and `crew-bridge.log` shows the real VoiceOS client initialized it (`voiceos` `0.1.21`).
+Full bridge verification passed: MCP protocol, stdio transport, status loop, direct tool
+contract, fake mailbox/calendar demo flow, and seed dry run.
 
 **A — two of your findings are now stale on Windows, and one may be stale on your Mac.**
 1. **Finding 4 ("Gmail is not connected to VoiceOS at all") no longer holds here** —
@@ -2356,7 +2347,7 @@ done; this is what is genuinely still open.
 | | state | the one thing left |
 |---|---|---|
 | **A — Vraj** | voice loop proven, Piper voices in, rungs 1-3 real | **the long-task feedback loop** (below) — the only unbuilt feature |
-| **B — Sameer** | 8 tools, both platforms, `run-demo.ps1` | **OWNS the VoiceOS↔MCP integration** — see the handover section: confirm `tools/list`, record the real prefixed names, answer `readOnlyHint` from the confirmation cards, and make the tool replies sound like sentences |
+| **B — Sameer** | 8 tools, both platforms, `run-demo.ps1`, VoiceOS `crew` registered | **OWNS the VoiceOS↔MCP integration** — repo-side work is green; keep the real prefixed names and confirmation behavior documented as VoiceOS changes |
 | **C — Abhishek** | dock done, stall indicator, `register.sh` | **nothing.** Take `crew-say`/`Narrator` back if you want it; it is one line |
 | **D — Yaseen** | unblocked, art not started | **`recap` art.** It is the only workstream nobody else can do |
 | **E — Rukaiya** | all three deliverables done, rung 2 proven on the backup rig | ~~re-record~~ **done — re-cut with the Piper voices, 95s, 10/10.** Next: deliver the talk out loud over a run |
@@ -2396,17 +2387,11 @@ and now has a working path under it.
 too (it skips what your box can't do) so we have one shared PASS line, and if the two ever
 disagree, `checkpoint.sh` is the one that runs on the demo machine.
 
-**B — next: `crew_task_status` needs to make the loop *continuous*.** Right now the
-human says one sentence, the crew runs, and it ends. What the demo is really about is
-the loop staying alive: VoiceOS should be able to ask "what's the crew doing?" and get a
-spoken answer mid-run, and know when it is finished. You have `crew_task_status` built
-against the frozen `/status/:taskId` contract — make its reply a *sentence a person would
-say out loud*, not a JSON dump ("Triage is archiving, scheduler is booking two o'clock"),
-because VoiceOS speaks it verbatim. Everything you need is testable with
-`FAKE=1 node orchestrator/server.js` on your own machine, no Mac required.
-Second: the `readOnlyHint` / `requiresConfirmation` check from your finding 3 — five
-minutes the moment either of us has Pro, and it decides whether the loop is autonomous
-without the voice-answered-confirmation fallback.
+**B — next:** the live `readOnlyHint` / `requiresConfirmation` check is answered: VoiceOS
+does honor the annotations for the Crew app. The repo-side loop is built:
+`crew_task_status` needs no taskId and returns spoken status sentences instead of JSON.
+Keep the exact VoiceOS-side prefixed names and confirmation behavior documented as the app
+changes, but there is no remaining bridge code task.
 
 **C — next: the agents can get stuck, and the dock is where that shows.** Two cases
 neither of us has covered: an agent that hangs (the orchestrator kills it at 180s and the

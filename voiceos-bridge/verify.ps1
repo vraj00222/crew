@@ -79,5 +79,5 @@ if ($failed) {
     exit 1
 }
 Write-Host "`nAll green. B's side is demo-ready." -ForegroundColor Green
-Write-Host "Still gated on someone else: VoiceOS Pro trial, and a demo Google account for the 'google' backend.`n" -ForegroundColor DarkGray
+Write-Host "Remaining live-only items: loopback audio settings and a demo Google account for the 'google' backend.`n" -ForegroundColor DarkGray
 exit 0

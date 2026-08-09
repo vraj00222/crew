@@ -15,15 +15,15 @@ line, never an edit under pressure.**
 
 | | command | what is real | needs |
 |---|---|---|---|
-| 4 | `./run-demo.sh voice` | everything — agents speak, VoiceOS acts | Pro trial, mic rig |
+| 4 | `./run-demo.sh voice` | everything — agents speak, VoiceOS acts | mic rig + VoiceOS ready |
 | 3 | `./run-demo.sh live` | the mailbox really changes | Google account + OAuth |
 | 2 | `./run-demo.sh` | real agents, real reasoning, nothing touched | `claude` CLI only |
 | 1 | `./run-demo.sh fake` | nothing — canned narration | **nothing at all** |
 
-**Rung 2 is the plan of record until the Pro trial lands.** It is the highest
-rung with no external dependency: three real headless agents reasoning about a
-real inbox, on screen, talking. Rung 1 is the panic button — no Claude spend, no
-network, and it still puts on the entire show.
+**Rung 4 is available, but decide the rung before walking up.** Rung 2 remains the
+highest rung with no external dependency: three real headless agents reasoning about a
+real inbox, on screen, talking. Rung 1 is the panic button — no Claude spend, no network,
+and it still puts on the entire show.
 
 Decide the rung *before* you walk up, not on stage.
 

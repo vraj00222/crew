@@ -200,6 +200,8 @@ has passed on all five.
 | audio loopback into the virtual mic | **PASS — peak 0.80, measured** |
 | audio split (narration vs commands) | **PASS — 0.00 vs 0.80, measured** |
 | VoiceOS transcribing loopback audio | **PASS — but see the caveat below** |
+| VoiceOS Crew app / MCP registration | **PASS — Ready on the demo Mac; enabled `crew` on Windows** |
+| VoiceOS confirmation behavior | **PASS — `readOnlyHint` is honored; writes still confirm** |
 | the same pipeline on Windows | **PASS — 16 lines, the Mac's exact number** |
 | a second Mac, clean clone → spoken demo | **PASS — 72s, 10/10 spoken** |
 

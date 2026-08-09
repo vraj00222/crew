@@ -5,8 +5,8 @@
 //   VoiceOS  --("how's it going?")->  crew_task_status --GET -->  :4001/status/:id
 //                                        `-> one spoken sentence, not JSON
 //
-// Register:  voiceos add mcp
-//   command: node   args: ["<abs path>/server.js"]
+// Register in VoiceOS settings as a custom MCP server:
+//   name: crew   command: node   args: ["<absolute path>/server.js"]
 //
 // Env:
 //   ORCH_URL   orchestrator base       (default http://localhost:4001)
@@ -150,15 +150,10 @@ function backend() {
 }
 
 // A note on `annotations`, because the values are load-bearing and it is tempting
-// to lie: VoiceOS confirms anything that "sends, books, or changes something", and
-// its tool declarations carry a `requiresConfirmation` boolean. If it derives that
-// from these MCP hints, three of these tools are genuinely read-only and go through
-// without a human click — which is the difference between an autonomous loop and
-// one that stops dead mid-demo with nobody at the keyboard. So they are declared
+// to lie: VoiceOS reads these hints when building confirmation cards. Read-only
+// tools go through without a human click; writes still ask. So they are declared
 // exactly as they behave, no more: archive/label are writes but `destructiveHint`
-// is false because archiving only drops the INBOX label and nothing is ever
-// deleted. Whether VoiceOS actually reads them is the 5-minute check the moment
-// the Pro trial lands (see coordination.md).
+// is false because archiving only drops the INBOX label and nothing is deleted.
 const WORK_TOOLS = [
   {
     name: 'crew_gmail_list_inbox',
@@ -273,7 +268,61 @@ const WORK_DISPATCH = {
   crew_calendar_list: (b, a) => b.listEvents(a),
 };
 
-const text = (s, isError = false) => ({ content: [{ type: 'text', text: s }], isError });
+const text = (s, isError = false, structuredContent) => ({
+  content: [{ type: 'text', text: s }],
+  ...(structuredContent === undefined ? {} : { structuredContent }),
+  isError,
+});
+
+function plural(n, one, many = `${one}s`) {
+  return `${n} ${n === 1 ? one : many}`;
+}
+
+function thereAre(n, thing) {
+  return `There ${n === 1 ? 'is' : 'are'} ${plural(n, thing)}`;
+}
+
+function sayTime(iso) {
+  if (!iso) return 'that time';
+  return new Date(iso).toLocaleString('en-US', {
+    weekday: 'short',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+function workReply(name, result) {
+  switch (name) {
+    case 'crew_gmail_list_inbox': {
+      const matched = result?.matched ?? 0;
+      const total = result?.total ?? matched;
+      if (matched === total) return `${thereAre(total, 'message')} in the inbox.`;
+      return `I found ${plural(matched, 'matching message')} out of ${plural(total, 'message')} in the inbox.`;
+    }
+    case 'crew_gmail_archive': {
+      const archived = result?.archived ?? 0;
+      const remaining = result?.remainingInInbox;
+      if (remaining === null || remaining === undefined) return `Archived ${plural(archived, 'message')}.`;
+      return `Archived ${plural(archived, 'message')}; ${plural(remaining, 'message')} ${remaining === 1 ? 'remains' : 'remain'} in the inbox.`;
+    }
+    case 'crew_gmail_label':
+      return `Marked ${plural(result?.labelled ?? 0, 'message')} as ${result?.label || 'requested'}.`;
+    case 'crew_calendar_find_slot':
+      if (result?.found) return `Found a ${result.durationMin || 60}-minute opening at ${sayTime(result.start)}.`;
+      return result?.reason || 'No open slot matched that request.';
+    case 'crew_calendar_book':
+      if (result?.booked) {
+        const event = result.event || {};
+        const who = event.attendee ? ` with ${event.attendee}` : '';
+        return `Booked ${event.summary || 'the meeting'}${who} at ${sayTime(event.start)}.`;
+      }
+      return result?.reason || 'That meeting could not be booked.';
+    case 'crew_calendar_list':
+      return `${thereAre(result?.events?.length ?? 0, 'event')} on ${result?.day || 'that day'}.`;
+    default:
+      return 'Done.';
+  }
+}
 
 async function orchFetch(path, init) {
   const res = await fetch(`${ORCH_URL}${path}`, {
@@ -294,13 +343,13 @@ async function orchFetch(path, init) {
 // should never die on a stack trace, but it must say *which* hop broke.
 function explainFailure(e) {
   if (e?.name === 'TimeoutError' || e?.name === 'AbortError') {
-    return `The orchestrator at ${ORCH_URL} did not answer within ${TIMEOUT_MS}ms.`;
+    return 'The crew is awake but taking too long to answer. Start a clean run and ask me again.';
   }
   const cause = e?.cause?.code || e?.code;
   if (cause === 'ECONNREFUSED') {
-    return `Could not reach the orchestrator at ${ORCH_URL} — is it running? (node orchestrator/server.js)`;
+    return "The crew isn't awake yet. Start the orchestrator and ask me again.";
   }
-  return `Could not reach the orchestrator at ${ORCH_URL}: ${e?.message || e}`;
+  return `The crew could not be reached: ${e?.message || e}`;
 }
 
 async function callTool(name, args) {
@@ -372,7 +421,7 @@ async function callTool(name, args) {
     try {
       const result = await work(backend(), args || {});
       audit(`${name}_ok`, { result });
-      return text(JSON.stringify(result, null, 2));
+      return text(workReply(name, result), false, result);
     } catch (e) {
       // Backend failures are readable sentences, not stack traces — VoiceOS may
       // read this out loud, and it should say which half broke.

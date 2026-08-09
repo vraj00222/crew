@@ -60,6 +60,7 @@ async function call(name, args) {
   if (r.error) fail(`${name}: ${JSON.stringify(r.error)}`);
   const body = r.result.content[0].text;
   if (r.result.isError) fail(`${name} returned an error: ${body}`);
+  if (r.result.structuredContent) return r.result.structuredContent;
   try { return JSON.parse(body); } catch { return body; }
 }
 

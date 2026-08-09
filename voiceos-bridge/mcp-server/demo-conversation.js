@@ -9,10 +9,10 @@
 // crew and being answered. This drives the real MCP server over real stdio pipes
 // — exactly the calls VoiceOS makes — and prints the result as a dialogue.
 //
-// It is the demo minus the microphone. When the Pro trial lands, VoiceOS replaces
-// the left-hand column and nothing else changes; until then this is the closest
-// honest picture of the voice loop, and it runs on any machine with no account,
-// no Mac and no network.
+// It is the demo minus the microphone. In the live rung, VoiceOS replaces the
+// left-hand column and nothing else changes. This remains the closest portable
+// picture of the voice loop, and it runs on any machine with no account, no Mac
+// and no network.
 //
 // It is also the screen recording: this is what a video demo shows, because the
 // dock is the show but the conversation is the pitch.

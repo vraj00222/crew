@@ -11,7 +11,7 @@ second Mac, Sun morning).
 | rung | command | needs | note |
 |---|---|---|---|
 | 4 | `./run-demo.sh wait` | VoiceOS + mic rig | **the spoken demo.** Comes up and asks for *nothing* — VoiceOS starts the task |
-| 4b | `./run-demo.sh voice` | Pro trial + mic rig | agents drive VoiceOS by speaking; the older voice path |
+| 4b | `./run-demo.sh voice` | VoiceOS ready + mic rig | agents drive VoiceOS by speaking; the older voice path |
 | 3 | `./run-demo.sh live` | seeded mailbox | **proven on the demo Mac** — inbox 18→2 for real |
 | 2 | `./run-demo.sh` | logged-in `claude` | real agents, nothing touched |
 | 1 | `./run-demo.sh fake` | nothing | panic button — no network, no Claude, full show |
