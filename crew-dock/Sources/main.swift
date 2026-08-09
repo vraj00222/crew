@@ -126,11 +126,43 @@ final class DockController {
     /// out of the way of the thing it is narrating, and this is the only clock
     /// in the app. Drives the "still thinking" behaviour when an agent goes
     /// quiet — see AgentCharacter.tick.
+    /// Who signed off last — the closer. It is whoever most recently reached
+    /// `done`, rather than a hardcoded "recap", so it stays right when the crew
+    /// is 2 or 5 and whatever the roles are called.
+    private var lastToFinish: String?
+    private var allDoneAt: Date?
+    /// Long enough for the closer's last line to be *spoken*, not just posted —
+    /// speech trails the bubbles, and sending the crew away over the top of the
+    /// summary would undo the one line the audience is meant to leave with.
+    private let curtainAfter: TimeInterval = 7
+
     func startClock() {
         Timer.scheduledTimer(withTimeInterval: 1.0 / 30.0, repeats: true) { [weak self] _ in
+            guard let self else { return }
             let now = Date()
-            self?.characters.values.forEach { $0.tick(now) }
+            self.characters.values.forEach { $0.tick(now) }
+            self.curtainTick(now)
         }
+    }
+
+    /// The end of the show used to be five characters standing under stale
+    /// bubbles until somebody hit ctrl-C. When every character on screen has
+    /// signed off, wait for the last line to finish being spoken, then send the
+    /// crew away and leave the closer alone with the summary.
+    private func curtainTick(_ now: Date) {
+        let onScreen = characters.values.filter(\.isOnScreen)
+        guard !onScreen.isEmpty, onScreen.allSatisfy(\.isDone) else {
+            allDoneAt = nil
+            return
+        }
+        if allDoneAt == nil { allDoneAt = now; return }
+        guard now.timeIntervalSince(allDoneAt!) >= curtainAfter else { return }
+        allDoneAt = nil
+
+        let keep = lastToFinish
+        FileHandle.standardError.write(Data(
+            "CURTAIN -> crew leaving, \(keep ?? "nobody") stays with the summary\n".utf8))
+        for (role, c) in characters where role != keep { c.leave() }
     }
 
     func apply(_ s: StatusServer.Status) {
@@ -145,6 +177,7 @@ final class DockController {
                 "  (no character named '\(s.character)' — spoken but NOT shown)\n".utf8))
             return
         }
+        if s.state == "done" { lastToFinish = s.character }
         c.apply(message: s.message, state: s.state, activityRate: roster.activityRate[s.activity])
     }
 }
@@ -176,10 +209,18 @@ server.start()   // prints "listening" itself, once the bind actually succeeds
 /// Needs Accessibility (System Settings -> Privacy & Security -> Accessibility),
 /// the same grant `spike.sh trigger` needs. Without it the monitor silently
 /// never fires, so we say so at start-up rather than leaving it a mystery.
-let hotkeyPhrase = ProcessInfo.processInfo.environment["CREW_PHRASE"]
+/// Two chords, two tasks, so the demo is not one hardcoded sentence.
+///
+/// ⌃⌥C is the rehearsed run — three agents, ~45s, said out loud dozens of times.
+/// ⌃⌥L is the long one — five agents, ~90s, and it shows the hand-off: the
+/// analyst waits for the researcher and opens on what the researcher found.
+/// Both are overridable, so a different demo is an env var rather than a build.
+let shortPhrase = ProcessInfo.processInfo.environment["CREW_PHRASE"]
     ?? "clean up my inbox and schedule everything"
+let longPhrase = ProcessInfo.processInfo.environment["CREW_PHRASE_LONG"]
+    ?? "go through my inbox, research what is actually urgent, analyse which threads need a reply, and schedule the meetings"
 
-func wakeTheCrew() {
+func wakeTheCrew(_ hotkeyPhrase: String) {
     guard let url = URL(string: "http://localhost:4001/start-task") else { return }
     var req = URLRequest(url: url)
     req.httpMethod = "POST"
@@ -208,19 +249,22 @@ if AXIsProcessTrusted() {
     NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { e in
         // keyCode 8 == "c". Match on the flags we care about and ignore the rest.
         let mods = e.modifierFlags.intersection(.deviceIndependentFlagsMask)
-        guard e.keyCode == 8, mods.contains(.control), mods.contains(.option), !e.isARepeat else { return }
+        // keyCode 8 == "c" (the rehearsed run), 37 == "l" (the long one).
+        guard mods.contains(.control), mods.contains(.option), !e.isARepeat,
+              e.keyCode == 8 || e.keyCode == 37 else { return }
         let now = Date()
         guard now.timeIntervalSince(lastWake) > wakeCooldown else {
             FileHandle.standardError.write(Data("HOTKEY -- ignored, crew woken \(Int(now.timeIntervalSince(lastWake)))s ago\n".utf8))
             return
         }
         lastWake = now
-        wakeTheCrew()
+        wakeTheCrew(e.keyCode == 8 ? shortPhrase : longPhrase)
     }
-    FileHandle.standardError.write(Data("hotkey ready: control-option-C wakes the crew\n".utf8))
+    FileHandle.standardError.write(Data(("hotkey ready — control-option-C: the rehearsed run"
+        + "  |  control-option-L: the long five-agent one\n").utf8))
 } else {
     FileHandle.standardError.write(Data((
-        "hotkey OFF — no Accessibility permission, so control-option-C will do nothing.\n"
+        "hotkey OFF — no Accessibility permission, so control-option-C/L will do nothing.\n"
         + "  System Settings -> Privacy & Security -> Accessibility -> add this app or your terminal.\n").utf8))
 }
 

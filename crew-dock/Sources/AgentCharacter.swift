@@ -300,6 +300,45 @@ final class AgentCharacter {
         }
     }
 
+    /// Walk off the top of the screen and stand down.
+    ///
+    /// The reverse of `enter()`, and it exists because the end of the show was
+    /// the weakest moment in it: five characters stood in a row under stale
+    /// bubbles until somebody hit ctrl-C. Sending the crew away leaves the one
+    /// who spoke last alone on screen with the summary — which is the thing the
+    /// audience should be reading — and it makes the run feel finished rather
+    /// than merely stopped.
+    ///
+    /// Resets to `alpha 0` at its resting place afterwards, so the next `⌃⌥C`
+    /// gets a clean entrance instead of a character sliding in from wherever it
+    /// happened to be.
+    func leave() {
+        guard window.alphaValue > 0, !leaving else { return }
+        leaving = true
+        walking = false
+        bubble.set(text: "", done: false)
+
+        var away = window.frame
+        away.origin.y = (window.screen ?? NSScreen.main)?.frame.maxY ?? away.origin.y + 900
+        NSAnimationContext.runAnimationGroup({ ctx in
+            ctx.duration = 1.1
+            ctx.timingFunction = CAMediaTimingFunction(name: .easeIn)
+            window.animator().setFrame(away, display: true)
+        }, completionHandler: { [weak self] in
+            guard let self else { return }
+            self.window.alphaValue = 0
+            self.window.setFrame(NSRect(origin: self.restingOrigin, size: self.window.frame.size),
+                                 display: false)
+            self.currentState = "idle"
+            self.leaving = false
+        })
+    }
+
+    /// True once every line has landed and this character has signed off.
+    var isDone: Bool { currentState == "done" && window.alphaValue > 0 }
+    var isOnScreen: Bool { window.alphaValue > 0 }
+    private var leaving = false
+
     /// One small hop, on the layer so it costs nothing and can't fight AppKit.
     private func bob() {
         let hop = CABasicAnimation(keyPath: "position.y")

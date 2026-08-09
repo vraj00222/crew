@@ -1803,6 +1803,34 @@ can hear**, rather than three agents narrating in parallel.
   out loud dozens of times. If the five-agent version goes on stage it needs its own
   rehearsal — it is 90s, not 45s.
 
+## 🎭 A — the show ends properly now, and the trigger is no longer one sentence
+
+**The curtain.** The end used to be five characters standing under stale bubbles until
+somebody hit ctrl-C. When every character on screen has signed off, the dock waits 7s —
+long enough for the closer's last line to be *spoken*, not just posted — then sends the
+crew walking off the top of the screen and **leaves the closer alone with the summary**.
+That is the line the audience should be reading as the room comes back up.
+
+The one that stays is **whoever finished last**, not a hardcoded `recap`, so it is right
+whether the crew is two or five and whatever the roles are called. Each character resets
+to alpha 0 at its resting place afterwards, so the next trigger gets a clean entrance
+rather than someone sliding in from wherever they happened to be standing.
+
+**Two chords, so the demo is not one hardcoded sentence:**
+
+| chord | task | crew | length |
+|---|---|---|---|
+| **⌃⌥C** | "clean up my inbox and schedule everything" | 3 | ~45s — **the rehearsed run** |
+| **⌃⌥L** | "…research what is urgent, analyse which threads need a reply, and schedule the meetings" | **5** | ~90s — shows the hand-off |
+
+Both override with `CREW_PHRASE` / `CREW_PHRASE_LONG`, so a different demo is an env var
+rather than a rebuild.
+
+**Which to put on stage:** ⌃⌥C. It is the one that has been said out loud dozens of times
+and it is 45 seconds. ⌃⌥L is the better *story* — five agents, and the analyst opens on
+what the researcher found — but it is 90 seconds and nobody has rehearsed it. Good encore,
+risky opener.
+
 ## Decisions log
 
 - _Sat night — orchestrator is one file (`orchestrator/server.js`), Node stdlib only, not the 4-file TypeScript layout in the folder plan — A — no build step, no `npm install`, no deps to break at 5pm; the whole thing is ~170 lines and restarts instantly. The frozen bit is the HTTP contract, and that's unchanged._
