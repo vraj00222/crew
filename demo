@@ -72,12 +72,12 @@ cat <<'BANNER'
   ────────────────────────────────────────────────────────────
     ready.
 
-      hold  ⌃⌥   an agent walks on and asks — VoiceOS starts
-                 listening at the same moment
-                 ...say what you want, take your time...
-      hold  ⌃⌥   again — the crew goes and does it
+      HOLD  ⌃⌥  ...and keep holding while you talk...  LET GO
 
-    one chord, nothing else. ctrl-C here to stop.
+    one gesture. the crew arrives as you press, listens while
+    you hold, and goes to work the moment you let go.
+
+    ctrl-C here to stop.
   ────────────────────────────────────────────────────────────
 
 BANNER

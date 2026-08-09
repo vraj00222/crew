@@ -317,21 +317,40 @@ if AXIsProcessTrusted() {
     //
     // Modifiers with no letter, so it arrives as flagsChanged, not keyDown.
     var chordDown = false
+    var heldSince = Date.distantPast
+    let minimumHold: TimeInterval = 0.8
     NSEvent.addGlobalMonitorForEvents(matching: .flagsChanged) { e in
         let mods = e.modifierFlags.intersection(.deviceIndependentFlagsMask)
         let held = mods.contains(.control) && mods.contains(.option)
             && !mods.contains(.command) && !mods.contains(.shift)
 
-        // Fire once per press, on the way down. Held modifiers repeat flags
-        // events, and a run per event is how one press became 23 crews.
+        // Held modifiers repeat flags events, so only act on a real transition.
         guard held != chordDown else { return }
         chordDown = held
-        guard held else { return }
-
         let now = Date()
-        guard now.timeIntervalSince(lastWake) > wakeCooldown else { return }
-        lastWake = now
-        wakeTheCrew(nil)
+
+        if held {
+            // DOWN — VoiceOS starts listening on exactly this, so the crew
+            // arrives and asks at the same moment. Speak while you hold.
+            guard now.timeIntervalSince(lastWake) > wakeCooldown else { return }
+            lastWake = now
+            heldSince = now
+            wakeTheCrew(nil)
+        } else {
+            // UP — VoiceOS transcribes on release, and so do we. One gesture:
+            // hold, speak, let go. Matching its own push-to-talk rather than
+            // inventing a press-twice scheme on top of it, which fought it.
+            //
+            // A tap is not speech. Below the threshold it stays listening, so a
+            // stray brush of the keys cannot send an empty instruction.
+            guard now.timeIntervalSince(heldSince) >= minimumHold else {
+                FileHandle.standardError.write(Data(
+                    "HOTKEY -- too quick to be speech; still listening, hold it while you talk\n".utf8))
+                return
+            }
+            lastWake = now
+            wakeTheCrew(nil)
+        }
     }
     // ⌃⌥L stays for rehearsal: same task twice, no talking.
     NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { e in
@@ -343,7 +362,7 @@ if AXIsProcessTrusted() {
         wakeTheCrew(longPhrase)
     }
     FileHandle.standardError.write(Data(
-        "hotkey ready — hold control+option: summon, speak, press again to send\n".utf8))
+        "hotkey ready — hold control+option, speak, let go\n".utf8))
 } else {
     FileHandle.standardError.write(Data((
         "hotkey OFF — no Accessibility permission, so control+option will do nothing.\n"
