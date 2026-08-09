@@ -9,3 +9,11 @@ config.json
 # crew-dock build output + fetched upstream art (18MB, belongs to lil-agents)
 crew-dock/Assets/
 crew-dock/Crew.app/
+
+# local run output from the bridge/orchestrator test scripts
+*.out
+*.err
+
+# demo-seed credentials — OAuth client secret + cached user token. NEVER commit.
+voiceos-bridge/demo-seed/credentials.json
+voiceos-bridge/demo-seed/token.json

@@ -1,0 +1,13 @@
+# B works on Windows; the shell scripts run on A's Mac. Without this, a script
+# committed from Windows can land with CRLF and die as `bad interpreter: /bin/bash^M`
+# — at 5pm, on the demo machine. Force LF on everything that a shell or macOS runs.
+* text=auto eol=lf
+
+*.sh    text eol=lf
+*.swift text eol=lf
+*.js    text eol=lf
+*.json  text eol=lf
+*.md    text eol=lf
+
+# PowerShell only ever runs on B's box; CRLF is fine and native there.
+*.ps1   text eol=crlf
