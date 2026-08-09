@@ -97,7 +97,7 @@ Switch anytime with `/effort` or `/model`. If usage gets tight, add `--fallback-
 
 | Person | Workstream | Status | Blocked on |
 |---|---|---|---|
-| A | orchestrator + dock + audio rig | **orchestrator done. Audio loopback PROVEN. Dock built. `./run-demo.sh` runs the whole thing.** | VoiceOS Pro trial not active — only thing left on A's side |
+| A | orchestrator + dock + audio rig | **orchestrator done. Audio loopback PROVEN. Dock built. `./run-demo.sh` runs the whole thing. Audio split decided + measured (C unblocked). All 10 lines now spoken. Crew has three accents and written personalities.** | VoiceOS Pro trial not active — only thing left on A's side |
 | B | voiceos-bridge (mcp-server + demo-seed) | **mcp-server done + merged. demo-seed done, dry-run verified. Gmail decision made — A is unblocked, see below.** | VoiceOS-for-Windows not installed (needs a download + account, can't be scripted) |
 | C | crew-dock (took option 2) | **the dock talks, and the handover is proven.** `Narrator.swift` speaks every `/agent-status` line via `say`, per-character voices, never two at once. Re-verified this morning from a **throwaway clone of current `main`** — clone → speaking app in 13s, 8 lines, correct order. Nothing left to hand-carry to A's Mac but two commands | — (needs A's call on the two-speech-stream collision, see Blockers) |
 
@@ -472,11 +472,77 @@ can press it. That is fine — hands-free mode (`fn`+`space`) is a single human 
 leaves VoiceOS listening, which is exactly the "human speaks once" beat we want. Design the
 demo around one hands-free press at the top, not a per-utterance trigger.
 
+### A — the audio split (C: this is your answer, nothing for you to change)
+
+**Your proposal, taken as proposed: separate the two streams by device, not by timing.**
+Then it doesn't matter if they overlap — they can't reach each other. Measured on the
+demo Mac rather than assumed:
+
+```
+dock narration -> "MacBook Pro Speakers" : BlackHole heard 0.000000   <- VoiceOS deaf to it
+agent command  -> "BlackHole 2ch"        : BlackHole heard 0.804261   <- VoiceOS hears it
+```
+
+`./voiceos-bridge/audio-loopback/spike.sh split` is that check — 12 seconds, no VoiceOS,
+no Pro trial. Run it before rehearsal alongside `verify`.
+
+**One correction to your note: this Mac's speakers are `MacBook Pro Speakers`, not
+`MacBook Air Speakers`.** Exactly the reason your resolver fix matters — I'd have set it
+wrong and, before this morning, gone silent for it. `run-demo.sh` now exports the right
+name, so you don't have to set anything.
+
+Three consequences worth knowing:
+
+1. **The `crew` multi-output device is off the demo path.** It existed to send audio to
+   BlackHole *and* the speakers at once — which is precisely what we no longer want. That
+   also retires the "speakers slider is near zero so the room hears silence" gotcha, since
+   we stop using the device that had the slider.
+2. **`run-demo.sh` launches the dock binary directly instead of `open`.** `open` discards
+   stderr, and your `DOCK <-` / `SAY ->` lines are the only evidence a line reached the
+   audience. The run now ends by printing what was actually spoken, from your log, not
+   mine — and says so loudly if the dock received nothing.
+3. **Speech trails the orchestrator by ~10 seconds.** The run script used to print its
+   summary while Karen was still mid-sentence, which means anyone hitting
+   `./run-demo.sh stop` on seeing "final" cuts the recap off. It now waits for the room
+   to go quiet first.
+
+**Your pacing question, answered with a measurement.** You offered to raise the backlog if
+I dropped `LINE_MS` to ~2200. At 1400 I reproduced your result exactly — 8 of 10 spoken,
+same two lines dropped. **At 2200 all 10 speak and the backlog never fills**, so no dock
+change is needed at all; the ceiling really was speech rate, so the pacing had to meet it.
+2200 is now the default in `server.js`. The show runs ~9s longer and nothing is lost.
+
+### A — the crew has voices now, not one robot with three sprites
+
+Two halves, and the smaller one is the accent:
+
+- **Accent** — `CREW_VOICE_*`, exported by `run-demo.sh`: **triage = Moira (Irish),
+  scheduler = Daniel (British), recap = Karen (Australian)**. Three accents, so the crew
+  reads as three entities. Audition alternatives by ear with `./crew-dock/voices.sh
+  audition`; the winners are three env vars, no code change.
+- **Words** — the bigger half, in `prompts/{triage,scheduler,recap}.md`. Each role now has
+  a *Who you are* block: triage is dry and unimpressed and says the number, scheduler is
+  brisk and pleased with a slot that fits, recap is warm and closes the loop. The line
+  rules (≤10 words, `Done:` last, no markdown) are untouched and marked absolute in the
+  prompt, so character can't cost us the format.
+
+**One human action, ~2 minutes, worth more than either:** this Mac has **0 Enhanced or
+Premium voices installed** — every voice on it is the compact 2005-era build, which is
+the actual source of the robot sound. System Settings → Accessibility → Spoken Content →
+System Voice → Manage Voices → download the Enhanced build of Moira, Daniel and Karen.
+They resolve under the same `-v` name, so **nothing in the code changes** — the same run
+just stops sounding synthetic. `./crew-dock/voices.sh check` tells you where you stand.
+
+No new dependency for any of this: no TTS service, no API key, no network call on stage.
+
 ## Decisions log
 
 - _Sat night — orchestrator is one file (`orchestrator/server.js`), Node stdlib only, not the 4-file TypeScript layout in the folder plan — A — no build step, no `npm install`, no deps to break at 5pm; the whole thing is ~170 lines and restarts instantly. The frozen bit is the HTTP contract, and that's unchanged._
 - _Sat night — execution path (speech vs MCP) is isolated in ONE file, `orchestrator/prompts/execution.md` — A — when B decides, we swap that file and the three role prompts don't change. Both options are already written in it, commented out. Right now it's dry-run: agents narrate but call no tools, so tonight's testing can't touch real mail._
 - _Sat night — narration is paced by the orchestrator (~1.4s/line), not by token arrival — A — the model emits all its lines in one burst, so without pacing a character jumps straight to "Done:" and the dock looks dead. Found this on the first live run._
+- _Sun morning — **the two speech streams are separated by device, not by timing** (`say -a`) — A — C's proposal, taken as proposed and measured: narration on the speakers reads 0.00 on BlackHole, commands on BlackHole read 0.80. Timing-based schemes need the two processes to know about each other; device-based needs nothing. Retires the `crew` multi-output device from the demo path._
+- _Sun morning — **narration pacing raised 1400 → 2200ms** — A — the dock speaks these lines now and a line takes ~2s to say; at 1400 two of ten were dropped. Pacing had to meet the speech rate, and this way C's dock needs no change. Costs ~9s of runtime._
+- _Sun morning — **agent personality is macOS voices + prompt wording, no TTS dependency** — A — three built-in accents (Moira/Daniel/Karen) plus a "Who you are" block per role. An external TTS would add an API key, a network call and latency on stage to buy something the platform already does. The one real upgrade is a GUI download of the Enhanced voices, which changes no code._
 - _Sun morning — **MCP owns Gmail**, exposed through the server VoiceOS already has registered — B — it is the only option that keeps the voice loop intact for the inbox half. Apple Mail was rejected: it needs a mail account configured on the demo Mac, it cannot be seeded deterministically, and B cannot test any of it from Windows. Full reasoning below._
 - _Sun morning — the same Gmail tools are wired two ways from one implementation — B — VoiceOS-called keeps the loop honest; agent-called is a drop-in fallback if VoiceOS transcription fails. Choosing between them at 5pm is a one-line change to `execution.md`, not a rebuild._
 
@@ -544,6 +610,14 @@ needs nothing.
 
 ## Blockers
 
+- ~~**C → A: two speech streams will collide.**~~ **DECIDED, IMPLEMENTED AND MEASURED —
+  C, you are unblocked and there is nothing for you to change.** Your proposal was right.
+  Numbers, device names and the check are in "A — the audio split" above. `run-demo.sh`
+  exports `CREW_AUDIO_DEVICE` for you; your resolver bug-fix landed on exactly this path
+  and is what makes it safe to get the name wrong.
+
+<details><summary>original blocker, kept for the record</summary>
+
 - **C → A, now urgent — B's Gmail decision just made this live.** You're about to write
   the real `execution.md`; this is the choice you have to make *while* you write it, not
   after. Two speech streams will collide.
@@ -564,6 +638,9 @@ needs nothing.
   and speaks on the default output. So setting this wrong costs you a wrong speaker,
   not a silent demo. Get the exact name from `say -a '?'` on your Mac and paste it —
   it must match what BlackHole actually registers as, not what we assume.
+
+</details>
+
 - **A — the one real blocker: VoiceOS Pro trial is not on A's account yet** (the free month
   from the event). Until it is, the loopback test can't run. BlackHole, the `crew`
   multi-output device, both scripts and the verification query are all ready and waiting —

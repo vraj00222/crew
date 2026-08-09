@@ -12,6 +12,12 @@ PHRASE="clean up my inbox and schedule everything"
 # separation (0.00 vs 0.80 on BlackHole). CREW_MUTE=1 silences the dock entirely.
 export CREW_AUDIO_DEVICE="${CREW_AUDIO_DEVICE:-MacBook Pro Speakers}"
 
+# One accent each, so three characters don't sound like one process with three
+# sprites. Audition alternatives with ./crew-dock/voices.sh audition.
+export CREW_VOICE_TRIAGE="${CREW_VOICE_TRIAGE:-Moira}"        # en_IE — dry
+export CREW_VOICE_SCHEDULER="${CREW_VOICE_SCHEDULER:-Daniel}" # en_GB — brisk
+export CREW_VOICE_RECAP="${CREW_VOICE_RECAP:-Karen}"          # en_AU — warm
+
 stop() {
   pkill -f "Crew.app/Contents/MacOS/Crew" 2>/dev/null
   pkill -f "orchestrator/server.js" 2>/dev/null
