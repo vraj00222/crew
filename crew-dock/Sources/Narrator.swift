@@ -99,25 +99,38 @@ final class Narrator {
                              as: UTF8.self)
         proc.waitUntilExit()
 
-        // Lines look like "   71 MacBook Air Speakers".
-        let devices: [String] = listing.split(separator: "\n").map { line in
-            let withoutID = line.drop(while: { $0 == " " }).drop(while: { $0.isNumber })
-            return withoutID.trimmingCharacters(in: .whitespaces)
+        // Lines look like "   71 MacBook Air Speakers". Keep the id: we resolve to
+        // the NUMBER, never the name.
+        //
+        // `say -a "<name>"` is not merely fragile, it crashes:
+        //   NSInvalidArgumentException: Range {0, 13} out of bounds; string length 7
+        // It compares the requested name against every device name in the list, so
+        // any name longer than the SHORTEST connected device's name kills the
+        // process. Plugging in EarPods (7 chars) makes "BlackHole 2ch" and
+        // "MacBook Pro Speakers" both uncallable — every narration line would die
+        // the moment someone connects headphones, which on stage is silence with
+        // no explanation. Numeric ids have no such path.
+        let entries: [(id: String, name: String)] = listing.split(separator: "\n").compactMap {
+            let trimmed = $0.drop(while: { $0 == " " })
+            let id = String(trimmed.prefix(while: \.isNumber))
+            guard !id.isEmpty else { return nil }
+            return (id, trimmed.dropFirst(id.count).trimmingCharacters(in: .whitespaces))
         }
-        if devices.contains(where: { $0.caseInsensitiveCompare(name) == .orderedSame }) {
-            return name
+        let devices = entries.map(\.name)
+        if let hit = entries.first(where: { $0.name.caseInsensitiveCompare(name) == .orderedSame }) {
+            return hit.id
         }
 
         // "MacBook Air Speakers", "MacBook Pro Speakers", "iMac Speakers" — the
         // built-in output. A loopback device ("BlackHole 2ch") never matches.
-        let builtIn = devices.first { $0.hasSuffix("Speakers") }
+        let builtIn = entries.first { $0.name.hasSuffix("Speakers") }
 
-        let landing = builtIn.map { "\"\($0)\"" } ?? "the system default output"
+        let landing = builtIn.map { "\"\($0.name)\"" } ?? "the system default output"
         let warning = "SAY !! no audio output device named \"\(name)\" — narrating to "
             + "\(landing) instead so the dock still speaks. Available: "
             + devices.joined(separator: " | ") + "\n"
         FileHandle.standardError.write(Data(warning.utf8))
-        return builtIn
+        return builtIn?.id
     }
 
     /// Called on every status POST. Safe to call from any thread.

@@ -16,6 +16,21 @@ set -euo pipefail
 DOCK_DEVICE="${DOCK_DEVICE:-MacBook Pro Speakers}"      # audience only
 VOICEOS_DEVICE="${VOICEOS_DEVICE:-BlackHole 2ch}"       # VoiceOS only
 
+# `say -a` takes a device NAME or a numeric ID, and the name path is broken:
+#
+#   $ say -a "BlackHole 2ch" hello
+#   NSInvalidArgumentException: Range {0, 13} out of bounds; string length 7
+#
+# It walks the requested name across every device name in the list, so ANY name
+# longer than the SHORTEST connected device's name crashes it. Plug in EarPods
+# (7 chars) and every device with a longer name becomes uncallable — which is
+# most of them, including both of ours. Found the moment headphones went in.
+# Numeric IDs have no such path, so always resolve the name to an ID first.
+say_id() {  # say_id "<device name>" -> numeric id, or empty if not present
+  say -a '?' 2>/dev/null | awk -v want="$1" '
+    { id=$1; $1=""; sub(/^ +/,""); if ($0==want) { print id; exit } }'
+}
+
 # The original 4-line plan sets only the INPUT to BlackHole. That cannot work:
 # `say` writes to the OUTPUT device, so nothing ever reaches BlackHole's input
 # side. Output must go to BlackHole too. But then the room hears nothing — so
@@ -86,7 +101,7 @@ split)  # proves the two speech streams cannot collide. NO VoiceOS needed.
   peak() {  # peak() <device> — speak one line to $1, report what BlackHole heard
     sox -q -d /tmp/crew-split.wav trim 0 5 2>/dev/null & local rec=$!
     sleep 1
-    say -v Samantha -r 190 -a "$1" "The quick brown fox jumps over the lazy dog"
+    say -v Samantha -r 190 -a "$(say_id "$1")" "The quick brown fox jumps over the lazy dog"
     wait $rec 2>/dev/null
     sox /tmp/crew-split.wav -n stat 2>&1 | awk '/Maximum amplitude/{print $3}'
   }
