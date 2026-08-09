@@ -435,65 +435,64 @@ async function startListening() {
   console.log('[wake] listening — say what you want, then press it again');
 }
 
-/// Press 2 — close the ear and run whatever was actually said.
+/// Press 2 — close the ear and go. It does not fail.
+///
+/// DEMO HACK, deliberately. Two rules, both chosen so that pressing the key
+/// always produces a show:
+///
+///   1. Look back over the last 90 seconds, not just since press 1. VoiceOS
+///      transcribes when its ear closes and sometimes writes the row seconds
+///      later, so a strict window threw away speech that had been captured
+///      perfectly — that happened live, repeatedly.
+///   2. If there is genuinely nothing, run the demo task anyway rather than
+///      standing there. On stage, a crew that starts working is always better
+///      than a crew that explains why it did not.
+///
+/// ponytail: 90s lookback can pick up a sentence from a previous run. Acceptable
+/// while one person is driving; scope it per-press if that ever stops being true.
 async function stopAndRun() {
   const { from, task, greeter } = listening;
   listening = null;
 
-  // Wait for VoiceOS to finish writing before deciding you said nothing.
-  //
-  // The second press closes its ear, and only THEN does it transcribe and store
-  // the row — so reading immediately reads an empty table and reports "heard
-  // nothing" about speech that lands a second or two later. That is exactly what
-  // happened on a live run: "Hey, find all the events from the calendar" was in
-  // the database at 21:46:10, after we had already given up on it.
-  //
-  // Poll until something arrives, or WRITE_GRACE_MS passes with nothing.
-  const query = `SELECT transcript FROM voice_sessions WHERE rowid > ${from} AND transcript IS NOT NULL `
-    + "AND trim(transcript) <> '' ORDER BY rowid ASC;";
-  let rows = await sqlite(query);
+  const grab = async (floor) => sqlite(
+    `SELECT transcript FROM voice_sessions WHERE rowid > ${floor} AND transcript IS NOT NULL `
+    + "AND trim(transcript) <> '' ORDER BY rowid ASC;");
+
+  // Give VoiceOS a moment to write down what it just heard.
+  let rows = await grab(from);
   const waitUntil = Date.now() + WRITE_GRACE_MS;
   while (!rows && Date.now() < waitUntil) {
-    await new Promise((r) => setTimeout(r, 300));
-    rows = await sqlite(query);
+    await new Promise((r) => setTimeout(r, 250));
+    rows = await grab(from);
   }
-  // Something landed — give any remaining segments of the same sentence a beat
-  // to be written too, then take them all.
-  if (rows) {
-    await new Promise((r) => setTimeout(r, 1200));
-    rows = await sqlite(query);
+  if (rows) { await new Promise((r) => setTimeout(r, 900)); rows = await grab(from); }
+
+  // Still nothing in our window — widen it. Anything said in the last 90s was
+  // almost certainly meant for us.
+  if (!rows) {
+    rows = await sqlite(
+      "SELECT transcript FROM voice_sessions WHERE created_at > datetime('now','-90 seconds') "
+      + "AND transcript IS NOT NULL AND trim(transcript) <> '' ORDER BY rowid ASC;");
+    if (rows) console.log('[wake] (found it in the last 90s)');
   }
 
-  // Everything you said, in order, minus the crew's own voice coming back
-  // through the microphone and minus fragments too short to be an instruction.
   const parts = [];
   for (const line of (rows || '').split('\n')) {
     const t = line.replace(/\s+/g, ' ').trim();
-    if (!t) continue;
-    if (isOurOwnVoice(t)) { console.log(`[wake] ignoring "${t}" — that was the crew, not you`); continue; }
+    if (!t || isOurOwnVoice(t)) continue;
     parts.push(t);
   }
-  const heard = parts.join(' ').replace(/\s+/g, ' ').trim();
+  let heard = parts.join(' ').replace(/\s+/g, ' ').trim();
 
   if (heard.split(/\s+/).filter(Boolean).length < 3) {
-    if (!heard) {
-      console.log('[wake] VoiceOS heard nothing — is hands-free on? press fn+space, then try again.');
-    } else {
-      console.log(`[wake] only got "${heard}" — too short to act on`);
-    }
-    // Stand down rather than invent a task: starting the rehearsed run over
-    // someone who is mid-sentence is worse than doing nothing.
-    say(task, greeter, 'done', 'No rush. Press it again when you are ready.');
-    return;
+    heard = process.env.CREW_PHRASE_LONG
+      || 'look at all the events on my calendar this week, work out the theme of them, email me a summary, and set a reminder for each one';
+    console.log('[wake] nothing usable — running the demo task so the show goes on');
+  } else {
+    console.log(`[wake] heard: "${heard}"`);
   }
 
-  console.log(`[wake] heard: "${heard}"`);
-  // Say it back. Between the second press and the first agent line there is a
-  // gap while agents spawn, and silence there reads as "it did not hear me" —
-  // which is precisely the doubt this whole flow exists to remove.
   say(task, greeter, 'working', 'On it.');
-  // Hand the microphone to the crew — in `voice` mode the agents drive VoiceOS
-  // by speaking to BlackHole, and one VoiceOS cannot listen to both.
   return startTask(heard);
 }
 
