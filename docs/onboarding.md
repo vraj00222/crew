@@ -38,7 +38,7 @@ message and tag them in `coordination.md` — don't do it quietly.
 | VoiceOS bridge, Gmail/Calendar tools, seeding | **B — Sameer** | `voiceos-bridge/mcp-server/**`, `voiceos-bridge/demo-seed/**`, `voiceos-bridge/verify.ps1` |
 | the dock: characters, bubbles, narration | **C — Abhishek** | `crew-dock/Sources/**`, `crew-dock/build.sh` |
 | character art + visual identity | **D — Yaseen** | `crew-dock/Assets/**`, `crew-dock/characters.json` |
-| rehearsal, resilience, backup rig | **E — Rukiya** | `docs/**`, `docs/runbook.md` |
+| rehearsal, resilience, backup rig | **E — Rukaiya** | `docs/**`, `docs/runbook.md` |
 | everyone, constantly | all | `coordination.md` |
 
 `coordination.md` is the one file we all edit. **Only ever touch your own row**

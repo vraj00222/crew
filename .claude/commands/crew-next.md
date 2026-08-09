@@ -27,7 +27,7 @@ from `git config user.name` and recent commits, and say which you assumed.
 - **B — Sameer** — voiceos-bridge: MCP server, Gmail/Calendar tools, demo-seed. Windows.
 - **C — Abhishek** — crew-dock `Sources/**`: characters, bubbles, narration.
 - **D — Yaseen** — character art, `crew-dock/Assets/**`, `characters.json`.
-- **E — Rukiya** — `docs/**`: rehearsal, resilience, the backup rig.
+- **E — Rukaiya** — `docs/**`: rehearsal, resilience, the backup rig.
 
 The full file-ownership map is in `docs/onboarding.md` — use it to check a task
 doesn't have someone else's name on it.

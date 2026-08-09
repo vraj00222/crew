@@ -19,7 +19,7 @@ conflicts), and the merge ritual.
 - **B — Sameer** — Windows
 - **C — Abhishek** — Mac
 - **D — Yaseen** — character art + visual identity *(new)*
-- **E — Rukiya** — rehearsal, resilience, backup rig *(new)*
+- **E — Rukaiya** — rehearsal, resilience, backup rig *(new)*
 
 Subscriptions: A Claude Max; B OpenAI Plus + Claude Pro; C Claude Pro.
 D and E — put yours in your row so we know what you can run.
@@ -108,7 +108,7 @@ Switch anytime with `/effort` or `/model`. If usage gets tight, add `--fallback-
 | Person | Workstream | Status | Blocked on |
 |---|---|---|---|
 | **D — Yaseen** | character art + visual identity | **not started — read `docs/onboarding.md`, then your task block below** | nothing. Your work is new files only; you cannot be blocked by us |
-| **E — Rukiya** | rehearsal, resilience, backup rig | **not started — read `docs/onboarding.md`, then your task block below** | nothing. Needs a Mac that is not A's |
+| **E — Rukaiya** | rehearsal, resilience, backup rig | **not started — read `docs/onboarding.md`, then your task block below** | nothing. Needs a Mac that is not A's |
 | A | orchestrator + dock + audio rig | **CHECKPOINT READY — everyone run `./checkpoint.sh`, see the Checkpoint section at the bottom.** Orchestrator done, 3 modes (`narrate`/`live`/`voice`) selected by a flag not a file edit. Audio split decided + measured. 10/10 lines spoken, 0 dropped. Three accents + written personalities. Characters no longer freeze. `docs/demo-script.md` written. Full chain with real agents: ~45s, PASS | VoiceOS Pro trial not active — still the only thing left on A's side |
 | B | voiceos-bridge (mcp-server + demo-seed + Gmail/Calendar tools) | **CHECKPOINT PASS on Windows (12 ok / 0 failed).** All 8 tools built and tested; `verify.ps1` now runs **5 suites, all green**. **`crew_task_status` closes the loop: no taskId needed, and it answers in a spoken sentence instead of a JSON dump** — see below. Tool `annotations` declared on all 8 tools, honestly. Gmail decision made; A unblocked. VoiceOS installed on Windows and inspected — see the tool-naming finding. **A: one bug for you in `CANNED`, below — off the rehearsed path, not a blocker.** | VoiceOS Pro trial (same paywall as A, now confirmed on a 2nd machine) + a demo Google account & OAuth creds |
 | C | crew-dock (took option 2) | **the dock talks, and the handover is proven.** `Narrator.swift` speaks every `/agent-status` line via `say`, per-character voices, never two at once. Re-verified this morning from a **throwaway clone of current `main`** — clone → speaking app in 13s. **A's audio split + new voices then re-verified on my Air against A's unmodified `run-demo.sh`: 16 received, 10 spoken, 0 failed.** Nothing left to hand-carry to A's Mac but two commands. **Reviewed and kept A's character fix — verified by screen capture, not by log — and fixed the stale-binary hole that let `checkpoint.sh` PASS while grading an old build** | **nothing — CHECKPOINT PASS on my Air (14 ok / 0 failed)** |
@@ -1093,7 +1093,7 @@ either of you guessing. Ship the art first; it is the part nobody else can do.
 
 ---
 
-# E — Rukiya: everything runs on exactly one laptop
+# E — Rukaiya: everything runs on exactly one laptop
 
 **Start:** `git clone` → `./run-demo.sh fake` → `./checkpoint.sh`. Paste your checkpoint
 output into the chat — you are the fourth machine this has ever run on, and each new one
