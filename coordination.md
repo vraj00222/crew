@@ -107,7 +107,7 @@ Switch anytime with `/effort` or `/model`. If usage gets tight, add `--fallback-
 
 | Person | Workstream | Status | Blocked on |
 |---|---|---|---|
-| **D — Yaseen** | character art + visual identity | **not started — read `docs/onboarding.md`, then your task block below** | nothing. Your work is new files only; you cannot be blocked by us |
+| **D — Yaseen** | character art + visual identity | **machine set up, CHECKPOINT PASS on `6255b5d` (12 ok / 0 failed / 6 N/A) — fifth machine.** Art itself not started yet. Clean setup needed `node` (not installed); getting there found **a hang in `checkpoint.sh` on any machine without node — see Blockers, it's A's file.** Next: build the dock, watch a `fake` run, then the `researcher` + `analyst` `.mov`s | nothing. Your work is new files only; you cannot be blocked by us |
 | **E — Rukaiya** | rehearsal, resilience, backup rig | **backup rig PROVEN — clean clone → full show → CHECKPOINT PASS (17 ok / 0 failed) on a second MacBook Air.** Clone to spoken demo in 72s, 16 lines received, 10 spoken, 0 dropped. C's speaker fallback fired for real here (no `MacBook Pro Speakers` on an Air) and saved the run — see my section at the bottom. Onboarding fixed where my run disproved it. **Break-glass table now TESTED, row by row — one row was half-true: a hung agent can wedge the whole run after saying "ran out of time" (A: repro + fix in my section and Blockers).** **All three deliverables done: `docs/runbook.md` written (one page, folds in the voice-only rule + Dictation hedge + tested break-glass), and a clean 10/10 run recorded with audio — 75s, 11MB, on my Desktop, posting to the chat.** | nothing |
 | A | orchestrator + dock + audio rig | **CHECKPOINT READY — everyone run `./checkpoint.sh`, see the Checkpoint section at the bottom.** Orchestrator done, 3 modes (`narrate`/`live`/`voice`) selected by a flag not a file edit. Audio split decided + measured. 10/10 lines spoken, 0 dropped. Three accents + written personalities. Characters no longer freeze. `docs/demo-script.md` written. Full chain with real agents: ~45s, PASS | VoiceOS Pro trial not active — still the only thing left on A's side |
 | B | voiceos-bridge (mcp-server + demo-seed + Gmail/Calendar tools) | **`verify.ps1` 6 suites all green. Checkpoint 13 ok / 1 failed — and the 1 is A's new check working correctly:** `claude` on this box is installed but logged out, which the old `have claude` test called a PASS. Nothing on B's side regressed; my machine genuinely cannot run an agent, and now it says so. A — good fix, that is exactly the hole. All 8 tools built and tested. **`crew_task_status` closes the loop: no taskId needed, and it answers in a spoken sentence instead of a JSON dump** — see below. Tool `annotations` declared on all 8 tools, honestly. Gmail decision made; A unblocked. VoiceOS installed on Windows and inspected — see the tool-naming finding. **A: two things for you in Blockers — `direct` mode has no MCP wiring, so rung 3 narrates without touching anything, and `checkpoint.sh`'s claude check is a false green. Plus one bug in `CANNED`, off the rehearsed path.** | VoiceOS Pro trial (same paywall as A, now confirmed on a 2nd machine) + a demo Google account & OAuth creds |
@@ -1141,6 +1141,32 @@ needs nothing.
   Verify by opening Calendar.app and seeing "Design review — onboarding" at 11:00 tomorrow.
   If we skip this, the demo still *runs* — the scheduler just books over a meeting that
   the audience can see on screen, which is a bad look on the one line the demo exists for.
+
+- **D → A: on a machine without `node`, `./checkpoint.sh` hangs forever instead of
+  failing.** Found on the fifth machine (mine, a clean setup) — the tradition holds.
+  `checkpoint.sh` correctly prints `FAIL no node` in the `everyone:` block, then keeps
+  going and **never returns**. I left it 8 minutes before killing it.
+  The hang is [`orchestrator/test.sh`](orchestrator/test.sh) line 23:
+  ```sh
+  until curl -sf localhost:4001/status/nope -o /dev/null || [ $? -eq 22 ]; do sleep 0.2; done
+  ```
+  It waits for `server.js` to bind `:4001`. With no node, nothing ever binds, so `curl`
+  exits **7** (couldn't connect) on every pass and never **22** (the HTTP-error code that
+  means the server answered). The loop has no attempt cap and no timeout, so it spins
+  until someone kills it. `checkpoint.sh` line 99 calls it with no timeout either.
+  **Why it's worth a fix and not just a note:** this is the same family as the stale
+  binary and the `SAY ->` false green — *the check cannot report the failure it has
+  already detected*. A new machine gets a hang with no message rather than the one line
+  that tells them what to install. E's row says each new machine finds something; this is
+  what the fifth one found, and it costs a newcomer their first ten minutes.
+  Suggested one-liner, your file so I haven't touched it — bound the wait and say why:
+  ```sh
+  for _ in $(seq 1 100); do curl -sf localhost:4001/status/nope -o /dev/null || [ $? -eq 22 ] && break; sleep 0.2; done
+  [ $? -eq 0 ] || fail "server never came up on :4001 (is node installed?)"
+  ```
+  Unblocked myself by installing node; **CHECKPOINT PASS on `6255b5d` (12 ok, 0 failed,
+  6 N/A)** — no BlackHole/switchaudio/enhanced voices/claude CLI/uv here, all expected
+  for the art role. Nothing about this blocks my own work.
 
 ## Demo script
 
