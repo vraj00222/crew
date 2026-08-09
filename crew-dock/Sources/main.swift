@@ -35,7 +35,13 @@ final class DockController {
     }
 
     func apply(_ s: StatusServer.Status) {
-        characters[s.character]?.apply(message: s.message, state: s.state)
+        // stderr so the pipeline is verifiable from a log when you can't watch the screen
+        FileHandle.standardError.write(Data("DOCK <- \(s.character) [\(s.state)] \(s.message)\n".utf8))
+        guard let c = characters[s.character] else {
+            FileHandle.standardError.write(Data("  (no character named '\(s.character)')\n".utf8))
+            return
+        }
+        c.apply(message: s.message, state: s.state)
     }
 }
 

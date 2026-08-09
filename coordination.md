@@ -97,9 +97,64 @@ Switch anytime with `/effort` or `/model`. If usage gets tight, add `--fallback-
 
 | Person | Workstream | Status | Blocked on |
 |---|---|---|---|
-| A | orchestrator | **both endpoints live + full 3-agent run works end to end (28s), real `claude -p`** | audio spike needs `brew install` (needs A at keyboard) |
-| B | voiceos-bridge | not started | — |
-| C | lil-agents-dock | not started | — |
+| A | orchestrator + dock + audio rig | **orchestrator done (28s run). Audio loopback PROVEN. Dock app built and accepting status. `./run-demo.sh` runs the whole thing.** | VoiceOS Pro trial not active — only thing left on A's side |
+| B | voiceos-bridge | branch `sameer` pushed, no commits on it yet | — |
+| C | lil-agents-dock | not started | **read the Xcode note below before building** |
+
+### What A needs from each of you
+
+**B —** the one decision that blocks your build: **Gmail has no path through VoiceOS**
+(`connectedIntegrations` is `["applecalendar"]`, and there are no email actions in
+`nativeActionToggles`). But Apple Mail *is* scriptable from inside VoiceOS. Pick one and
+put it in the decisions log: MCP owns Gmail / Apple Mail carries the inbox / the inbox
+half is narrated over seeded data. Until that's decided I can't write the real execution
+prompt — it's stubbed to dry-run and swaps in one file (`orchestrator/prompts/execution.md`,
+both options already written and commented out).
+You can build and test your MCP server against `FAKE=1 node orchestrator/server.js`
+right now without anything of mine being finished.
+
+**C —** read the Xcode note below *before* you build anything, it changes your handover.
+Also: **don't add your own queueing or delay** to incoming messages. I pace narration at
+~1.4s/line on the orchestrator side so the characters have a readable rhythm; if you
+delay on top, lines drift behind the agents. Lines arrive pre-truncated to 110 chars so
+they fit a bubble. Test against `curl` or `./run-demo.sh fake` — you are not blocked on me.
+
+### Read this first: `/crew` skill
+
+There's a project skill at `.claude/skills/crew/SKILL.md`. In your Claude Code session
+in this repo, type `/crew` — it loads the frozen contracts, the commands to test your
+own side without waiting on anyone, the commit ritual, and the machine gotchas that
+have already cost us time. Use it instead of re-reading this whole file.
+
+### One-command demo (works right now, no VoiceOS needed)
+
+```bash
+./run-demo.sh fake     # whole pipeline, canned narration, zero Claude spend
+./run-demo.sh          # whole pipeline, real headless agents, ~30s
+./run-demo.sh stop
+```
+This starts the dock, starts the orchestrator, fires the demo phrase, and prints the
+narration as it happens. **`fake` is the panic button** — if agents are failing at
+5:55pm, that still puts on the entire show with no Claude calls and no network.
+
+### A — dock app also built (crew-dock/), because of an Xcode problem
+
+**C: read this before you hand anything over.** The demo Mac has Command Line Tools but
+**no full Xcode** — `xcodebuild` does not run on it. lil-agents ships an `.xcodeproj`
+plus a Sparkle dependency, so *the upstream project cannot be built on the machine we
+are demoing from.* This is exactly the surprise we were trying to avoid finding at 5pm.
+
+Two ways out, your call:
+1. You keep your Xcode flow and hand over a **pre-built `Crew.app`**, not source. Bring
+   it over mid-afternoon as planned and we just run it.
+2. Use `crew-dock/` — I built a minimal one that compiles with `swiftc` alone in ~2s,
+   no project file, no dependencies, no signing. Borderless click-through windows above
+   the dock, one per agent, looping character video with a speech bubble. It already
+   accepts the exact `/agent-status` payload and logs every message it receives to
+   stderr. It's deliberately plain — if you want to make it good, this is the base to
+   build on and you won't fight a build system on demo day.
+
+Character art is fetched from lil-agents (MIT) at build time, not committed.
 
 ### A — orchestrator: ready to integrate against (Sat 23:5x)
 
