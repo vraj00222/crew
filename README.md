@@ -218,7 +218,9 @@ voiceos-bridge/       the ears and hands
 crew-dock/            the face — borderless Swift/AppKit windows above the dock
   Sources/              characters, speech bubbles, narration, the :4002 listener
   build.sh              swiftc only, ~3s, no Xcode
-docs/demo-script.md   the exact rehearsed run, beat by beat
+docs/
+  onboarding.md         start here — clone to a running demo, and who owns which files
+  demo-script.md        the exact rehearsed run, beat by beat
 coordination.md       the day's log — decisions, findings, blockers
 checkpoint.sh         one command that proves three machines agree
 run-demo.sh           the whole show, one command
@@ -229,16 +231,22 @@ Character art is fetched from [lil-agents](https://github.com/ryanstephen/lil-ag
 
 ---
 
-## Built by three people on three machines
+## Built by five people across five machines
 
-Split along the two frozen interfaces, so nobody was ever blocked on anyone else's
-process being up. Each side has a stub of the other two.
+Split along the two frozen interfaces and by file ownership, so nobody is ever blocked
+on anyone else's process being up. Each side has a stub of the others.
 
 | | workstream | machine |
 |---|---|---|
-| **A** | orchestrator, role prompts, the dock, the audio rig | Mac — the demo machine |
-| **B** | MCP bridge, Gmail/Calendar tools, demo-seed | Windows |
-| **C** | dock characters, speech bubbles, narration | Mac |
+| **A** — Vraj | orchestrator, role prompts, the dock, the audio rig | Mac — the demo machine |
+| **B** — Sameer | MCP bridge, Gmail/Calendar tools, demo-seed | Windows |
+| **C** — Abhishek | dock characters, speech bubbles, narration | Mac |
+| **D** — Yaseen | character art + visual identity | |
+| **E** — Rukiya | rehearsal, resilience, backup rig | |
+
+New here? **[`docs/onboarding.md`](docs/onboarding.md)** is the front door — clone to a
+running demo in about sixty seconds, plus the file-ownership map and the merge ritual.
+`coordination.md` is the live state of the day.
 
 Two of the three constraints that shaped the build were machine facts nobody could
 change: **the demo Mac has Command Line Tools but no full Xcode**, so anything with an
