@@ -172,17 +172,29 @@ final class AgentCharacter {
     /// Position is animated on the window itself: these are borderless
     /// click-through windows, so there is no layout to fight.
     private func enter() {
-        let drop = restingOrigin
-        var start = drop
-        start.y = (window.screen ?? NSScreen.main)?.frame.maxY ?? drop.y + 900
-        window.setFrameOrigin(start)
+        let size = window.frame.size
+        let resting = NSRect(origin: restingOrigin, size: size)
+        var start = resting
+        start.origin.y = (window.screen ?? NSScreen.main)?.frame.maxY ?? resting.origin.y + 900
+
+        window.setFrame(start, display: false)
         window.alphaValue = 1
         player.play()
-        NSAnimationContext.runAnimationGroup { ctx in
+
+        // `setFrame(_:display:)` on the animator, NOT `setFrameOrigin`. Only
+        // `frame` is animatable through the proxy — animating the origin is a
+        // silent no-op, which parked every character above the top of the screen
+        // and left the show audible but invisible. Exactly the failure mode this
+        // project keeps producing: the logs were perfect and the stage was empty.
+        NSAnimationContext.runAnimationGroup({ ctx in
             ctx.duration = entranceSeconds
             ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
-            window.animator().setFrameOrigin(drop)
-        }
+            window.animator().setFrame(resting, display: true)
+        }, completionHandler: { [weak self] in
+            // Land it exactly, in case the animation was interrupted — a
+            // character a few points off is invisible at the screen edge.
+            self?.window.setFrame(resting, display: true)
+        })
     }
 
     /// One small hop, on the layer so it costs nothing and can't fight AppKit.

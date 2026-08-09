@@ -197,11 +197,25 @@ func wakeTheCrew() {
     }.resume()
 }
 
+/// Holding the chord for half a second spawned 23 tasks: macOS repeats keyDown
+/// while a key is held, and every repeat started a whole crew. On stage that is
+/// two dozen agents talking over each other and a Claude bill to match.
+/// `isARepeat` stops the held key; the cooldown stops a nervous double-press.
+var lastWake = Date.distantPast
+let wakeCooldown: TimeInterval = 3
+
 if AXIsProcessTrusted() {
     NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { e in
         // keyCode 8 == "c". Match on the flags we care about and ignore the rest.
         let mods = e.modifierFlags.intersection(.deviceIndependentFlagsMask)
-        if e.keyCode == 8, mods.contains(.control), mods.contains(.option) { wakeTheCrew() }
+        guard e.keyCode == 8, mods.contains(.control), mods.contains(.option), !e.isARepeat else { return }
+        let now = Date()
+        guard now.timeIntervalSince(lastWake) > wakeCooldown else {
+            FileHandle.standardError.write(Data("HOTKEY -- ignored, crew woken \(Int(now.timeIntervalSince(lastWake)))s ago\n".utf8))
+            return
+        }
+        lastWake = now
+        wakeTheCrew()
     }
     FileHandle.standardError.write(Data("hotkey ready: control-option-C wakes the crew\n".utf8))
 } else {
