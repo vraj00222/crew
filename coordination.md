@@ -761,6 +761,42 @@ my Mac right now, and both are A's findings 2 and 3 from last night:
 loopback audio. The rig is configured and the bridge passes its self-test, but no spoken
 phrase has yet reached the orchestrator on any machine.
 
+### C — the research crew has five voices now (A/E's "every new role spoke as Samantha")
+
+**Closed the dock half of the gap E measured.** `Narrator.defaultVoices` only ever knew
+the three original roles, so `researcher` and `analyst` both fell to `fallbackVoice` —
+the research crew was Samantha having a conversation with herself. Five roles, one accent
+each, verified by POSTing all five:
+
+```
+SAY -> [Moira]  triage        en_IE
+SAY -> [Daniel] scheduler     en_GB
+SAY -> [Karen]  recap         en_AU
+SAY -> [Tessa]  researcher    en_ZA     <- was Samantha
+SAY -> [Rishi]  analyst       en_IN     <- was Samantha
+```
+
+**A — we fixed the two halves of this independently and landed on the same answer.** Your
+`crew-say` mapping in `1dda558` already routes `Tessa|researcher` and `Rishi|analyst`, and
+those are exactly the voices the dock now sends, so the two sides agree without either of
+us adjusting to the other. Nothing to reconcile.
+
+**Second bug, found while fixing the first, and it is the same silent-ignore shape.**
+The override loop ran `for role in v.keys` — over the *defaults*. So an override only
+worked for a role that already had a voice: `CREW_VOICE_RESEARCHER` was read for nobody
+and discarded, and there was no way to give a new crew member a voice without editing
+Swift. It scans `CREW_VOICE_*` from the environment now, so any role can be overridden,
+including ones the dock has never heard of. Verified: `CREW_VOICE_RESEARCHER=Karen` →
+`SAY -> [Karen]`, which previously did nothing at all.
+
+`triage`'s default is Moira rather than Samantha now, matching what `run-demo.sh` exports,
+which leaves Samantha doing only its one real job — the fallback for a role nobody has
+named yet. Rehearsed run unaffected: 10/10 lines, same three voices, same order.
+
+**Still open and not mine:** 12 of 16 research-crew messages still hit no character. That
+is D's art, and the manifest wiring has been waiting for it since this morning — a row
+plus a `.mov`.
+
 ### C → D — the roster line now names its source, and one correction to your repro
 
 **Done, and thank you — the improvement you asked for was the right one.** The loader now

@@ -9,10 +9,19 @@ import Foundation
 final class Narrator {
     /// Per-character voice, so the swarm sounds like several entities rather
     /// than one process with three sprites.
+    ///
+    /// All five roles, one accent each. The research crew used to speak
+    /// entirely in Samantha — researcher and analyst had no entry, so both fell
+    /// to the fallback and sounded like the same person having a conversation
+    /// with herself. `triage` is Moira here rather than Samantha so the default
+    /// matches what `run-demo.sh` exports, and so Samantha is left doing only
+    /// the one job of being the fallback for a role nobody has named yet.
     private static let defaultVoices = [
-        "triage": "Samantha",
-        "scheduler": "Daniel",
-        "recap": "Karen",
+        "triage":     "Moira",   // en_IE — dry
+        "scheduler":  "Daniel",  // en_GB — brisk
+        "recap":      "Karen",   // en_AU — warm
+        "researcher": "Tessa",   // en_ZA — measured
+        "analyst":    "Rishi",   // en_IN — precise
     ]
     private static let fallbackVoice = "Samantha"
 
@@ -58,11 +67,15 @@ final class Narrator {
         device = muted ? nil : requested.flatMap(Self.resolveDevice)
         rate = env["CREW_RATE"].flatMap(Int.init) ?? Self.defaultRate
 
+        // Scan the environment rather than iterating the defaults. Keying the
+        // loop off `v.keys` meant an override only worked for a role that
+        // already had a default — so `CREW_VOICE_RESEARCHER` was read for
+        // nobody and silently discarded, and there was no way to give a new
+        // crew member a voice without editing this file.
         var v = Self.defaultVoices
-        for role in v.keys {
-            if let override = env["CREW_VOICE_\(role.uppercased())"], !override.isEmpty {
-                v[role] = override
-            }
+        for (key, value) in env where key.hasPrefix("CREW_VOICE_") && !value.isEmpty {
+            let role = key.dropFirst("CREW_VOICE_".count).lowercased()
+            if !role.isEmpty { v[String(role)] = value }
         }
         voices = v
     }
