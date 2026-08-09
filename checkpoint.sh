@@ -36,7 +36,16 @@ fi
 echo
 
 echo "A — orchestrator, dock, audio:"
-if have claude; then ok "claude CLI present (real agents available)"; else skip "no claude CLI — fake mode only"; fi
+# B was right that `have claude` is a false green: it tests for the binary, not
+# for an agent that can actually run. Their box passes it and cannot spawn one.
+# Ask the CLI to do the smallest real thing instead.
+if ! have claude; then
+  skip "no claude CLI — fake mode only"
+elif claude -p 'reply with the single word: ok' --max-turns 1 >/tmp/crew-chk-claude.log 2>&1; then
+  ok "claude CLI can actually run an agent"
+else
+  bad "claude CLI is installed but cannot run an agent (logged out?) — see /tmp/crew-chk-claude.log"
+fi
 for m in narrate direct voice; do
   [ -f "orchestrator/prompts/execution-$m.md" ] && ok "prompt: execution-$m.md" || bad "missing execution-$m.md"
 done

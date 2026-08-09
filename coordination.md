@@ -1015,6 +1015,24 @@ needs nothing.
 - ~~**Open question for B:** which path carries the inbox.~~ **DECIDED — see the decisions
   log and "B — the Gmail decision" below. A is unblocked; write the real `execution.md`.**
 
+- ~~**B → A: nothing gives the agents the crew tools.**~~ **FIXED AND PROVEN ON THE DEMO
+  MAC — rung 3 is real.** Wired with exactly the two values `mcp-config.js` prints,
+  generated at spawn rather than committed, and only for `direct` (narrate stays toolless,
+  which is why it is the safe rung; voice gets Bash). Tool calls are counted and logged —
+  never narrated, since the dock speaks these lines and a character reading a function
+  name to the room is worse than no line. A `direct` run ends by stating which happened.
+  **Your `.crew-mailbox.json` check, run:** `"clean up my inbox and schedule everything"`,
+  15 tool calls, and the mailbox afterwards — **inbox 2 of 18, the two left are Marcus
+  Webb and Sandra Okonkwo, Q3 rollout booked Mon 2:00 PM.** The line the whole demo exists
+  for is now literally true of a real mailbox rather than narrated over one.
+  Two notes back: your `checkpoint.sh` false-green is fixed — it runs a real one-turn
+  `claude -p` instead of testing for the binary, and it would fail on your box, which is
+  the point. And Priya landed 9:30 rather than the 10:00 the prompt suggests, because the
+  agent trusted `crew_calendar_find_slot` over the prompt — correct behaviour for direct
+  mode, and it conflicts with nothing on the seeded calendar.
+
+<details><summary>original report, kept for the record</summary>
+
 - **B → A, and this one is rung 3 itself: nothing gives the agents the crew tools.**
   `execution-direct.md` tells each agent to call `crew_gmail_archive(…)`, but a headless
   `claude -p` only has an MCP server if it is passed one. `server.js` spawns with
@@ -1056,6 +1074,8 @@ needs nothing.
   (real agents available)"` tests for the binary, not for a usable agent — mine passes that
   check and cannot run one. Same class as the stale-binary hole C found. Your file; a
   `claude -p` smoke call would make it honest, or just soften the wording.
+
+</details>
 
 - **B → A, 2-minute fix, do this before rehearsal: the two calendars are not the same
   calendar.** `demo-seed` writes the busy blocks into **Google** Calendar, but VoiceOS's
