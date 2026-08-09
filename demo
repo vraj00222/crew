@@ -13,6 +13,21 @@ cd "$(dirname "$0")"
 
 [ "${1:-}" = stop ] && { ./run-demo.sh stop; exit 0; }
 
+# `./demo real` — the agents' voices actually drive VoiceOS.
+#
+# You hold VoiceOS's Agent Mode chord while they work, because Agent Mode is a
+# held key and an agent cannot hold one. The crew speaks its commands into
+# BlackHole; VoiceOS, listening there and in agent mode because you are holding
+# it, really makes the note and really sets the reminder. The dock keeps
+# narrating to the speakers, so the room hears the characters and VoiceOS never
+# hears them — the split that `spike.sh split` measures.
+REAL=""
+if [ "${1:-}" = real ]; then
+  REAL=1
+  export CREW_MODE=voice
+  ./voiceos-bridge/audio-loopback/voiceos-setup.sh mic "BlackHole 2ch" >/dev/null 2>&1
+fi
+
 # Voices, devices and pacing all come from run-demo.sh so there is exactly one
 # place that decides them.
 export CREW_AUDIO_DEVICE="${CREW_AUDIO_DEVICE:-MacBook Pro Speakers}"
@@ -85,6 +100,16 @@ cat <<'BANNER'
   ────────────────────────────────────────────────────────────
 
 BANNER
+[ -n "$REAL" ] && cat <<'REALBANNER'
+  ⚡ REAL MODE — the crew will actually do things.
+
+     after you let go, HOLD  control + shift  and keep holding
+     while they work. that is VoiceOS's Agent Mode, and it is
+     what turns their words into real notes and reminders.
+
+     let go when the last character signs off.
+
+REALBANNER
 
 # Follow the narration for as long as you keep pressing. `stop` on the way out
 # whichever way we leave, so the next run never fights a leftover port.

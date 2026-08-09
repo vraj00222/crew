@@ -90,6 +90,7 @@ struct Roster {
 
 final class DockController {
     private var characters: [String: AgentCharacter] = [:]
+    private var panel: ResultsPanel?
     /// Roles that have sent at least one line, i.e. the crew actually on stage.
     private var woken: [String] = []
     private let roster = Roster.load()
@@ -97,6 +98,7 @@ final class DockController {
     init() {
         guard let screen = NSScreen.main else { return }
         let vf = screen.visibleFrame
+        panel = ResultsPanel(screen: screen)
         // Spread them along the bottom, just above the dock — and fit the crew
         // to the screen rather than assuming it fits.
         //
@@ -116,7 +118,23 @@ final class DockController {
         let n = roster.characters.count
         let spacing = n > 1 ? min(w, (vf.width - w) / CGFloat(n - 1)) : 0
         let totalWidth = w + spacing * CGFloat(max(0, n - 1))
-        let startX = vf.midX - totalWidth / 2
+        // Along the TOP, and split to the corners rather than strung across the
+        // middle: the crew was standing in front of the terminal and the editor,
+        // which is most of the screen anyone is actually trying to watch. Half
+        // to the left edge, half to the right, and the middle left clear for the
+        // results panel — so a five-agent run frames the screen instead of
+        // covering it. CREW_BOTTOM=1 puts them back above the dock.
+        let atBottom = ProcessInfo.processInfo.environment["CREW_BOTTOM"] == "1"
+        let rowY = atBottom ? vf.minY - 12 : vf.maxY - AgentCharacter.totalHeight + 12
+        let leftCount = (n + 1) / 2
+        func slotX(_ i: Int) -> CGFloat {
+            if atBottom { return vf.midX - totalWidth / 2 + CGFloat(i) * spacing }
+            // Left group hugs the left edge, right group hugs the right.
+            let gap = min(w * 0.72, 210)
+            return i < leftCount
+                ? vf.minX + CGFloat(i) * gap
+                : vf.maxX - w - CGFloat(n - 1 - i) * gap
+        }
         for (i, spec) in roster.characters.enumerated() {
             guard let url = Bundle.main.url(forResource: spec.asset, withExtension: "mov")
                 ?? localAssetURL(spec.asset) else {
@@ -127,8 +145,8 @@ final class DockController {
                 continue
             }
             characters[spec.role] = AgentCharacter(role: spec.role, videoURL: url,
-                                         originX: startX + CGFloat(i) * spacing,
-                                         originY: vf.minY - 12,
+                                         originX: slotX(i),
+                                         originY: rowY,
                                          mirrored: spec.mirrored,
                                          // staggered entrance: a crew, not a rank
                                          slot: i)
@@ -206,13 +224,22 @@ final class DockController {
         guard now.timeIntervalSince(allDoneAt!) >= curtainAfter else { return }
         allDoneAt = nil
 
+        runFinished = true
         let keep = lastToFinish
         FileHandle.standardError.write(Data(
             "CURTAIN -> crew leaving, \(keep ?? "nobody") stays with the summary\n".utf8))
         for (role, c) in characters where role != keep { c.leave() }
     }
 
+    /// True once a run has ended, so the next incoming line starts a fresh
+    /// receipt instead of appending to the last one.
+    private var runFinished = true
+
     func apply(_ s: StatusServer.Status) {
+        if runFinished, s.state != "done" {
+            runFinished = false
+            panel?.clear()
+        }
         // stderr so the pipeline is verifiable from a log when you can't watch the screen
         let act = s.activity.isEmpty ? "" : " {\(s.activity)}"
         FileHandle.standardError.write(Data("DOCK <- \(s.character) [\(s.state)]\(act) \(s.message)\n".utf8))
@@ -224,7 +251,11 @@ final class DockController {
                 "  (no character named '\(s.character)' — spoken but NOT shown)\n".utf8))
             return
         }
-        if s.state == "done" { lastToFinish = s.character }
+        if s.state == "done" {
+            lastToFinish = s.character
+            // The receipt: what each agent actually finished, kept on screen.
+            panel?.finished(role: s.character, line: s.message)
+        }
         // First sight of this role: it joins the line-up and the crew re-centres.
         if !woken.contains(s.character) {
             woken.append(s.character)

@@ -10,7 +10,14 @@ them one at a time, checking as you go.
 
 ```
 Bash: say -v Samantha -r 190 -a "BlackHole 2ch" "<one command, phrased like a person>"
+Bash: sleep 5
 ```
+
+**A person is holding VoiceOS's Agent Mode key while you work.** They pressed it
+when the crew arrived and they are still holding it. Everything you speak goes
+straight into an assistant that will really do it — really create the note,
+really set the reminder, really book the slot. So say things you would be happy
+to have actually happen, and say them one at a time.
 
 ### What VoiceOS can actually reach
 

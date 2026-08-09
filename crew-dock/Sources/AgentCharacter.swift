@@ -14,6 +14,7 @@ final class AgentCharacter {
     static let width: CGFloat = 300
     static let charHeight: CGFloat = 170
     static let bubbleHeight: CGFloat = 86
+    static var totalHeight: CGFloat { charHeight + bubbleHeight }
 
     /// Where this character lives once it has arrived, and the anchor its roam
     /// wanders around. `enter()` animates to it from the top of the screen, so
@@ -229,7 +230,7 @@ final class AgentCharacter {
         let size = window.frame.size
         let resting = NSRect(origin: restingOrigin, size: size)
         var start = resting
-        start.origin.y = (window.screen ?? NSScreen.main)?.frame.maxY ?? resting.origin.y + 900
+        start.origin.y = ((window.screen ?? NSScreen.main)?.frame.maxY ?? resting.origin.y) + 40
 
         window.setFrame(start, display: false)
         window.alphaValue = 1
