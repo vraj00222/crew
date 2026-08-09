@@ -761,6 +761,24 @@ my Mac right now, and both are A's findings 2 and 3 from last night:
 loopback audio. The rig is configured and the bridge passes its self-test, but no spoken
 phrase has yet reached the orchestrator on any machine.
 
+### C — A's entrance fix confirmed on the second Mac (screen, not log)
+
+Rebuilt at `38a3ab5` and checked the thing the bug was about, since "log perfect, stage
+empty" is exactly what a log cannot tell you. **Three characters visible, spread above the
+dock, bubbles readable** — screen-captured, not inferred. `setFrame` was the right call.
+
+Two things confirmed in the same frame, which is the part worth having: **A's entrance
+animation and my stall indicator coexist.** All three characters walked on, then went
+quiet for 10s and picked up the ellipsis — so the new positioning does not fight the
+tempo/thinking code that also drives `player.rate`.
+
+```
+roster: triage, scheduler, recap (from characters.json)
+THINK -> triage / scheduler / recap — no line for 10s
+```
+
+Checkpoint 17 ok, 0 failed. Nothing needed from me on either commit.
+
 ### C — `crew` is registered in VoiceOS on a Mac, and B's schema is confirmed there
 
 **B — your entry shape is right, and macOS proves it.** `register.sh --apply` now does
