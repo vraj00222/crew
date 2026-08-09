@@ -97,9 +97,155 @@ Switch anytime with `/effort` or `/model`. If usage gets tight, add `--fallback-
 
 | Person | Workstream | Status | Blocked on |
 |---|---|---|---|
-| A | orchestrator | **both endpoints live + full 3-agent run works end to end (28s), real `claude -p`** | audio spike needs `brew install` (needs A at keyboard) |
-| B | voiceos-bridge | not started | — |
-| C | lil-agents-dock | not started | — |
+| A | orchestrator + dock + audio rig | **orchestrator done. Audio loopback PROVEN. Dock built. `./run-demo.sh` runs the whole thing.** | VoiceOS Pro trial not active — only thing left on A's side |
+| B | voiceos-bridge / mcp-server | **done and MERGED to main. Verified on A's Mac, end to end.** | the Gmail path decision (below) |
+| C | crew-dock (took option 2) | **the dock now talks.** `Narrator.swift` speaks every `/agent-status` line via `say`, per-character voices, never two at once. Verified end-to-end against `FAKE=1` — 3 characters on screen, 8 spoken lines, correct order | — (needs A's call on the two-speech-stream collision, see Blockers) |
+
+### ✅ FULL CHAIN INTEGRATED — B's MCP server → A's orchestrator → A's dock
+
+Run on A's Mac (the demo machine), not claimed from Windows:
+
+```
+ok  initialize     -> crew v0.1.0, proto 2025-06-18
+ok  tools/list     -> [run_crew_task, crew_task_status]  (survived a split frame)
+ok  run_crew_task  -> "The crew is on it. Task task_1 started"
+PASS — spoken phrase would reach the orchestrator.
+```
+…and all 16 status lines then landed on the dock in correct order, ending with
+`recap [done]`. **Everything from a spoken phrase to characters talking on screen now
+works.** The only untested link left in the whole system is VoiceOS itself hearing the
+audio — and the audio path into it is already proven separately.
+
+B's server also runs clean on macOS/Node 25 (it was written on Windows/Node 24), and
+its `.gitattributes` LF fix is a real save — a `.sh` committed from Windows would have
+landed CRLF and died as `bad interpreter: /bin/bash^M` on the demo Mac.
+
+**Bug that integration testing caught and A fixed:** dock POSTs were fire-and-forget
+`fetch()` calls, so they raced — `waking up` was arriving *after* a later line. On stage
+that reads as a character going backwards. They're now serialized through one promise
+chain, and re-verified in order.
+
+### What A needs from each of you
+
+**B —** the one decision that blocks your build: **Gmail has no path through VoiceOS**
+(`connectedIntegrations` is `["applecalendar"]`, and there are no email actions in
+`nativeActionToggles`). But Apple Mail *is* scriptable from inside VoiceOS. Pick one and
+put it in the decisions log: MCP owns Gmail / Apple Mail carries the inbox / the inbox
+half is narrated over seeded data. Until that's decided I can't write the real execution
+prompt — it's stubbed to dry-run and swaps in one file (`orchestrator/prompts/execution.md`,
+both options already written and commented out).
+You can build and test your MCP server against `FAKE=1 node orchestrator/server.js`
+right now without anything of mine being finished.
+
+**C —** read the Xcode note below *before* you build anything, it changes your handover.
+Also: **don't add your own queueing or delay** to incoming messages. I pace narration at
+~1.4s/line on the orchestrator side so the characters have a readable rhythm; if you
+delay on top, lines drift behind the agents. Lines arrive pre-truncated to 110 chars so
+they fit a bubble. Test against `curl` or `./run-demo.sh fake` — you are not blocked on me.
+
+### Read this first: `/crew` skill
+
+There's a project skill at `.claude/skills/crew/SKILL.md`. In your Claude Code session
+in this repo, type `/crew` — it loads the frozen contracts, the commands to test your
+own side without waiting on anyone, the commit ritual, and the machine gotchas that
+have already cost us time. Use it instead of re-reading this whole file.
+
+### One-command demo (works right now, no VoiceOS needed)
+
+```bash
+./run-demo.sh fake     # whole pipeline, canned narration, zero Claude spend
+./run-demo.sh          # whole pipeline, real headless agents, ~30s
+./run-demo.sh stop
+```
+This starts the dock, starts the orchestrator, fires the demo phrase, and prints the
+narration as it happens. **`fake` is the panic button** — if agents are failing at
+5:55pm, that still puts on the entire show with no Claude calls and no network.
+
+### A — dock app also built (crew-dock/), because of an Xcode problem
+
+**C: read this before you hand anything over.** The demo Mac has Command Line Tools but
+**no full Xcode** — `xcodebuild` does not run on it. lil-agents ships an `.xcodeproj`
+plus a Sparkle dependency, so *the upstream project cannot be built on the machine we
+are demoing from.* This is exactly the surprise we were trying to avoid finding at 5pm.
+
+Two ways out, your call:
+1. You keep your Xcode flow and hand over a **pre-built `Crew.app`**, not source. Bring
+   it over mid-afternoon as planned and we just run it.
+2. Use `crew-dock/` — I built a minimal one that compiles with `swiftc` alone in ~2s,
+   no project file, no dependencies, no signing. Borderless click-through windows above
+   the dock, one per agent, looping character video with a speech bubble. It already
+   accepts the exact `/agent-status` payload and logs every message it receives to
+   stderr. It's deliberately plain — if you want to make it good, this is the base to
+   build on and you won't fight a build system on demo day.
+
+Character art is fetched from lil-agents (MIT) at build time, not committed.
+
+### C — took option 2, and added the missing half: the dock now speaks
+
+Agreed, `crew-dock/` is the right base — my Mac has the same problem (Command Line
+Tools, no Xcode), so option 1 was never really on the table. Confirmed `build.sh`
+works from a clean clone on a second machine: ~15s, no Xcode, no signing.
+
+`crew-dock` updated bubbles but never made a sound, so the "agents narrate themselves"
+half of the demo was silent. `Sources/Narrator.swift` fixes that.
+
+**A, on "don't add your own queueing or delay" — I did not delay the bubbles.**
+`dock.apply()` still fires the instant a POST lands; your 1.4s pacing is untouched and
+the characters keep your rhythm. But speech can't work that way: a line takes ~2s to
+*speak*, so at 1.4s/line something has to give — overlap (garbled, and unusable for
+VoiceOS), queue (drifts), or skip. What it does:
+- bubbles: immediate, never queued
+- speech: one `say` at a time, never two characters talking over each other
+- speech trails the bubbles by a few seconds and skips lines only if it falls
+  more than 4 behind — reads as a character finishing its thought
+- a `Done:` line is **never** dropped — the sign-off always gets said
+- `"waking up"` is shown in the bubble but not spoken (it was costing a real line)
+
+**Tuning note, worth knowing:** two agents narrating in parallel share one voice
+channel, so lines arrive faster than they can physically be spoken. My first pass
+dropped over half the run — including *"Booking two PM with David Chen"*, the line the
+whole demo exists to produce. Raising the backlog to 4 and `say -r 200` fixed it.
+Current run speaks 8 lines and this is the whole script, in order:
+
+```
+[Samantha/triage]    Scanning the inbox.
+[Daniel/scheduler]   Reading the flagged emails.
+[Samantha/triage]    Archiving six newsletters.
+[Daniel/scheduler]   Booking two PM with David Chen.
+[Samantha/triage]    Done: inbox down to two real emails.
+[Daniel/scheduler]   Done: two meetings on the calendar.
+[Karen/recap]        Pulling together what the crew did.
+[Karen/recap]        Done: inbox cleared, two meetings booked.
+```
+
+Two lines get skipped ("Flagging two emails…", "Finding open slots tomorrow"). **A —
+if you want every line spoken, drop your `LINE_MS` pacing to ~2200 and I'll raise the
+backlog; the ceiling is speech rate, not the dock.**
+
+Knobs: `CREW_MUTE=1` silences narration entirely. `CREW_AUDIO_DEVICE="…"` picks the
+output device. `CREW_RATE` sets words-per-minute (default 200).
+`CREW_VOICE_TRIAGE` / `_SCHEDULER` / `_RECAP` override voices
+(default Samantha / Daniel / Karen).
+
+**Debugging on the day:** the dock logs `DOCK <- …` and `SAY -> …` to stderr, but
+`open Crew.app` throws stderr away. To see it, run the binary directly:
+`./crew-dock/Crew.app/Contents/MacOS/Crew` — that is the only reliable way to answer
+"did it actually speak?".
+
+Two bugs found by running it, both of which would have hit on stage:
+
+1. **The app crashed outright on a fast burst of messages.** Swift's `suffix()` returns
+   a slice that keeps the parent's indices, so inserting at 0 traps. The dock died
+   silently and the orchestrator's `fetch(...).catch(() => {})` swallowed the connection
+   error — so the orchestrator log printed a flawless run while the screen was empty.
+   Fixed, stress-tested with 13 back-to-back POSTs.
+2. **The narrator wedged after one line and went silent for good.** It relied on
+   `Process.terminationHandler` to advance the queue and that doesn't fire reliably;
+   one missed callback silenced the dock permanently. Now it blocks on
+   `waitUntilExit()` instead, with a 15s watchdog.
+
+**Takeaway for everyone: the orchestrator log is not evidence that anything reached the
+audience.** It reports what it *sent*. Confirm against the dock's own stderr.
 
 ### A — orchestrator: ready to integrate against (Sat 23:5x)
 
@@ -236,6 +382,19 @@ demo around one hands-free press at the top, not a per-utterance trigger.
 
 ## Blockers
 
+- **C → A, needs a decision before rehearsal: two speech streams will collide.**
+  `prompts/execution.md` Option A has each *agent* run `say -v Samantha "<command>"`
+  to drive VoiceOS. The dock now *also* speaks narration on every `/agent-status`
+  POST. Both land on the same speakers and the same mic, so an overlap feeds
+  VoiceOS a command mixed with unrelated narration and the loop breaks on stage.
+  The dock serializes its *own* narration (never two characters at once), but it
+  cannot see the agents' `say` calls — separate processes.
+  Proposed split, A's call since A owns audio:
+  - agent → VoiceOS commands: `say -a "BlackHole 2ch"` (VoiceOS listens there)
+  - dock → audience narration: `say -a "MacBook Air Speakers"`
+  Then the audience never hears the robot command voice and VoiceOS never hears
+  the narration. The dock already takes `CREW_AUDIO_DEVICE` for exactly this;
+  `CREW_MUTE=1` silences dock narration entirely if we'd rather not risk it.
 - **A — the one real blocker: VoiceOS Pro trial is not on A's account yet** (the free month
   from the event). Until it is, the loopback test can't run. BlackHole, the `crew`
   multi-output device, both scripts and the verification query are all ready and waiting —

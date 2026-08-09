@@ -30,16 +30,22 @@ function rolesFor(instructions) {
 }
 
 // --- state + dock push, always together so they can't drift ---
+// Fire-and-forget fetches race: integration testing caught "waking up" landing
+// AFTER a later line, which on stage looks like a character going backwards.
+// One chain keeps the dock's view in the order things actually happened.
+// ponytail: single global chain, fine at ~20 posts/run; per-role chains if it grows.
+let dockChain = Promise.resolve();
+
 function say(task, role, state, message) {
   const agent = task.agents[role];
   agent.state = state;
   if (message) agent.lastMessage = message;
   console.log(`[${task.taskId}] ${role} (${state}): ${agent.lastMessage}`);
-  fetch(DOCK, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ character: role, message: agent.lastMessage, state }),
-  }).catch(() => {}); // dock may not be up — never block the demo on it
+  const body = JSON.stringify({ character: role, message: agent.lastMessage, state });
+  dockChain = dockChain.then(() =>
+    fetch(DOCK, { method: 'POST', headers: { 'content-type': 'application/json' }, body })
+      .catch(() => {}) // dock may not be up — never block the demo on it
+  );
 }
 
 // The model usually emits all its narration in ONE event. Split to lines so the

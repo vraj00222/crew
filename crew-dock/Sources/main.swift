@@ -35,7 +35,13 @@ final class DockController {
     }
 
     func apply(_ s: StatusServer.Status) {
-        characters[s.character]?.apply(message: s.message, state: s.state)
+        // stderr so the pipeline is verifiable from a log when you can't watch the screen
+        FileHandle.standardError.write(Data("DOCK <- \(s.character) [\(s.state)] \(s.message)\n".utf8))
+        guard let c = characters[s.character] else {
+            FileHandle.standardError.write(Data("  (no character named '\(s.character)')\n".utf8))
+            return
+        }
+        c.apply(message: s.message, state: s.state)
     }
 }
 
@@ -43,8 +49,11 @@ let app = NSApplication.shared
 app.setActivationPolicy(.accessory)   // no dock icon, no menu bar — just the characters
 
 let dock = DockController()
+let narrator = Narrator()
 guard let server = StatusServer(port: 4002, onStatus: { status in
+    // Bubble updates immediately; speech queues behind whoever is talking.
     DispatchQueue.main.async { dock.apply(status) }
+    narrator.narrate(character: status.character, message: status.message, state: status.state)
 }) else {
     FileHandle.standardError.write(Data("could not bind :4002 — already in use?\n".utf8))
     exit(1)
