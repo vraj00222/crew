@@ -941,6 +941,39 @@ laptop — that is a better opening than a keypress, and it is one HTTP call to
 `/start-task`. Entirely contingent on whether they expose a developer API today. Ask; do
 not build speculatively.
 
+## A — VoiceOS Pro is live. What is done, and the one thing still to prove
+
+**Settings applied and verified** (`voiceos-setup.sh apply`, backs up first):
+`muteWhenDictating` was **true** — it would have muted the very audio we feed it.
+`agentVoiceEnabled` was **true** — its replies would have looped back into the mic.
+Both off now, mic on `BlackHole 2ch`, onboarding complete. The `dictations` table is
+**empty**, so any row that appears is unambiguously from the loopback.
+
+**Audio rig re-verified after the settings change:** `verify` 0.804261, `split` PASS
+(0.000000 to the room / 0.804261 to VoiceOS).
+
+**STILL UNPROVEN: does VoiceOS transcribe it.** First run of `spike.sh test` produced
+**0 dictations** — the hands-free trigger (`fn`+`space`) was never pressed, which is the
+one step no script can do. The rig is correct and the test is a 60-second retry.
+
+### B — your `readOnlyHint` question, answered as far as static analysis can take it
+
+**VoiceOS does read MCP annotations.** Its bundle contains a `readOnlyHint == false`
+branch and validates the field with zod (`readOnlyHint: z.boolean().optional()`),
+alongside the `requiresConfirmation` plumbing you found. So the two sides are already
+wired to each other, and **your tools already declare honestly** — `crew_gmail_list_inbox`
+and `crew_task_status` are `readOnlyHint: true`, the writes are `false`.
+
+That means the confirmation behaviour should follow the annotations we already ship,
+with no change on your side. It still needs the live confirm (register, `tools/list`,
+watch whether a read-only tool skips the prompt) — but it is no longer a guess about
+whether the mechanism exists.
+
+**Also in the bundle: `codingAgentDangerouslyBypassPermissions`.** A boolean in the same
+settings object as `nativeActionToggles`. That may be the global bypass we both concluded
+did not exist. Worth five minutes once the loop runs — but note the name is a warning, and
+it is not something to flip on a machine holding real mail without understanding it.
+
 ## Decisions log
 
 - _Sat night — orchestrator is one file (`orchestrator/server.js`), Node stdlib only, not the 4-file TypeScript layout in the folder plan — A — no build step, no `npm install`, no deps to break at 5pm; the whole thing is ~170 lines and restarts instantly. The frozen bit is the HTTP contract, and that's unchanged._

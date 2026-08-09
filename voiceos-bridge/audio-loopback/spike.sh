@@ -21,11 +21,16 @@ VOICEOS_DEVICE="${VOICEOS_DEVICE:-BlackHole 2ch}"       # VoiceOS only
 #   $ say -a "BlackHole 2ch" hello
 #   NSInvalidArgumentException: Range {0, 13} out of bounds; string length 7
 #
-# It walks the requested name across every device name in the list, so ANY name
-# longer than the SHORTEST connected device's name crashes it. Plug in EarPods
-# (7 chars) and every device with a longer name becomes uncallable — which is
-# most of them, including both of ours. Found the moment headphones went in.
-# Numeric IDs have no such path, so always resolve the name to an ID first.
+# It compares the requested name against the connected device names, and the
+# comparison runs off the end of a shorter one. Reproduced with EarPods (7 chars)
+# plugged in: BOTH "BlackHole 2ch" and "MacBook Pro Speakers" crashed. Unplug
+# EarPods and the same two names work again — so whether it crashes depends on
+# what is currently connected, which is not something to reason about on stage.
+# Numeric IDs have no such path. Always resolve the name to an ID.
+#
+# IDs are NOT stable: plugging EarPods in and out moved BlackHole 89 -> 88.
+# So resolve at start-up (which the dock does) and do not change audio devices
+# mid-run — a cached ID can go stale under you.
 say_id() {  # say_id "<device name>" -> numeric id, or empty if not present
   say -a '?' 2>/dev/null | awk -v want="$1" '
     { id=$1; $1=""; sub(/^ +/,""); if ($0==want) { print id; exit } }'
