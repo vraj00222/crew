@@ -1571,6 +1571,53 @@ orchestrator/test.sh PASS
 | 3 `live` | nothing (fake backend) | ready — 15 tool calls, mailbox 18 → 2 |
 | 4 `wait` + VoiceOS | B's helper | **rig ready, waiting on one action** |
 
+## 🎬 A — the crew now arrives when you press a key, and drops out of the notch
+
+Two changes to how the demo *opens*, because "somebody types a command" is a bad first
+beat — it says a script did this. A chord says *I asked, and they came*.
+
+**1. Entrance.** Characters used to fade in already standing above the dock. They now
+**start at the top of the screen and walk down** to their place, staggered ~0.18s apart so
+they arrive as a crew rather than a rank. It reads as them coming out of the machine, and
+it fills the second or two before the first agent has anything to say — which used to be
+dead air right at the open.
+
+**2. Global hotkey: `⌃⌥C` wakes the crew** from anywhere, no terminal.
+
+```
+hotkey ready: control-option-C wakes the crew
+HOTKEY -> waking the crew: "clean up my inbox and schedule everything"
+```
+
+Deliberately **not** plain `⌃⌥`: VoiceOS has that exact pair registered as its own chord,
+and two things firing on one press is a stage bug nobody would diagnose in the moment.
+`CREW_PHRASE` overrides what it asks for.
+
+It needs **Accessibility** (same grant `spike.sh trigger` needs). Without it the monitor
+silently never fires, so the dock says so at start-up instead of leaving it a mystery —
+and if the orchestrator is not up, the chord logs `HOTKEY !! orchestrator did not answer`
+rather than doing nothing visible.
+
+**Untested honestly:** a *synthesised* keystroke does not trigger it, the same way it did
+not trigger VoiceOS's chord — global monitors and posted events do not meet. **A real
+human press is the test, and only a person can run it.**
+
+### The demo this gives us, with no VoiceOS and nobody's helper
+
+```bash
+./run-demo.sh wait     # everything up, nothing asked for
+# press ⌃⌥C
+```
+
+Crew drops out of the top of the screen → walks down → starts working → talks in three
+human voices → hands findings to each other → recap closes. **One key press, no terminal
+in the shot.** That is a complete demo today, and VoiceOS becomes an upgrade to the
+trigger rather than a dependency of the show.
+
+**C —** both changes are in your files again (`AgentCharacter.enter()`, and the monitor at
+the bottom of `main.swift`). Entrance is ~20 lines and self-contained; the hotkey is
+arguably not a dock concern at all and I would not argue if you want it moved out.
+
 ## Decisions log
 
 - _Sat night — orchestrator is one file (`orchestrator/server.js`), Node stdlib only, not the 4-file TypeScript layout in the folder plan — A — no build step, no `npm install`, no deps to break at 5pm; the whole thing is ~170 lines and restarts instantly. The frozen bit is the HTTP contract, and that's unchanged._

@@ -15,8 +15,18 @@ final class AgentCharacter {
     static let charHeight: CGFloat = 170
     static let bubbleHeight: CGFloat = 86
 
-    init(role: String, videoURL: URL, originX: CGFloat, originY: CGFloat, mirrored: Bool = false) {
+    /// Where this character lives once it has arrived. `enter()` animates to it
+    /// from the top of the screen, so the resting place has to outlive the frame.
+    private let restingOrigin: NSPoint
+    /// Staggered per slot so the crew arrives one after another, not in a rank.
+    private let entranceSeconds: TimeInterval
+    private static let entranceBase: TimeInterval = 0.85
+
+    init(role: String, videoURL: URL, originX: CGFloat, originY: CGFloat,
+         mirrored: Bool = false, slot: Int = 0) {
         self.role = role
+        self.restingOrigin = NSPoint(x: originX, y: originY)
+        self.entranceSeconds = Self.entranceBase + Double(slot) * 0.18
 
         let height = Self.charHeight + Self.bubbleHeight
         window = NSWindow(contentRect: NSRect(x: originX, y: originY, width: Self.width, height: height),
@@ -92,12 +102,7 @@ final class AgentCharacter {
     func apply(message: String, state: String, activityRate: Float? = nil) {
         self.activityRate = activityRate
         let waking = window.alphaValue == 0
-        if waking {
-            NSAnimationContext.runAnimationGroup { ctx in
-                ctx.duration = 0.45
-                window.animator().alphaValue = 1
-            }
-        }
+        if waking { enter() }
         currentMessage = message
         currentState = state
         lastLineAt = Date()
@@ -153,6 +158,31 @@ final class AgentCharacter {
         // on every loop. Cheap, and it keeps the state legible for a whole run.
         let want = desiredRate()
         if player.rate != want { player.rate = want }
+    }
+
+    /// The characters arrive by dropping out of the top of the screen and walking
+    /// down to their place above the dock, instead of fading in already there.
+    ///
+    /// It reads as the crew coming out of the machine rather than as three
+    /// windows appearing, and it gives the audience something to watch during the
+    /// second or two before the first agent has anything to say — which used to
+    /// be dead air right at the open. Staggered per character so they arrive as a
+    /// crew rather than a rank.
+    ///
+    /// Position is animated on the window itself: these are borderless
+    /// click-through windows, so there is no layout to fight.
+    private func enter() {
+        let drop = restingOrigin
+        var start = drop
+        start.y = (window.screen ?? NSScreen.main)?.frame.maxY ?? drop.y + 900
+        window.setFrameOrigin(start)
+        window.alphaValue = 1
+        player.play()
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = entranceSeconds
+            ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            window.animator().setFrameOrigin(drop)
+        }
     }
 
     /// One small hop, on the layer so it costs nothing and can't fight AppKit.

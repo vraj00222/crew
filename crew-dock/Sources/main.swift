@@ -110,7 +110,9 @@ final class DockController {
             characters[spec.role] = AgentCharacter(role: spec.role, videoURL: url,
                                          originX: startX + CGFloat(i) * AgentCharacter.width,
                                          originY: vf.minY - 12,
-                                         mirrored: spec.mirrored)
+                                         mirrored: spec.mirrored,
+                                         // staggered entrance: a crew, not a rank
+                                         slot: i)
         }
     }
 
@@ -162,4 +164,50 @@ guard let server = StatusServer(port: 4002, onStatus: { status in
     exit(1)
 }
 server.start()   // prints "listening" itself, once the bind actually succeeds
+
+/// Global hotkey: ⌃⌥C wakes the crew, from anywhere, with no terminal.
+///
+/// The demo used to begin with somebody typing a command, which is a bad first
+/// beat — it says "a script did this". A chord says "I asked, and they came".
+/// It is deliberately NOT plain ⌃⌥: VoiceOS has that exact pair registered as
+/// its own chord, and two things firing on one press is a stage bug nobody
+/// would diagnose in the moment.
+///
+/// Needs Accessibility (System Settings -> Privacy & Security -> Accessibility),
+/// the same grant `spike.sh trigger` needs. Without it the monitor silently
+/// never fires, so we say so at start-up rather than leaving it a mystery.
+let hotkeyPhrase = ProcessInfo.processInfo.environment["CREW_PHRASE"]
+    ?? "clean up my inbox and schedule everything"
+
+func wakeTheCrew() {
+    guard let url = URL(string: "http://localhost:4001/start-task") else { return }
+    var req = URLRequest(url: url)
+    req.httpMethod = "POST"
+    req.setValue("application/json", forHTTPHeaderField: "content-type")
+    req.httpBody = try? JSONSerialization.data(withJSONObject: ["instructions": hotkeyPhrase])
+    FileHandle.standardError.write(Data("HOTKEY -> waking the crew: \"\(hotkeyPhrase)\"\n".utf8))
+    URLSession.shared.dataTask(with: req) { _, resp, err in
+        let code = (resp as? HTTPURLResponse)?.statusCode ?? 0
+        if code != 200 {
+            // The orchestrator not being up is the one likely failure, and it is
+            // invisible otherwise — the chord would just do nothing.
+            FileHandle.standardError.write(Data(
+                "HOTKEY !! orchestrator did not answer (\(err?.localizedDescription ?? "HTTP \(code)")) — is ./run-demo.sh wait running?\n".utf8))
+        }
+    }.resume()
+}
+
+if AXIsProcessTrusted() {
+    NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { e in
+        // keyCode 8 == "c". Match on the flags we care about and ignore the rest.
+        let mods = e.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        if e.keyCode == 8, mods.contains(.control), mods.contains(.option) { wakeTheCrew() }
+    }
+    FileHandle.standardError.write(Data("hotkey ready: control-option-C wakes the crew\n".utf8))
+} else {
+    FileHandle.standardError.write(Data((
+        "hotkey OFF — no Accessibility permission, so control-option-C will do nothing.\n"
+        + "  System Settings -> Privacy & Security -> Accessibility -> add this app or your terminal.\n").utf8))
+}
+
 app.run()
