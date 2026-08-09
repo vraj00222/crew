@@ -131,7 +131,7 @@ Switch anytime with `/effort` or `/model`. If usage gets tight, add `--fallback-
 
 | Person | Workstream | Status | Blocked on |
 |---|---|---|---|
-| **D — Yaseen** | character art + visual identity | **fifth machine, FULL CHECKPOINT PASS on `b51e3dc` — 15 ok / 0 failed / 5 N/A, dress rehearsal included (16 received, 10 spoken, 0 dropped).** Art itself not started yet. Clean setup needed `node`; getting there found **a hang in `checkpoint.sh` on any machine without node — see Blockers, it's A's file.** C's stale-binary check also caught me for real after a pull — worked exactly as intended. **A/C: `crew-dock/Assets/**` is mine per the onboarding table but it's gitignored, so no original art can be committed — see my section at the bottom for the one-character fix and the trap in it.** Next: a distinct clip for `recap` (it's triage flipped, and it's the one on stage), then `researcher` + `analyst` | nothing. Your work is new files only; you cannot be blocked by us |
+| **D — Yaseen** | character art + visual identity | **fifth machine, FULL CHECKPOINT PASS on `b51e3dc` — 15 ok / 0 failed / 5 N/A, dress rehearsal included (16 received, 10 spoken, 0 dropped).** Art itself not started yet. Clean setup needed `node`; getting there found **a hang in `checkpoint.sh` on any machine without node — see Blockers, it's A's file.** C's stale-binary check also caught me for real after a pull — worked exactly as intended. **Gitignore blocker RESOLVED by A in `4e8d202` and verified here — original art is committable, 4MB/clip, and `recap` is the agreed priority. Nothing of mine is open.** Next and only: the `recap` clip | nothing. Your work is new files only; you cannot be blocked by us |
 | **E — Rukaiya** | rehearsal, resilience, backup rig | **backup rig PROVEN — clean clone → full show → CHECKPOINT PASS (17 ok / 0 failed) on a second MacBook Air.** Clone to spoken demo in 72s, 16 lines received, 10 spoken, 0 dropped. C's speaker fallback fired for real here (no `MacBook Pro Speakers` on an Air) and saved the run — see my section at the bottom. Onboarding fixed where my run disproved it. **Break-glass table now TESTED, row by row — one row was half-true: a hung agent can wedge the whole run after saying "ran out of time" (A: repro + fix in my section and Blockers).** **All three deliverables done: `docs/runbook.md` written (one page, folds in the voice-only rule + Dictation hedge + tested break-glass), and a clean 10/10 run recorded with audio — 75s, 11MB, on my Desktop, posting to the chat.** **Rung 2 now also proven here — first real-agent run on a Mac that isn't A's: 10/10 spoken, beat-sheet numbers exact (18 in, 14 archived, 2 booked, 2 left). The backup rig covers rungs 1 and 2.** | nothing |
 | A | orchestrator + dock + audio rig | **CHECKPOINT READY — everyone run `./checkpoint.sh`, see the Checkpoint section at the bottom.** Orchestrator done, 3 modes (`narrate`/`live`/`voice`) selected by a flag not a file edit. Audio split decided + measured. 10/10 lines spoken, 0 dropped. Three accents + written personalities. Characters no longer freeze. `docs/demo-script.md` written. Full chain with real agents: ~45s, PASS | VoiceOS Pro trial not active — still the only thing left on A's side |
 | B | voiceos-bridge (mcp-server + demo-seed + Gmail/Calendar tools) | **VoiceOS Pro is LIVE on Windows and Gmail is connected — but `customMcpServers` is empty, so VoiceOS still cannot reach the crew. That GUI step is the last thing between us and the voice loop; see my section below.** `run-demo.ps1` now runs the whole pipeline on Windows (16 lines to the dock, A's exact number), so the one non-Mac can finally rehearse. `verify.ps1` 6 suites all green. Checkpoint 13 ok / 1 failed — and the 1 is A's new check working correctly: `claude` on this box is logged out, which the old `have claude` test called a PASS. All 8 tools built and tested. **`crew_task_status` closes the loop: no taskId needed, and it answers in a spoken sentence instead of a JSON dump** — see below. Tool `annotations` declared on all 8 tools, honestly. Gmail decision made; A unblocked. VoiceOS installed on Windows and inspected — see the tool-naming finding. **A — both of my findings are fixed by you and confirmed: rung 3 really calls the tools, and the claude check now catches a logged-out box (mine). `CANNED.recap` still lies for a research crew, off the rehearsed path.** **README brought up to date with the proven voice loop, and `VOICEOS-FEEDBACK.md` corrected where today disproved it — the `dictations` finding is now its headline item.** | **Pro is live. Two left, neither blocking a rung we'd show: `customMcpServers` still 0 on my box (GUI step), and no Google OAuth for the `google` backend — `fake` needs neither.** |
@@ -2270,17 +2270,22 @@ Upstream's `walk-bruce-01.mov` / `walk-jazz-01.mov` stay ignored, so the repo do
 gain 18MB of someone else's MIT art and the README's "fetched at build time, not
 committed" stays true of everything except what I drew.
 
-**A/C — flagging rather than landing it, because the ~20MB cap in my task block needs a
-number.** Upstream's two clips are already ~18MB (8.8 + 9.0). If that cap covers what's
-on disk, I have ~2MB for two clips and it decides resolution and loop length before I
-render anything. If it only covers what's committed, I have room. **Which is it?** That
-answer changes my export settings, so it's worth 30 seconds now rather than a re-render
-later. `.gitignore` is in nobody's ownership row; I'll make the change with the first
-clip and say so in the commit.
+~~**A/C — flagging rather than landing it, because the ~20MB cap needs a number.**~~
+~~**Priority note, A's call not mine:** recap or researcher/analyst first?~~
 
-**Priority note, A's call not mine:** my task block says "at least `researcher` and
-`analyst`", but neither appears in the rehearsed run — "clean up my inbox and schedule
-everything" routes to triage + scheduler + recap. What *is* on stage is `recap`, which
-is `triage`'s clip mirrored, so two of the three characters the audience sees are the
-same person. If there's only time for one clip, I think it should be `recap`. Say if
-you'd rather I did the new roles first.
+**BOTH ANSWERED BY A in `4e8d202` — nothing open here, don't re-read the above.**
+
+- **The ignore rule is fixed, and A found a smaller fix than mine.** Ignoring the two
+  upstream files *by name* means no directory is excluded, so the descent trap never
+  applies and anything I draw is committable **without another `.gitignore` edit ever**.
+  Mine needed a new `!` line per clip; this needs none. Verified on my machine:
+  `walk-recap-01.mov` and `walk-researcher-01.mov` committable, both upstream clips
+  still ignored.
+- **Size: 4MB per clip, 20MB total committed, upstream's 18MB doesn't count.** Constraint
+  is clone time (E's 72s), not disk. Format: HEVC+alpha, 1080×1920 — and `AgentCharacter`
+  scales to 170pt, so detail past that is wasted bytes.
+- **Priority: `recap` first and alone if only one.** Then triage/scheduler; researcher
+  and analyst last, off the rehearsed path.
+
+Casting against the Piper voices: recap = amy (warm), triage = alba (Scottish, dry),
+scheduler = northern english male (brisk).
