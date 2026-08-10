@@ -4,15 +4,13 @@
 
 ### An agent swarm you watch instead of read.
 
-Say one sentence out loud. Five characters appear along the bottom of your screen, work
-through your inbox in five different accents, and hand tasks between themselves until it's
-done. About 45 seconds, and you don't touch the machine after the first sentence.
+Say one sentence out loud. Five characters appear along the bottom of your screen, work together through your inbox, calendar, Notion, and messages in five different accents, and hand tasks between themselves until it's done. About 45 seconds, and you don't touch the machine after the first sentence.
 
-When you walk away from the laptop, they phone you. An agent that hits a decision only you
-can make rings your actual phone, asks the question out loud, and the crew carries on from
-your answer.
+When you walk away from the laptop while a big task is in progress, they phone you. An agent that hits a decision only you can make rings your actual phone, asks the question out loud, and the crew carries on from your answer.
 
 `voice-native` · `5 agents` · `~45 seconds` · `they call you` · `zero dependencies` · `macOS + Windows`
+
+![The whole workflow — one spoken sentence, five characters on the dock, and the crew phones you when it needs you](docs/workflow.png)
 
 </div>
 
