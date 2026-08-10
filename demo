@@ -69,7 +69,7 @@ fi
 # the phone what `./run-demo.sh fake` is to the agents, and it is what you reach
 # for when the venue wifi decides the demo is over.
 if [ "${1:-}" = phone-fake ]; then
-  export CREW_MODE=direct CREW_PHONE_FAKE=1
+  export CREW_MODE=direct CREW_PHONE_FAKE=1 CREW_REAL_CALENDAR=1
 fi
 
 # Voices, devices and pacing all come from run-demo.sh so there is exactly one

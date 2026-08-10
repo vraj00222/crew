@@ -178,7 +178,48 @@ module.exports = {
     return { booked: true, event: ev };
   },
 
+  // CREW_REAL_CALENDAR=1 reads the MAC's actual calendar instead of the fixture,
+  // via AppleScript. The fixture exists so the demo runs anywhere with no
+  // account; this exists so it can be real when someone asks about THEIR week and
+  // wants to see their own events on screen.
+  //
+  // ~9s on this machine — Calendar.app scripting is slow and there is nothing to
+  // be done about that, so it is opt-in rather than the default.
+  realEvents(days = 7) {
+    const { execFileSync } = require('node:child_process');
+    // ONE whose-clause, not nested repeats. The loop version walked every event
+    // of every calendar in AppleScript and timed out at 30s; this is the same
+    // question asked in a form Calendar.app can answer in about nine.
+    const q = (what) =>
+      `tell application "Calendar" to get ${what} of every event of every calendar `
+      + `whose start date > (current date) and start date < ((current date) + ${days} * days)`;
+    const run = (what) => execFileSync('osascript', ['-e', q(what)],
+      { encoding: 'utf8', timeout: 60000 }).trim();
+    // Summaries only. AppleScript returns a comma-joined list and its dates
+    // contain commas of their own ("date Tuesday, August 11, 2026 at 5:30 PM"),
+    // so pairing the two lists by index silently mismatched them. The names are
+    // what a person asked for; a wrong time is worse than no time.
+    return run('summary').split(', ')
+      .map((x) => x.trim())
+      .filter((x) => x && x !== ',')
+      .map((summary) => ({ summary, createdByCrew: false }));
+  },
+
   listEvents({ dayOffset = 1 } = {}) {
+    if (process.env.CREW_REAL_CALENDAR === '1') {
+      try {
+        const events = this.realEvents(Number(process.env.CREW_CALENDAR_DAYS || 7));
+        return { source: 'your real calendar', count: events.length, events };
+      } catch (e) {
+        // Never fail the run over this — fall through to the fixture and say so.
+        return { source: 'fixture (real calendar unreadable: ' + e.message.slice(0, 60) + ')',
+                 ...this._fixtureEvents({ dayOffset }) };
+      }
+    }
+    return this._fixtureEvents({ dayOffset });
+  },
+
+  _fixtureEvents({ dayOffset = 1 } = {}) {
     const db = load();
     const day = new Date();
     day.setDate(day.getDate() + dayOffset);
