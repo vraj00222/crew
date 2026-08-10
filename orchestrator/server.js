@@ -68,6 +68,10 @@ const BRIDGE_ENV = [
   'CREW_VOICE_PORT', 'CREW_ASK_WAIT_MS', 'CREW_CALL_LOG', 'CREW_REPORT_COOLDOWN_MS',
   'A1MOBILE_TEAM_KEY', 'A1MOBILE_DRY', 'A1MOBILE_BASE_URL', 'A1MOBILE_TIMEOUT_MS',
   'OPENAI_API_KEY',
+  // Reads the Mac's actual calendar instead of the fixture. Left off this list
+  // it is silently dropped, and the crew answers "no events" about a calendar
+  // with 43 in it — the tool was right and never saw the flag.
+  'CREW_REAL_CALENDAR', 'CREW_CALENDAR_DAYS',
 ];
 const mcpConfig = (task, role) => JSON.stringify({
   mcpServers: {
