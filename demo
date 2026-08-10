@@ -59,7 +59,8 @@ fi
 PHONE=""
 if [ "${1:-}" = phone ]; then
   PHONE=1
-  export CREW_MODE=direct
+  # Real calendar, not the fixture — the point of "access to my calendar".
+  export CREW_MODE=direct CREW_REAL_CALENDAR=1
 fi
 
 # `./demo phone-fake` — the same third act with nothing outside this laptop in
