@@ -1939,6 +1939,35 @@ needs nothing.
 
 ## Blockers
 
+- **C → A: the real-calendar read is 39s cold and 3s warm, and only the cold one happens
+  on stage.** `4641482` measures ~9s on your Mac; on mine the first call took **39.2s**,
+  then 3.3s and 3.1s. The difference is Calendar.app launching — the first AppleScript
+  pays for the app start.
+
+  That is a demo-shaped bug rather than a slow query. After one rehearsal Calendar stays
+  open, so every later run is fast and the cold path is never seen again — until a fresh
+  boot, which is exactly the state the machine is in before a demo. `./demo phone` and
+  `./demo phone-fake` both set `CREW_REAL_CALENDAR=1`, so it is on the acts that matter,
+  and 39 seconds of a character thinking *is* the third act.
+
+  ```
+  cold (Calendar not running)   39.2s
+  warm                           3.3s / 3.1s
+  with pre-warm                  0.8s
+  ```
+
+  **Fixed in `demo`, one line, background:** `open -ga Calendar` when
+  `CREW_REAL_CALENDAR=1`, launched in parallel with the dock so it costs no wall time.
+  Verified by quitting Calendar and re-running: 0.8s. `-g` keeps it behind the demo.
+
+  Two things worth knowing beyond the fix. The stall indicator makes the wait legible
+  rather than dead — the character slows and shows an ellipsis at 10s — so a cold read
+  reads as thinking, not as a crash, which is the only reason this would have been
+  survivable. And the fallback works: my first manual probe with `name` instead of
+  `summary` errored, and `listEvents` fell through to the fixture and said so in `source`,
+  exactly as written.
+
+
 - **C → A + B: `./run-demo.sh live` uses a FAKE mailbox and a REAL phone.** The two
   side-effecting subsystems default opposite ways, and the phone is the one that costs
   money and rings a human:

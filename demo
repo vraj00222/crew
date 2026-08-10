@@ -73,6 +73,20 @@ if [ "${1:-}" = phone-fake ]; then
   export CREW_MODE=direct CREW_PHONE_FAKE=1 CREW_REAL_CALENDAR=1
 fi
 
+# Warm Calendar.app before the show, not during it.
+#
+# The real-calendar read is ~3s once Calendar is running and ~39s when it is
+# not, because the first AppleScript has to launch the app. Measured on C's Mac:
+# 39.2s cold, then 3.3s and 3.1s. That is a demo-shaped bug — after the first
+# rehearsal Calendar stays open, so every later run is fast and the cold path is
+# never seen again until a fresh boot, which is exactly the state the machine is
+# in before a demo. Thirty-nine seconds of a character thinking is the whole act.
+#
+# `-g` keeps it in the background, so nothing appears in front of the demo, and
+# `&` means the launch overlaps the dock and orchestrator coming up rather than
+# adding to the time before you can start.
+[ "${CREW_REAL_CALENDAR:-}" = 1 ] && open -ga Calendar 2>/dev/null &
+
 # Voices, devices and pacing all come from run-demo.sh so there is exactly one
 # place that decides them.
 export CREW_AUDIO_DEVICE="${CREW_AUDIO_DEVICE:-MacBook Pro Speakers}"
