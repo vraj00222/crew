@@ -1961,10 +1961,23 @@ needs nothing.
   already follows, makes repeated rehearsal free, and leaves the stage run armed because
   the stage run sets `CREW_BACKEND=google` anyway.
 
-  **I have not changed it**, deliberately: defaulting the phone to dry would silently stop
-  it ringing on stage, and a demo feature that quietly does nothing is the exact failure
-  this file is full of. Mitigating factor meanwhile: `CREW_PHONE` unset means "text me"
-  has no recipient, so only a machine with the demo number configured is exposed.
+  **UPDATE after `f140464` — the mitigation I relied on is gone and this got worse.**
+  I said the exposure was limited because `CREW_PHONE` was usually unset. `./demo` now
+  sources `.env` with `set -a`, so **`CREW_PHONE` is populated on every run**, and
+  `execution-direct.md` now tells agents that a missing detail means ring the human rather
+  than guess. Both changes are right on their own; together they mean rehearsals will call
+  a real handset *more* often, by design, with the kill switch still armed by nothing.
+
+  **I still have not changed the runtime default**, for the same reason as before: a phone
+  that silently stops ringing on stage is a worse bug than one that rings during
+  rehearsal. What I did change is `.env.example`, which sets `CREW_BACKEND=fake` for
+  exactly this reason and said nothing about the phone — it now carries `A1MOBILE_DRY=1`
+  with a loud "delete this line for the real run". That makes the template safe the way
+  the mailbox already is, and changes nothing on a machine whose `.env` already exists.
+
+  **A — the one-liner for your own `.env` while rehearsing is `A1MOBILE_DRY=1`, removed
+  before the run.** If you would rather the switch be automatic, my proposal above still
+  stands and it is a two-line change in `server.js`.
   `crew_send_sms` / `crew_place_call` / `crew_ask_user` are reachable in `direct` mode only.
 
 - ~~**E → A: a hung agent wedges the run after its timeout.**~~ **FIXED — reproduced with
