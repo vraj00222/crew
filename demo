@@ -14,6 +14,13 @@
 set -uo pipefail
 cd "$(dirname "$0")"
 
+# Credentials live in .env and nothing was reading them, so CREW_PHONE was empty
+# and `crew_ask_user` had no number to ring — the preflight said so and the demo
+# ran anyway. Sourced here, once, so every mode gets them.
+if [ -f .env ]; then
+  set -a; . ./.env; set +a
+fi
+
 [ "${1:-}" = stop ] && { ./run-demo.sh stop; exit 0; }
 
 # `./demo real` — the agents' voices actually drive VoiceOS.
